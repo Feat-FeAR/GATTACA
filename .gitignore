@@ -1,4 +1,5 @@
-
+# Rproject files 
+*.Rproj
 
 # -----------------------------------------------------------------------------
 # Please put all custom ignores above this line
