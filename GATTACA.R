@@ -174,10 +174,7 @@ if (getOption("append.annot")) {
 }
 
 
-options(scriptName = NULL,
-        save.PNG.plot = NULL,
-        save.PDF.plot = NULL,
-        append.annot = NULL)
+
 
 
 # * Data Loading -------------------------------------------------------------------------------------------------------
