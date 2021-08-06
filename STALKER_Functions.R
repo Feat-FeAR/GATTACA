@@ -107,8 +107,9 @@ appendAnnotation = function(gene.stat, ann, do.the.job = getOption("append.annot
 #   gene  = Numeric vector or single-row data frame from gene expression matrix
 #   gr    = Group names
 #   des   = Experimental design (full design mode vector)
+#   prec  = Decimal precision
 #
-descStat1G = function(gene, gr, des)
+descStat1G = function(gene, gr, des, prec = 4)
 {
   # Define a new empty data frame
   stat.frame = data.frame(GROUP = character(),
@@ -125,10 +126,10 @@ descStat1G = function(gene, gr, des)
     
     stat.frame[i,1] = gr[i]
     stat.frame[i,2] = sum(des == i)
-    stat.frame[i,3] = mean(n.gene)
-    stat.frame[i,4] = var(n.gene)
-    stat.frame[i,5] = sd(n.gene)
-    stat.frame[i,6] = sd(n.gene)/sqrt(sum(des == i)) # SEM
+    stat.frame[i,3] = round(mean(n.gene), digits = prec)
+    stat.frame[i,4] = round(var(n.gene), digits = prec)
+    stat.frame[i,5] = round(sd(n.gene), digits = prec)
+    stat.frame[i,6] = round(sd(n.gene)/sqrt(sum(des == i)), digits = prec) # SEM
   }
   
   return(stat.frame)
@@ -145,8 +146,9 @@ descStat1G = function(gene, gr, des)
 #   des         = Experimental design (full design mode vector)
 #   gois        = Genes of interest by probe (char vector)
 #   chart.type  = "BP" (Box Plot), "BC" (Bar Chart), or "MS" (Mean & SEM)
+#   ann         = Optional annotation data frame
 #
-singleGeneView = function(exp.mat, gr, des, gois, chart.type = "BP")
+singleGeneView = function(exp.mat, gr, des, gois, chart.type = "BP", ann = NULL)
 {
   geo = switch(chart.type,
                "BP" = "point",
@@ -158,7 +160,13 @@ singleGeneView = function(exp.mat, gr, des, gois, chart.type = "BP")
     var.expr = as.numeric(exp.mat[gois[i],]) # Downcast to vector
     var.groups = gr[des]
     sgex = data.frame(var.expr, var.groups) # Single Gene Expression Data Frame
-    sgs = descStat1G(exp.mat[gois[i],], gr, des) # Single Gene Summary Data Frame
+    sgs = descStat1G(exp.mat[gois[i],], gr, des, 6) # Single Gene Summary Data Frame
+    
+    if (is.null(ann)) {
+      gene.symb = ""
+    } else {
+      gene.symb = paste(ann[gois[i], grepl("Symbol", colnames(ann))], " - ", sep = "")
+    }
     
     if (chart.type == "BP") {
       
@@ -167,7 +175,7 @@ singleGeneView = function(exp.mat, gr, des, gois, chart.type = "BP")
           theme_bw(base_size = 15, base_rect_size = 1.5) +
           xlab("Group") + # In the following functions, when data=NULL (default), the data is inherited from ggplot()
           ylab("log2 Expression") +
-          ggtitle(label = "Box Plot with Jitter", subtitle = paste("Probe ID: ", gois[i], sep = "")) +
+          ggtitle(label = "Box Plot with Jitter", subtitle = paste(gene.symb, "Probe ID: ", gois[i], sep = "")) +
           geom_boxplot(width = 0.5, size = 0.5, notch = TRUE, outlier.shape = NA) +
           stat_summary(fun = "mean", geom = geo, color = "red3", size = 2) +
           geom_jitter(position = position_jitter(width = 0.1, height = 0, seed = 123), size = 1.5))
@@ -179,7 +187,7 @@ singleGeneView = function(exp.mat, gr, des, gois, chart.type = "BP")
           theme_bw(base_size = 15, base_rect_size = 1.5) +
           xlab("Group") +
           ylab("log2 Expression") +
-          ggtitle(label = "Box Plot with Jitter", subtitle = paste("Probe ID: ", gois[i], sep = "")) +
+          ggtitle(label = "Mean & SEM Plot with Jitter", subtitle = paste(gene.symb, "Probe ID: ", gois[i], sep = "")) +
           stat_summary(fun = "mean", geom = geo, color = "black", size = 0.5, width = 0.2) +
           # Recommended alternative for bar charts in ggplot2:
           #geom_bar(data = sgs, aes(GROUP, MEAN), stat = "identity", color = "black", size = 0.5, width = 0.2) +
@@ -190,7 +198,10 @@ singleGeneView = function(exp.mat, gr, des, gois, chart.type = "BP")
       
       cat("\n")
       stop("Invalid chart.type!\n\n")
-      
     }
+    
+    printPlots(paste("SingleGene Plot - ", chart.type, " - ", gois[i], sep = ""))
   }
 }
+
+

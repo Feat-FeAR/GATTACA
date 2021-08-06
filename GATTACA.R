@@ -127,7 +127,7 @@ myFile = "Expression_Matrix_FileName.txt"
 
 rowOffset = 1 # Row offset, including the header (How many rows above the first number?)
 colWithID = 1 # Column containing (unique) gene identifiers
-colOffset = 1 # Column offset, including row names (How many columns before the first number?)
+colOffset = 2 # Column offset, including row names (How many columns before the first number?)
 
 groups = c("WT","Ab","AbFK","TG","TGFK") # Experimental Design - Group Names (start with control condition)
 design = c(5,5,5,5,4) # Experimental Design - Ordered Group Size (compact Design Mode)
@@ -568,7 +568,7 @@ myContr = as.matrix(myContr) # Cast to matrix
 rownames(myContr) = c(1:length(myContr))
 myContr
 # Modify here to retain (and reorder) just the contrasts of interest
-myContr = as.matrix(myContr[c(3,6,1,2),])
+myContr = as.matrix(myContr[c(1,6,3),])
 rownames(myContr) = c(1:length(myContr))
 myContr
 
@@ -1185,27 +1185,68 @@ for (i in 1:length(myContr)) {
 
 
 # Single Gene View -----------------------------------------------------------------------------------------------------
-# Plot single-gene comparison charts (boxes/bars and dots)
+# Plot single-gene comparison charts (boxes/bars and jitter dots)
 
 # Character Vector containing the Probe_IDs of the genes of interest
-goi = c("201890_at",
-        "43427_at",
-        "205912_at",
-        "205043_at")
+goi = c("A_51_P309854",
+        "A_55_P2130129",
+        "A_51_P506733",
+        "A_55_P2007243")
 
 # Plot single-gene data points
-singleGeneView(dataset, groups, design, goi, chart.type = "MS")
+ct = "MS"
+if (getOption("append.annot")) {
+  singleGeneView(dataset, groups, design, goi, chart.type = ct, ann = annot)
+} else {
+  singleGeneView(dataset, groups, design, goi, chart.type = ct)
+}
 
 # Provide a quantitative readout in console
 for (i in 1:length(goi)) {
-  cat("\nSummary Stats for Probe_ID: ", goi[i], "\n", sep = "")
-  print(descStat1G(dataset[goi[i],], groups, design))
-  cat("\n")
+  
+  # Prepare
+  geneStats.tit = paste("\nSingle-Gene Summary Statistics",
+                        "\n==============================\n", sep = "")
+  if (getOption("append.annot")) {
+    geneStats.head = paste("\nProbe_ID:\t", goi[i], "\n",
+                          "Gene Symbol:\t", annot[goi[i], grepl("Symbol", colnames(annot))], "\n",
+                          "Gene Name:\t", annot[goi[i], grepl("Name", colnames(annot))], "\n", sep = "")
+  } else {
+    geneStats.head = paste("\nProbe_ID:\t", goi[i], "\n", sep = "")
+  }
+  geneStats.num = descStat1G(dataset[goi[i],], groups, design, 4)
+  
+  # Print on screen
+  if (i == 1) cat(geneStats.tit, "\n", sep = "") # One-line IF
+  cat(geneStats.head, "\n", sep = "")
+  print(geneStats.num)
+  cat("\n\n")
+  
+  # Print on file
+  if (saveOut) {
+    if (i == 1) write(geneStats.tit, "Single Gene Stats.txt") # One-line IF
+    write(geneStats.head, "Single Gene Stats.txt", append = TRUE)
+    
+    suppressWarnings(write.table(geneStats.num, "Single Gene Stats.txt", append = TRUE, quote = FALSE,
+                                 row.names = TRUE, col.names = TRUE, sep = "\t"))
+    write("\n", "Single Gene Stats.txt", append = TRUE)
+  }
 }
 
 
 
+
+
+
+
+
+####
+#
 # P2RX Focus --- TO BE CORRECTED and GENERALIZED
+#  - usare grepl per "Symbol" come sopra
+#  - inserire un IF nel caso di assenza di annotazioni
+#
+####
 
 # In case of limma
 for (i in 0:8) { # 0 and 8 are just "negative controls"
