@@ -8,9 +8,41 @@
 # Data are supposed to be already background-subtracted, log2-transformed, and interarray-normalized
 #
 
+thisFile <- function() {
+  cmdArgs <- commandArgs(trailingOnly = FALSE)
+  needle <- "--file="
+  match <- grep(needle, cmdArgs)
+  if (length(match) > 0) {
+    # Rscript
+    return(normalizePath(sub(needle, "", cmdArgs[match])))
+  } else {
+    # 'source'd via R console
+    return(normalizePath(sys.frames()[[1]]$ofile))
+  }
+}
+
+## Note for devs: this will only work on r-studio
+if (!interactive()) {
+  here <- head(strsplit(thisFile(), "/")[[1]], -1)
+  here <- paste0(here, collapse = "/")
+} else {
+  if (!require("rstudioapi")) {
+    install.packages("rstudioapi")
+  }
+  here <- dirname(rstudioapi::getSourceEditorContext()$path)
+}
 
 
-
+tryCatch(
+  {
+    cat("Attempting to activate the existing `renv` environment...")
+    source(paste0(here, "/renv/activate.R"))
+    cat("...OK\n")
+  },
+  error = function(err) {
+    stop("No `renv` project found. Did you run the installation script?")
+  }
+)
 
 # * Package Loading ----------------------------------------------------------------------------------------------------
 # Load required packages and source external scripts
@@ -27,11 +59,10 @@ library(EnhancedVolcano)  # Volcano Plots
 library(gplots)           # Heatmap with extensions - heatmap.2() 
 library(ggplot2)          # Box Plot and Bar Chart with Jitter (already loaded by PCAtools)
 library(RColorBrewer)     # Color Palette for R - display.brewer.all()
+library(yaml)             # Yaml file parsing
+library(logger)           # Well, logging
 
-source("STALKER_Functions.R")   # Collection of custom functions
-
-
-
+source(paste0(here, "/STALKER_Functions.R"))   # Collection of custom functions
 
 
 # Prepare Annotations --------------------------------------------------------------------------------------------------
