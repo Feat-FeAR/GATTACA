@@ -19,9 +19,13 @@
 #   PNG           = boolean: T to print the currently displayed figure in PNG format
 #   PDF           = boolean: T to print the currently displayed figure in PDF format
 #
-printPlots = function(figureName, folderPrefix = getOption("scriptName"),
-                      PNG = getOption("save.PNG.plot"), PDF = getOption("save.PDF.plot"))
-{
+printPlots = function(
+  figureName,
+  folderPrefix = getOption("scriptName"),
+  PNG = getOption("save.PNG.plot"), PDF = getOption("save.PDF.plot"),
+  plot.width = getOption("plot.width"), plot.height = getOption("plot.height")
+  ) {
+  library(logger)
   flag = FALSE # A dummy flag to insert a couple of 'new lines' in case of WARNINGs
   
   # Check argument values
@@ -45,20 +49,37 @@ printPlots = function(figureName, folderPrefix = getOption("scriptName"),
     figSubFolder = paste(folderPrefix, "Figures", sep = " ")
   }
   
+  if (is.null(plot.width)) { 
+    plot.width = 820
+  }
+  if (is.null(plot.height)) { 
+    plot.height = 600
+  }
+  
   fullName = file.path(figSubFolder, figureName, fsep = .Platform$file.sep) # OS-independent path separator
   
   if (!file.exists(figSubFolder) && (PNG || PDF)) {
     dir.create(figSubFolder)
     flag = TRUE
-    cat("\nNew folder '", figSubFolder, "' has been created in the current WD", sep = "")
+    log_info("New folder '", figSubFolder, "' has been created in the current WD", sep = "")
   }
   if (PNG) { # invisible(capture.output()) to suppress automatic output to console
+    log_info(paste0("Saving ", figureName, ".png ..."))
     invisible(capture.output(
-      dev.print(device = png, filename = paste(fullName, ".png", sep = ""), width = 820, height = 600)))
+      dev.print(
+        device = png, file = paste(fullName, ".png", sep = ""),
+        width = plot.width, height = plot.height)
+      )
+    )
   }
   if (PDF) {
+    log_info(paste0("Saving ", figureName, ".pdf ..."))
     invisible(capture.output(
-      dev.print(device = pdf, paste(fullName, ".pdf", sep = ""))))
+      dev.print(
+        device = pdf, file = paste(fullName, ".pdf", sep = ""),
+        width = plot.width, height = plot.height)
+      )
+    )
   }
   if (flag) {
     cat("\n\n")
@@ -205,3 +226,51 @@ singleGeneView = function(exp.mat, gr, des, gois, chart.type = "BP", ann = NULL)
 }
 
 
+# https://stackoverflow.com/questions/14469522/stop-an-r-program-without-error
+stop_quietly <- function() {
+  opt <- options(show.error.messages = FALSE)
+  on.exit(options(opt))
+  stop()
+}
+
+
+
+pitstop.maker <- function(check) {
+  pitstop <- function(message) {
+    if (check) {
+      readline(prompt=paste0(message, " Continue? [yes/NO]: ")) |>
+        tolower() ->
+        response
+      if (response %in% c("yes", "ye", "y")) {
+        return()
+      } else {
+        stop_quietly()
+      }
+    }
+  }
+  return(pitstop)
+}
+
+
+topleft.head <- function(data) {
+  y <- dim(data)[2]
+  floored.y <- floor(y * 0.25)
+  if (floored.y == 1 & y >= 2) {floored.y <- 2}
+  
+  return(head(data[, c(1:min(5, floored.y))]))
+}
+
+
+printif.maker <- function(check, applied.fun = function(x) {x}) {
+  printif <- function(incoming) {
+    if (check) {
+      # TODO :: this cannot be suppressed by `suppressMessages`
+      print(applied.fun(incoming))
+    }
+  }
+}
+
+
+get.print.str <- function(data) {
+  return(paste0(capture.output(print(data)), collapse = "/n"))
+}

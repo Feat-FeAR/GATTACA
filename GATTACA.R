@@ -1,3 +1,5 @@
+#!/usr/bin/env Rscript
+
 # Header Info ----------------------------------------------------------------------------------------------------------
 #
 # GATTACA v2 - General Algorithm for The Transcriptional Analysis by one-Channel Arrays
