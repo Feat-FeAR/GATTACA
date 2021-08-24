@@ -193,7 +193,7 @@ input_mountpoint="$(dirname "$inputfile")"
 input_file_clean=$(basename -- "$inputfile")
 option_file_clean=$(basename -- "$optfile")
 
-if ["${input_file_clean}" = "${option_file_clean}"]; then
+if [ "${input_file_clean}" = "${option_file_clean}" ]; then
     echo "Input and option files cannot have the same name. Sorry!"
     exit 1
 fi
@@ -204,7 +204,7 @@ echo "      Outputs: ${target}"
 
 # To avoid mountig the same folder multiple times, I copy the options file to the
 # input folder just to be safe.
-if [! $optfile = "${input_mountpoint}/${option_file_clean}"]; then
+if [ ! $optfile = "${input_mountpoint}/${option_file_clean}" ]; then
     cp $optfile "${input_mountpoint}/${option_file_clean}"
 fi
 

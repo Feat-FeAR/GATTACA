@@ -463,7 +463,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   log_info("Finished running PCA. Plotting results...")
   # Plot results
   p <- function() {
-    screeplot(pcaOut)
+    print(screeplot(pcaOut))
   }
   printPlots(p, "Scree Plot")
   
