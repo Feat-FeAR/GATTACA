@@ -63,7 +63,7 @@ library(RColorBrewer)     # Color Palette for R - display.brewer.all()
 library(yaml)             # Yaml file parsing
 library(logger)           # Well, logging
 
-source("./STALKER_Functions.R")   # Collection of custom functions
+source(file.path(root, "STALKER_Functions.R"))   # Collection of custom functions
 
 GATTACA <- function(options.path, input.file, output.dir) {
   
@@ -305,10 +305,14 @@ GATTACA <- function(options.path, input.file, output.dir) {
   # ---- Log Transformation ----
   # Distribution Inspection to Spot Non-Logarithmic Data
 
-  boxplot(dataset, las = 2) # las = style of axis labels
-  printPlots("Raw boxpot")
-  plotDensities(dataset, legend = FALSE) # From limma package
-  printPlots("Raw density")
+  p <- function() {
+    boxplot(dataset, las = 2) # las = style of axis labels
+  }
+  printPlots(p, "Raw boxpot")
+  p <- function() {
+    plotDensities(dataset, legend = FALSE) # From limma package
+  }
+  printPlots(p, "Raw density")
   
   # log2-transform if intensities are in linear scale
   if (logConversion) {
@@ -365,14 +369,18 @@ GATTACA <- function(options.path, input.file, output.dir) {
   # ---- MA-Plot & Box-Plot ----
   # Normalization Final Check with Figure Production
   
-  boxplot(
-    dataset,
-    las = 2, col = myColors[design],
-    main = "Expression values per sample", ylab = "log2 (intesity)"
-  ) # las = style of axis labels
-  printPlots("Final Boxplots")
-  plotDensities(dataset, legend = FALSE, main = "Expression values per sample") # From limma package
-  printPlots("Final Density")
+  p <- function() {
+    boxplot(
+      dataset,
+      las = 2, col = myColors[design],
+      main = "Expression values per sample", ylab = "log2 (intesity)"
+    ) # las = style of axis labels
+  }
+  printPlots(p, "Final Boxplots")
+  p <- function() {
+    plotDensities(dataset, legend = FALSE, main = "Expression values per sample") # From limma package
+  }
+  printPlots(p, "Final Density")
   
   pitstop("Maybe check the plots and come back?")
   
@@ -385,23 +393,25 @@ GATTACA <- function(options.path, input.file, output.dir) {
       arr2 = rowMeans(dataset[,which(design == j)])
       
       # From rafalib package
-      maplot(arr1, arr2, 
-             xlab = "A (Average log-expression)",
-             ylab = "M (Expression log-ratio)",
-             n = 5e4,
-             curve.add = TRUE, curve.col = myColors[2], curve.lwd = 1.5, curve.n = 1e4,
-             pch = 20, cex = 0.1)
-      
-      # As an alternative, from limma package (without trend curve)
-      #plotMD(cbind(arr2, arr1),
-      #       xlab = "A (Average log-expression)",
-      #       ylab = "M (Expression log-ratio)")
-      
-      title(main = paste(groups[j], "vs", groups[i]))
-      abline(h = 0, col = myColors[1], lty = 2) # lty = line type
-      abline(h = c(1,-1), col = myColors[1])
-      abline(v = thr0, col = myColors[1]) # Platform-specific log2-expression threshold
-      printPlots(paste("MA-Plot ", groups[j], "_vs_", groups[i], sep = ""))
+      p <- function() {
+        maplot(arr1, arr2, 
+               xlab = "A (Average log-expression)",
+               ylab = "M (Expression log-ratio)",
+               n = 5e4,
+               curve.add = TRUE, curve.col = myColors[2], curve.lwd = 1.5, curve.n = 1e4,
+               pch = 20, cex = 0.1)
+        
+        # As an alternative, from limma package (without trend curve)
+        #plotMD(cbind(arr2, arr1),
+        #       xlab = "A (Average log-expression)",
+        #       ylab = "M (Expression log-ratio)")
+        
+        title(main = paste(groups[j], "vs", groups[i]))
+        abline(h = 0, col = myColors[1], lty = 2) # lty = line type
+        abline(h = c(1,-1), col = myColors[1])
+        abline(v = thr0, col = myColors[1]) # Platform-specific log2-expression threshold
+      }
+      printPlots(p, paste("MA-Plot ", groups[j], "_vs_", groups[i], sep = ""))
     }
   }
   
@@ -412,8 +422,10 @@ GATTACA <- function(options.path, input.file, output.dir) {
   # Matrix Transpose t() is used because dist() computes the distances between the ROWS of a matrix
   sampleDist = dist(t(dataset), method = "euclidean") # Distance matrix (NOTE: t(dataset) is coerced to matrix)
   hc = hclust(sampleDist, method = "ward.D")
-  plot(hc) # Display Dendrogram
-  printPlots("Dendrogram")
+  p <- function() {
+    plot(hc) # Display Dendrogram
+  }
+  printPlots(p, "Dendrogram")
   # Desired number of clusters
   kNum = 6
   
@@ -423,9 +435,12 @@ GATTACA <- function(options.path, input.file, output.dir) {
     clustList[[i]] = cbind(clust[which(clust == i)]) # list of matrices
   }
   clustList
-  
-  rect.hclust(hc, k = kNum, border = myColors[2]) # Red borders around the kNum clusters 
-  printPlots("Dendrogram and Clusters")
+
+  p <- function() {
+    plot.new()
+    rect.hclust(hc, k = kNum, border = myColors[2]) # Red borders around the kNum clusters 
+  }
+  printPlots(p, "Dendrogram and Clusters")
   
   log_info("Finished with hierarchical clustering.")
   pitstop("Maybe check the plots and come back?")
@@ -447,16 +462,22 @@ GATTACA <- function(options.path, input.file, output.dir) {
   pcaOut = pca(dataset, metadata = myMetadata)
   log_info("Finished running PCA. Plotting results...")
   # Plot results
-  screeplot(pcaOut)
-  printPlots("Scree Plot")
+  p <- function() {
+    screeplot(pcaOut)
+  }
+  printPlots(p, "Scree Plot")
   
   colMAtch = myColors[1:m] # Vector for color matching
   
   names(colMAtch) = groups
-  suppressMessages(print(biplot(pcaOut, colby = "Group", colkey = colMAtch)))
-  printPlots("PCA")
-  suppressMessages(print(pairsplot(pcaOut, colby = "Group", colkey = colMAtch)))
-  printPlots("PCA Pairs")
+  p <- function() {
+    suppressMessages(print(biplot(pcaOut, colby = "Group", colkey = colMAtch)))
+  }
+  printPlots(p, "PCA")
+  p <- function() {
+    suppressMessages(print(pairsplot(pcaOut, colby = "Group", colkey = colMAtch)))
+  }
+  printPlots(p, "PCA Pairs")
 
   # Possibly remove some 'batched' samples, by sample name, e.g.: toBeRemoved = c("TG_1","WT_2","TGFK_1","Ab_5")
   toBeRemoved = c()
@@ -519,25 +540,27 @@ GATTACA <- function(options.path, input.file, output.dir) {
   
   # Scatter plot
   log_info("Making plots...")
-  par(mfrow = c(1, m+1)) # Optional, for sub-plotting
-  X.max = max(meansArr, na.rm = TRUE)
-  Y.max = max(SDsArr, na.rm = TRUE)
-  for (i in 1:(m+1)) {
-    
-    plot(meansArr[,i], SDsArr[,i],
-         xlab = "Mean", ylab = "SD",
-         xlim = c(0, X.max), ylim = c(0, Y.max),
-         pch = 20, cex = 0.1)
-    
-    if (i <= m) {
-      title(main = groups[i])
+  p <- function() {
+    par(mfrow = c(1, m+1)) # Optional, for sub-plotting
+    X.max = max(meansArr, na.rm = TRUE)
+    Y.max = max(SDsArr, na.rm = TRUE)
+    for (i in 1:(m+1)) {
+      
+      plot(meansArr[,i], SDsArr[,i],
+           xlab = "Mean", ylab = "SD",
+           xlim = c(0, X.max), ylim = c(0, Y.max),
+           pch = 20, cex = 0.1)
+      
+      if (i <= m) {
+        title(main = groups[i])
+      }
+      else {
+        title(main = "Global")
+      }
+      mtext(side = 3, paste("Corr =", toString(round(corrArr[i], digits = 5))))
     }
-    else {
-      title(main = "Global")
-    }
-    mtext(side = 3, paste("Corr =", toString(round(corrArr[i], digits = 5))))
   }
-  printPlots("SD_vs_Mean Plot") # Save just the 'Global' one
+  printPlots(p, "SD_vs_Mean Plot") # Save just the 'Global' one
   par(mfrow = c(1, 1)) # To reset sub-plotting
   
   
@@ -709,8 +732,10 @@ GATTACA <- function(options.path, input.file, output.dir) {
       # Summary of DEGs (you can change the Log2-Fold-Change Threshold lfc...)
       results.limma = decideTests(efit2, adjust.method = "BH", p.value = 0.05, lfc = thrFC)
       summary(results.limma)
-      vennDiagram(results.limma)
-      printPlots("Limma Venn")
+      p <- function() {
+        vennDiagram(results.limma)
+      }
+      printPlots(p, "Limma Venn")
       
       # Show Hyperparameters
       d0 = efit2$df.prior           # prior degrees of freedom
@@ -892,14 +917,16 @@ GATTACA <- function(options.path, input.file, output.dir) {
     # I cannot place a progress bar here as `printPlots` logs to stdout.
     for (i in 1:length(myContr)) {
       # Mark in red/blue all the up-/down- regulated genes (+1/-1 in 'results.limma' matrix)
-      plotMD(efit2, coef = i, status = results.limma[,i], values = c(1,-1), hl.col = myColors[c(2,1)],
-             xlim = c(min.A.value, max.A.value), ylim = c(-max.M.value, max.M.value),
-             xlab = "A (Average log-expression)",
-             ylab = "M (log2-Fold-Change)")
-      abline(h = 0, col = myColors[1], lty = 2) # lty = line type
-      abline(h = c(thrFC,-thrFC), col = myColors[1])
-      abline(v = thr0, col = myColors[1]) # Platform-specific log2-expression threshold
-      printPlots(paste("MA-Plot with Limma DEGs ", myContr[i], sep = ""))
+      p <- function() {
+        plotMD(efit2, coef = i, status = results.limma[,i], values = c(1,-1), hl.col = myColors[c(2,1)],
+               xlim = c(min.A.value, max.A.value), ylim = c(-max.M.value, max.M.value),
+               xlab = "A (Average log-expression)",
+               ylab = "M (log2-Fold-Change)")
+        abline(h = 0, col = myColors[1], lty = 2) # lty = line type
+        abline(h = c(thrFC,-thrFC), col = myColors[1])
+        abline(v = thr0, col = myColors[1]) # Platform-specific log2-expression threshold
+      }
+      printPlots(p, paste("MA-Plot with Limma DEGs ", myContr[i], sep = ""))
     }
     
     # Volcano Plots
@@ -947,22 +974,24 @@ GATTACA <- function(options.path, input.file, output.dir) {
       } else {
         myLabels = rownames(DEGs.limma[[i]])
       }
-      print( # NOTICE: When in a for loop, you have to explicitly print your resulting EnhancedVolcano object
-        EnhancedVolcano(DEGs.limma[[i]],
-                        x = "logFC",
-                        y = "P.Value",
-                        ylim = c(0, -log10(min.P.value)),
-                        pCutoff = thrP,
-                        FCcutoff = thrFC,
-                        pointSize = 1,
-                        col = c("black", "black", "black", myColors[2]),
-                        lab = myLabels,
-                        #selectLab = myLabels[1:high.DEG],
-                        labSize = 4,
-                        title = myContr[i],
-                        subtitle = "Limma",
-                        legendPosition = "none"))
-      printPlots(paste("Volcano with Limma DEGs ", myContr[i], sep = ""))
+      p <- function() {
+        print( # NOTICE: When in a for loop, you have to explicitly print your resulting EnhancedVolcano object
+          EnhancedVolcano(
+            DEGs.limma[[i]],
+            x = "logFC", y = "P.Value", ylim = c(0, -log10(min.P.value)),
+            pCutoff = thrP, FCcutoff = thrFC,
+            pointSize = 1,
+            col = c("black", "black", "black", myColors[2]),
+            lab = myLabels,
+            #selectLab = myLabels[1:high.DEG],
+            labSize = 4,
+            title = myContr[i],
+            subtitle = "Limma",
+            legendPosition = "none"
+          )
+        )
+      }
+      printPlots(p, paste("Volcano with Limma DEGs ", myContr[i], sep = ""))
       
       # TODO :: Implement this?
       if (FALSE) {
@@ -1245,9 +1274,11 @@ GATTACA <- function(options.path, input.file, output.dir) {
                                  cat.fontfamily = "sans")
         
         # Create a new canvas and draw the Venn
-        grid.newpage()
-        grid.draw(venn.plot)
-        printPlots(paste("Comparison Venn ", myContr[i], "_", strsplit(venn.sub, split = "-")[[1]][1], sep = ""))
+        p <- function() {
+          grid.newpage()
+          grid.draw(venn.plot)
+        }
+        printPlots(p, paste("Comparison Venn ", myContr[i], "_", strsplit(venn.sub, split = "-")[[1]][1], sep = ""))
       }
     }
     
@@ -1255,10 +1286,3 @@ GATTACA <- function(options.path, input.file, output.dir) {
   
   log_info("GATTACA finished")
 }
-
-GATTACA(
-  "/home/hedmad/Documents/Data/GATTACA/tests/GATTACA_test_opts.yaml",
-  "/home/hedmad/Documents/Data/GATTACA/tests/RMA-normalized_logExpression.txt",
-  "/home/hedmad/Documents/Data/GATTACA/testout"
-  )
-

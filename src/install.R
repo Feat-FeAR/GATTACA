@@ -1,3 +1,13 @@
+# Running in vanilla mode can cause the CRAN mirrors not to be set.
+# This fixes it.
+
+options(
+  repos = list(CRAN="http://cran.rstudio.com/"),
+  configure.args = list(
+    preprocessCore = "--disable-threading"
+  )
+)
+
 if (!requireNamespace("renv")) {
   print("Installing `renv` package...")
   if (!requireNamespace("remotes")) {
@@ -22,24 +32,21 @@ thisFile <- function() {
   }
 }
 
-old.wd <- getwd()
-new.wd <- dirname(thisFile())
+here <- dirname(thisFile())
+setwd(here)
 
-setwd(new.wd)
 tryCatch(
   {
-    print("Attempting to activate the existing `renv` environment...")
+    cat("Attempting to activate the existing `renv` environment...")
     source("./renv/activate.R")
-    print("...OK")
+    cat("...OK")
   },
   error = function(err) {
-    print("No existing project found. Making a new one...")
+    cat("/nNo existing project found. Making a new one...")
     renv::init(bare = TRUE)
-    print("...OK")
+    cat("...OK")
   }
 )
 print("Restoring from renv.lock file... [[THIS COULD TAKE A VERY LONG TIME!!]]")
 renv::restore()
 print("Restore complete.")
-
-setwd(old.wd)

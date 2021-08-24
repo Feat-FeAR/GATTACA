@@ -20,6 +20,7 @@
 #   PDF           = boolean: T to print the currently displayed figure in PDF format
 #
 printPlots = function(
+  plotfun,
   figureName,
   folderPrefix = getOption("scriptName"),
   PNG = getOption("save.PNG.plot"), PDF = getOption("save.PDF.plot"),
@@ -65,21 +66,21 @@ printPlots = function(
   }
   if (PNG) { # invisible(capture.output()) to suppress automatic output to console
     log_info(paste0("Saving ", figureName, ".png ..."))
-    invisible(capture.output(
-      dev.print(
-        device = png, file = paste(fullName, ".png", sep = ""),
-        width = plot.width, height = plot.height)
-      )
+    png(
+      file = paste(fullName, ".png", sep = ""),
+      width = plot.width, height = plot.height
     )
+    plotfun()
+    dev.off()
   }
   if (PDF) {
     log_info(paste0("Saving ", figureName, ".pdf ..."))
-    invisible(capture.output(
-      dev.print(
-        device = pdf, file = paste(fullName, ".pdf", sep = ""),
-        width = plot.width, height = plot.height)
-      )
+    pdf(
+      file = paste(fullName, ".pdf", sep = ""),
+      width = plot.width, height = plot.height
     )
+    plotfun()
+    dev.off()
   }
   if (flag) {
     cat("\n\n")

@@ -12,6 +12,6 @@ DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 
 cd $DIR
 
-Rscript ./install.R
+Rscript --vanilla ./install.R
 
 cd $HERE

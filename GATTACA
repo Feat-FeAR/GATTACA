@@ -1,0 +1,215 @@
+#!/usr/bin/env bash
+
+HERE="`pwd`"
+
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
+  DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+done
+DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+
+
+# Based on this article: https://sookocheff.com/post/bash/parsing-bash-script-arguments-with-shopts/
+
+target="."  # Default to current location
+
+if [ $# == 0 ]; then
+    echo "Error: No parameters passed. Try -h"
+fi
+
+while getopts ":h" opt; do
+    case ${opt} in
+        h )
+            echo "Usage:"
+            echo "    GATTACA -h             Display this help message."
+            echo "    GATTACA init           Spawn a default configuration file."
+            echo "    GATTACA run            Run GATTACA."
+            echo ""
+            echo "Use -h in any subcommand to get more help and possible options"
+            exit 0
+            ;;
+        \? )
+            echo "Invalid Option: -$OPTARG" 1>&2
+            exit 1
+            ;;
+    esac
+done
+shift $((OPTIND -1))
+
+subcommand=$1; shift  # Remove 'subcommand` from the argument list
+case "$subcommand" in
+    # Parse options to the init sub command
+    init)
+        # Process init options
+        while getopts ":t:h" opt; do
+            case ${opt} in
+                t )
+                    target=$OPTARG
+                    target=$(realpath $target)
+                    if [ -f $target ]; then
+                        # The target is a file. Copy it there
+                        cp "${DIR}/GATTACA_default_options.yaml" ${target}
+                        echo "Spawned config file: ${target}"
+                        exit 0
+                    elif [ -d $target ]; then
+                        # The target is a directory. Copy it there
+                        cp "${DIR}/GATTACA_default_options.yaml" "${target}/GATTACA_config.yaml"
+                        echo "Spawned config file: ${target}/GATTACA_config.yaml"
+                    else
+                        # The path is invalid.
+                        echo "Invalid path: ${target}"
+                        exit 1
+                    fi
+                    exit 0
+                    ;;
+                h )
+                    echo "Create a default configuration file for GATTACA in the current working directory."
+                    echo ""
+                    echo "If unspecified, the default name is GATTACA_config.yaml"
+                    echo "Usage:"
+                    echo "    GATTACA init                  Create the configuration file in the current working dir."
+                    echo "    GATTACA init -h               Display this help message."
+                    echo "    GATTACA init -t <path>        Create the configuration file in the target folder"
+                    echo "                                  or as the target file."
+                    exit 0
+                    ;;
+                \? )
+                    echo "Invalid Option: -$OPTARG" 1>&2
+                    exit 1
+                    ;;
+                : )
+                    # The target is the current working directory. Copy it there
+                    cp "${DIR}/GATTACA_default_options.yaml" "${target}/GATTACA_config.yaml"
+                    echo "Spawned config file: ${target}/GATTACA_config.yaml"
+                    exit 0
+                    ;;
+            esac
+        done
+        shift $((OPTIND -1))
+        ;;
+    run)
+        # Default options
+        version="latest"
+        target=$(realpath "./GATTACA_output")
+        optfile=$(realpath "./GATTACA_config.yaml")
+        inputfile=$(realpath "./inputfile")
+        while getopts ":hi:t:o:v:" opt; do
+            case ${opt} in
+                t )
+                    # Set the output (target) folder
+                    target=$OPTARG
+                    target=$(realpath $target)
+                    ;;
+                i )
+                    # Set the input file
+                    inputfile=$OPTARG
+                    inputfile=$(realpath $inputfile)
+                    ;;
+                o )
+                    # Set the options file
+                    optfile=$OPTARG
+                    optfile=$(realpath $optfile)
+                    ;;
+                v )
+                    # Set the version of the container to use
+                    version=$OPTARG
+                    ;;
+                h )
+                    echo "Download and run the GATTACA docker container."
+                    echo ""
+                    echo "Options:"
+                    echo "    -h                            Display this help message."
+                    echo "    -t <target_folder>            Set the output folder. Defaults to ./GATTACA_output"
+                    echo "    -i <input_file>               Specify the input file path with the microarray intensities."
+                    echo "    -o <options_file>             Set the options file. Defaults to ./GATTACA_config.yaml"
+                    echo "    -v <docker version>           Set the version of the docker to download. Defaults to latest."
+                    exit 0
+                    ;;
+                \? )
+                    echo "Invalid Option: -$OPTARG" 1>&2
+                    exit 1
+                    ;;
+                : )
+                    echo "Error: You must specify at least the -t option."
+                    exit 1
+                    ;;
+            esac
+        done
+        # Test if the options are valid
+        ## Target folder
+        if [ -f $target ]; then
+            # The target is a file. Error
+            echo "Error: Output folder (${target}) cannot be a file."
+            exit 1
+        elif [ ! -d $target ]; then
+            # The target is a directory that doesn't exist. Make it.
+            mkdir -p $target
+            echo "Made output folder: ${target}"
+        elif [ -d $target ]; then
+            # The target is a real folder, wow
+            echo "Using output folder: ${target}"
+        else
+            # The path is invalid.
+            echo "Error: invalid output path: ${target}"
+            exit 1
+        fi
+        ## Input file
+        if [ -d $inputfile ]; then
+            # The input is a folder. Error
+            echo "Error: Input file (${inputfile}) cannot be a folder."
+            exit 1
+        elif [ -f $inputfile ]; then
+            # The input is a file. OK
+            echo "Using input file: ${inputfile}"
+        else
+            # The path is invalid.
+            echo "Error: invalid input path: ${inputfile}"
+            exit 1
+        fi
+        ## Options file
+        if [ -d $optfile ]; then
+            # The options is a folder. Error
+            echo "Error: Options file (${optfile}) cannot be a folder."
+            exit 1
+        elif [ -f $optfile ]; then
+            # The options is a file. OK
+            echo "Using options file: ${optfile}"
+        else
+            # The path is invalid.
+            echo "Error: invalid options path: ${optfile}"
+            exit 1
+        fi
+        echo "Using version ${version}"
+        shift $((OPTIND -1))
+        ;;
+esac
+
+# Now that we have the options we can fetch the container, mount the exit directory,
+# and run the container.
+
+input_mountpoint="$(dirname "$inputfile")"
+input_file_clean=$(basename -- "$inputfile")
+option_file_clean=$(basename -- "$optfile")
+
+if ["${input_file_clean}" = "${option_file_clean}"]; then
+    echo "Input and option files cannot have the same name. Sorry!"
+    exit 1
+fi
+
+echo "Mounting folders:"
+echo "      Inputs:  ${input_mountpoint}"
+echo "      Outputs: ${target}"
+
+# To avoid mountig the same folder multiple times, I copy the options file to the
+# input folder just to be safe.
+if [! $optfile = "${input_mountpoint}/${option_file_clean}"]; then
+    cp $optfile "${input_mountpoint}/${option_file_clean}"
+fi
+
+docker run \
+    --mount type=bind,source=$target,target=/GATTACA/target \
+    --mount type=bind,source=$input_mountpoint,target=/GATTACA/input,readonly \
+    gattaca:$version \
+    $input_file_clean $option_file_clean

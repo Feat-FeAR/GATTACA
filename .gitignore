@@ -1,6 +1,8 @@
 # Accidental test files
-test.R
-tests.R
+tests.*
+test.*
+test
+tests
 
 # RENV things
 renv/

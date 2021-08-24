@@ -46,19 +46,11 @@ To run GATTACA, you must provide an options file encoded in (yaml)[https://yaml.
     - `renormalize` (bool): If set to true, runs quantile normalization after performing Robust Multichip Average (RMA) normalization.
     - Limma options:
         - `run_DEA`: If true, detects Differentially Expressed Genes (DEGs) using the `limma` package (Performs Differential Expression Analysis). This performs better than `rankProd` for well-behaved data.
-        - `run_paired_DEA`: If false, runs the DEA in paired mode. Paired mode  
+        - `run_paired_DEA`: If false, runs the DEA in paired mode. Paired mode confronts specifically two samples.
+    - Rankproduct options:
+        -
 
 
-## SWITCHES - Various switches to turn parts of the analysis on or off
-switches:
-  # Run the analysis, but don't save any output file. Useful to test the
-  # analysis before committing.
-  dryrun: false # bool
-  # Log2 transform the input intensities before running the analysis?
-  log2_transform: false # bool
-  # Should re-run normalization after performing RMA?
-  renormalize: true # bool
-  # Options related to the `limma` package
   limma:
     # Run Differential gene expression detection with `limma`
     # This uses parametric tests to find DEGs.

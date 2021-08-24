@@ -1,0 +1,13 @@
+#!/bin/bash
+
+## As this should only be run from the main GATTACA file, we can be sure that
+# $1 is input_file_clean and $2 is option_file_clean, both in /GATTACA/input
+# We are also sure that we need to write to /GATTACA/target
+
+inputfile="/GATTACA/input/${1}"
+optionfile="/GATTACA/input/${2}"
+
+Rscript \
+    --vanilla \
+    -e "source('/GATTACA/GATTACA.R')" \
+    -e "GATTACA('${optionfile}', '${inputfile}', '/GATTACA/target')" 
