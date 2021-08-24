@@ -1,9 +1,3 @@
-if (!requireNamespace("here")) {
-  print("Installing `here` package...")
-  install.packages("here")
-  print("...OK")
-}
-
 if (!requireNamespace("renv")) {
   print("Installing `renv` package...")
   if (!requireNamespace("remotes")) {
@@ -15,6 +9,23 @@ if (!requireNamespace("renv")) {
   print("...OK")
 }
 
+thisFile <- function() {
+  cmdArgs <- commandArgs(trailingOnly = FALSE)
+  needle <- "--file="
+  match <- grep(needle, cmdArgs)
+  if (length(match) > 0) {
+    # Rscript
+    return(normalizePath(sub(needle, "", cmdArgs[match])))
+  } else {
+    # 'source'd via R console
+    return(normalizePath(sys.frames()[[1]]$ofile))
+  }
+}
+
+old.wd <- getwd()
+new.wd <- dirname(thisFile())
+
+setwd(new.wd)
 tryCatch(
   {
     print("Attempting to activate the existing `renv` environment...")
@@ -31,3 +42,4 @@ print("Restoring from renv.lock file... [[THIS COULD TAKE A VERY LONG TIME!!]]")
 renv::restore()
 print("Restore complete.")
 
+setwd(old.wd)

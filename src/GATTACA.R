@@ -25,20 +25,19 @@ thisFile <- function() {
 
 ## Note for devs: this will only work on r-studio
 if (!interactive()) {
-  here <- head(strsplit(thisFile(), "/")[[1]], -1)
-  here <- paste0(here, collapse = "/")
+  root <- dirname(thisFile())
 } else {
   if (!require("rstudioapi")) {
     install.packages("rstudioapi")
   }
-  here <- dirname(rstudioapi::getSourceEditorContext()$path)
+  root <- dirname(rstudioapi::getSourceEditorContext()$path)
 }
 
 
 tryCatch(
   {
     cat("Attempting to activate the existing `renv` environment...")
-    source(paste0(here, "/renv/activate.R"))
+    source(file.path(root, "renv", "activate.R"))
     cat("...OK\n")
   },
   error = function(err) {
@@ -64,7 +63,7 @@ library(RColorBrewer)     # Color Palette for R - display.brewer.all()
 library(yaml)             # Yaml file parsing
 library(logger)           # Well, logging
 
-source(paste0(here, "/STALKER_Functions.R"))   # Collection of custom functions
+source("./STALKER_Functions.R")   # Collection of custom functions
 
 GATTACA <- function(options.path, input.file, output.dir) {
   
