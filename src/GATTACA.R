@@ -201,9 +201,10 @@ GATTACA <- function(options.path, input.file, output.dir) {
   missing.percentage <- round(missing.annotations/dim(annotation)[1]*1e2, digits = 2)
   
   ## Reached milestone: loaded annotations
-  cat(
-    "\n", missing.annotations, " unannotated genes (", missing.percentage, " %).\n",
-    sep = ""
+  log_info(
+    paste0(
+      missing.annotations, " unannotated genes (", missing.percentage, " %).\n"
+    )
   )
   pitstop("Finished loading annotations.")
   
@@ -243,7 +244,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   thrFC = opts$design$filters$fold_change
   
   # Flags for script-wide IFs
-  saveOut = !opts$general$slowmode # The ! is important.
+  saveOut = !opts$switches$dryrun # The ! is important.
   logConversion = opts$switches$log2_transform
   secondNorm = opts$switches$renormalize
   
@@ -285,7 +286,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   log_info("Loading raw data...")
   dataset = read.table(myFile, header = FALSE, sep = "\t", dec = ".")
   d = dim(dataset)
-  cat("\nRaw dataset dimensions:", d, "\n\n", sep = " ")
+  log_info(paste("Raw dataset dimensions:", paste0(d, collapse = ", ")))
   printdata(dataset)
   
   # Extract column headings (sample identifiers)
@@ -294,7 +295,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   dataset = read.table(myFile, skip = rowOffset, header = FALSE, sep = "\t", dec = ".")
   colnames(dataset) = unlist(header)
   d = dim(dataset)
-  cat("\nHeaded dataset dimensions:", d, "\n\n", sep = " ")
+  log_info(paste("Headed dataset dimensions:", paste0(d, collapse = ", ")))
   printdata(dataset)
   
   # Extract row names (gene identifiers)
@@ -303,7 +304,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   dataset = dataset[,(colOffset+1):d[2]]
   header  = header[,(colOffset+1):d[2]]
   d = dim(dataset)
-  cat(paste("Final dataset dimensions:", d))
+  log_info(paste("Final dataset dimensions:", paste0(d, collapse = ", ")))
   printdata(dataset)
 
   # NOTICE:
@@ -503,7 +504,6 @@ GATTACA <- function(options.path, input.file, output.dir) {
   for (i in 1:kNum) {
     clustList[[i]] = cbind(clust[which(clust == i)]) # list of matrices
   }
-  print(clustList)
 
   p <- function() {
     plot.new() # This is needed for some reason.
@@ -783,10 +783,14 @@ GATTACA <- function(options.path, input.file, output.dir) {
       efit2 = eBayes(fit2)
       
       # Print Results (Top-Ten genes) for all the contrasts of interest
-      for (i in 1:length(myContr)) {
-        # 'print' because automatic printing is turned off in loops (and functions)
-        cat("\nDEG Top-List for contrast: ", myContr[i], "\n", sep = "")
-        print(topTable(efit2, coef = i, adjust.method = "BH", sort.by = "B"))
+      # This is only useful in slowmode.
+      if (opts$general$slowmode) {
+        for (i in 1:length(myContr)) {
+          # 'print' because automatic printing is turned off in loops (and functions)
+          cat("\nDEG Top-List for contrast: ", myContr[i], "\n", sep = "")
+          print(topTable(efit2, coef = i, adjust.method = "BH", sort.by = "B"))
+          cat("\n") # The one time I like a bit more space.
+        }
       }
       pitstop("Compute all DEGs? ")
 
