@@ -1,5 +1,30 @@
 #!/usr/bin/env Rscript
 
+# License ----------------------------------------------------------------------
+# MIT License
+#
+# Copyright (c) 2021 Feat-FeAR
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+# ------------------------------------------------------------------------------
+
 # Header Info ------------------------------------------------------------------
 #
 # GATTACA v3
@@ -278,7 +303,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   dataset = dataset[,(colOffset+1):d[2]]
   header  = header[,(colOffset+1):d[2]]
   d = dim(dataset)
-  cat("\nFinal dataset dimensions:", d, "\n\n", sep = " ")
+  cat(paste("Final dataset dimensions:", d))
   printdata(dataset)
 
   # NOTICE:
@@ -300,12 +325,12 @@ GATTACA <- function(options.path, input.file, output.dir) {
   }
   if (length(design) == m) {
     design = rep(c(1:m), design) # Convert from Compact to Full Design mode
-    log_info("\nCompact \'design\' mode approved\n\n")
+    log_info("Compact design mode approved")
   } else if (length(design) == d[2]) {
     if (max(design) > m || min(design) < 1 || sum((design %% 1) != 0)) {
       stop(badMsg)
     } else {
-      log_info("\nFull \'design\' mode approved\n\n")
+      log_info("Full design mode approved")
     }
   }
   
@@ -313,7 +338,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   log_info("Making tidy group names using the experimental design...")
   for (i in 1:m) {
     index = which(design == i)
-    grpName = paste0(groups[i], "_", c(1:length(index))
+    grpName = paste0(groups[i], "_", c(1:length(index)))
     sampleName[index] = grpName
   }
   
@@ -321,14 +346,15 @@ GATTACA <- function(options.path, input.file, output.dir) {
   corrTable = cbind(unlist(header), sampleName) # Cast to matrix
   colnames(corrTable) = c("Original_ID", "R_Name")
   rownames(corrTable) = c(1:d[2])
-  corrTable
+  printdata(corrTable)
+
   if (saveOut) {
     write.table(
       corrTable,
       "Corresp Table.txt", sep = "\t",
       col.names = TRUE, row.names = TRUE, quote = FALSE
     )
-    log_info("\n'Corresp Table.txt' has been saved in", myFolder, "\n\n")
+    log_info(paste("'Corresp Table.txt' has been saved in", myFolder))
   }
   
   colnames(dataset) = sampleName
@@ -817,7 +843,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
         "Shrinkage degree"
       )
       colnames(hyp) = "Hyperparameters"
-      log_info(paste0("Hyperparameters:: /n", get.print.str(hyp)))
+      log_info(paste0("Hyperparameters:: \n", get.print.str(hyp)))
       
       # Save significant DEG list in Excel format with annotations
       log_info("Saving DEGs into xlsx files. Generating tables...")

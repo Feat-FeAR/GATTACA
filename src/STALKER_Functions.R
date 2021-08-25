@@ -315,5 +315,5 @@ printif.maker <- function(check, applied.fun = function(x) {x}) {
 #' 
 #' @author Hedmad.
 get.print.str <- function(data) {
-  return(paste0(capture.output(print(data)), collapse = "/n"))
+  return(paste0(capture.output(print(data)), collapse = "\n"))
 }
