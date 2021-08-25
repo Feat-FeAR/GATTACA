@@ -1,6 +1,3 @@
-#? >>> DON'T CHANGE THIS FILE DIRECTLY <<<
-#? Default options for GATTACA script. Clone this file and edit that!
-#?
 # Options for GATTACA. Change what you need following the descriptions.
 # The options have a type annotation beside them, showing the allowed
 # types for that option. Using the wrong types will lead to errors.
@@ -13,9 +10,8 @@ general:
   slowmode: true # bool
   # Print out small snippets of data before every analysis step?
   show_data_snippets: true # bool
-  # Define logfile. Leave null to use default of `gattaca_(time).log` in
-  # the output folder (absolute paths only).
-  log_path: null # null OR str pathlike
+  # Define logfile name. Leave null to use default of `gattaca_(time).log`.
+  log_path: null # null OR str
   # Save PNG and/or PDF plots?
   save_pdf: true # bool
   save_png: false # bool
@@ -40,7 +36,7 @@ switches:
     # Run Differential gene expression detection with `limma`
     # This uses parametric tests to find DEGs.
     run_DEA: true # bool
-    # The package can run both paired and unpaired differental expression
+    # The package can run both paired and unpaired differential expression
     # analises. If `true`, run the paired analysis. If `false`, run the unpaired
     # analysis. Note:: Paired analysis can only be run when only one contrast is
     # selected. Check the README if you intend to use this option.
@@ -50,7 +46,7 @@ switches:
     # Run Differential gene expression detection with `rankproduct`
     # This uses non-parametric tests to find DEGs.
     run_DEA: true # bool
-    # The package can run both paired and unpaired differental expression
+    # The package can run both paired and unpaired differential expression
     # analises. If `true`, run the paired analysis. If `false`, run the unpaired
     # analysis. Note:: Paired analysis can only be run when only one contrast is
     # selected. Check the README if you intend to use this option.
@@ -72,7 +68,7 @@ chip:
   use_remote: true # bool
   # If a local database is used, where is it stored (absolute paths only)?
   # Read the readme for more info on the expected format of the database file
-  local_database_path: null # str pathlike
+  local_database_path: null # str path like
 
 
 # DESIGN - Experimental design
@@ -91,7 +87,7 @@ design:
   contrasts: [1] # list of int
   # Filters:
   filters:
-    # Filter out (mark as non-differentally-expressed) any genes that have lower
+    # Filter out (mark as non-differentially-expressed) any genes that have lower
     # log2 expression than this value. This value depends a lot on the experiment.
     # The readme has pointers on how to choose the correct value.
     log2_expression: 4 # num
