@@ -1,14 +1,18 @@
 #!/usr/bin/env Rscript
 
-# Header Info ----------------------------------------------------------------------------------------------------------
+# Header Info ------------------------------------------------------------------
 #
-# GATTACA v3 - General Algorithm for The Transcriptional Analysis by one-Channel Arrays
+# GATTACA v3
+# General Algorithm for The Transcriptional Analysis by one-Channel Arrays
 #
 # a FeAR R-script
 #
 # Pipeline for one-Color (HD) Microarrays
-# Data are supposed to be already background-subtracted, log2-transformed, and interarray-normalized
+# Data are supposed to be already background-subtracted, log2-transformed, and
+# interarray-normalized
 #
+# ------------------------------------------------------------------------------
+
 
 thisFile <- function() {
   #' Returns the location of the file from where this is run from.
