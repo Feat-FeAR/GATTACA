@@ -3,6 +3,8 @@
 [![License](https://img.shields.io/github/license/Feat-FeAR/GATTACA)](https://choosealicense.com/licenses/mit/)
 [![Issues](https://img.shields.io/github/issues/Feat-FeAR/GATTACA)](https://github.com/Feat-FeAR/GATTACA/issues)
 [![R Version](https://img.shields.io/badge/R%20version-4.1.1-informational)](https://www.r-project.org/)
+[![Latest docker image size](https://img.shields.io/docker/image-size/mrhedmad/gattaca/latest?label=Docker%20image%20size)](https://hub.docker.com/repository/docker/mrhedmad/gattaca#)
+
 
 <b>GATTACA</b> is a short for <b>General Algorithm for The Transcriptional Analysis by one-Channel Arrays</b>.
 It consists of a set of R scripts for the analysis of Transportome Transcription in Cancer Datasets.
@@ -11,7 +13,9 @@ As the name suggests, GATTACA was originally written with (one-color/high-densit
 GATTACA assumes data to be already background-subtracted, log2-transformed, and interarray-normalized.
 To this purpose, use the platform-specific <i>*_to_Expression.R</i> script.
 
-> Disclaimer: These instructions are given with a unix-like environment in mind. The program was developed and tested in an Ubuntu installation. See issue #3.
+The available docker containers live [here on Docker Hub](https://hub.docker.com/repository/docker/mrhedmad/gattaca#).
+
+> **Disclaimer**: These instructions are given with a unix-like environment in mind. The program was developed and tested in an Ubuntu installation. See issue #3.
 
 ## Installation
 
