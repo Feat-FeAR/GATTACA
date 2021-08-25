@@ -258,9 +258,8 @@ stop_quietly <- function() {
 pitstop.maker <- function(check) {
   pitstop <- function(message) {
     if (check) {
-      readline(prompt=paste0(message, " Continue? [yes/NO]: ")) |>
-        tolower() ->
-        response
+      cat(paste0(message, " Continue? [yes/NO]: "))
+      readLines("stdin", n=1) |> tolower() -> response
       if (response %in% c("yes", "ye", "y")) {
         return()
       } else {

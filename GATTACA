@@ -209,7 +209,9 @@ if [ ! $optfile = "${input_mountpoint}/${option_file_clean}" ]; then
 fi
 
 docker run \
+    -it --rm \
     --mount type=bind,source=$target,target=/GATTACA/target \
     --mount type=bind,source=$input_mountpoint,target=/GATTACA/input,readonly \
     gattaca:$version \
     $input_file_clean $option_file_clean
+
