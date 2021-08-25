@@ -1,24 +1,33 @@
-# Header Info ----------------------------------------------------------------------------------------------------------
+# Header Info ------------------------------------------------------------------
 #
 # STALKER Functions
 #
 # A Collection of R functions to be used with:
 #     GATTACA
 #
-# a FeAR R-script - 04-Aug-2021
+# a FeAR R-script
 #
+# ------------------------------------------------------------------------------
 
 
-
-
-
-# Save a graphical output to '<folderPrefix> Figures' sub-directory
-#
-#   figureName    = name of the output file (without extension)
-#   folderPrefix  = prefix for naming the saving subfolder (default to the name of the parent script sourcing this one)
-#   PNG           = boolean: T to print the currently displayed figure in PNG format
-#   PDF           = boolean: T to print the currently displayed figure in PDF format
-#
+#' Save a graphical output to '<folderPrefix> Figures' sub-directory.
+#' 
+#' Automatically makes the output folder if not there.
+#' 
+#' @param plotfun A function that resolves to printing a plot to an open
+#'   device. This takes a function and not a plot object as some plotting
+#'   facilities (notably the default one) cannot print plot objects conveniently.
+#' @param figureName name of the output file (without extension)
+#' @param folderPrefixprefix for naming the saving subfolder
+#'   (defaults to `scriptName` option)
+#' @param PNG If true, print the plot to PNG format. Defaults to `save.PNG.plot`
+#'   option or TRUE (if NULL).
+#' @param PDF If true, print the plot to PDF format. Defaults to `save.PDF.plot`
+#'   option or TRUE (if NULL).
+#' @param plot.width Width of the plot. Defaults to `plot.width` option or 820.
+#' @param plot.height Height of the plot. Defaults to `plot.height` option or 600.
+#' 
+#' @author FeAR
 printPlots = function(
   plotfun,
   figureName,
@@ -28,12 +37,13 @@ printPlots = function(
   ) {
   library(logger)
   flag = FALSE # A dummy flag to insert a couple of 'new lines' in case of WARNINGs
-  
+
   # Check argument values
-  # NOTE: considering that getOption("...") returns NULL for undefined arguments, IFs are evaluated only when:
-  # the corresponding global option is not defined
-  #  AND
-  # no argument is passed runtime
+  # NOTE: considering that getOption("...") returns NULL for undefined arguments,
+  #       IFs are evaluated only when:
+  #           the corresponding global option is not defined
+  #             AND
+  #           no argument is passed runtime
   if (is.null(PNG)) { 
     PNG = TRUE
     flag = TRUE
@@ -88,18 +98,19 @@ printPlots = function(
 }
 
 
-
-
-
-# Append annotation to DEG-statistic top-table and sort (do nothing if do.the.job == FALSE)
-#
-#   gene.stat   = the table of genes, usually a DEG summary-statistic top-table (or an expression matrix)
-#   ann         = the matrix containing the annotation data
-#   do.the.job  = F to skip the appending task by global settings, without the need for an external IF
-#   sort.by     = the name or index of the column used to sort the final data set
-#
+#' Append annotation to DEG-statistic top-table and sort
+#' 
+#' @param gene.stat The table of genes, usually a DEG summary-statistic top-table
+#'   or an expression matrix.
+#' @param ann the matrix containing the annotation data
+#' @param do.the.job If false, don't do anything. Defaults to `append.annot`
+#'   option or TRUE if the option in NULL.
+#' @param sort.by the name or index of the column used to sort the final data set
+#' 
+#' @author FeAR
 appendAnnotation = function(gene.stat, ann, do.the.job = getOption("append.annot"), sort.by = 1)
 {
+  #' 
   # Check argument values
   if (is.null(do.the.job)) {
     do.the.job = TRUE
@@ -121,16 +132,12 @@ appendAnnotation = function(gene.stat, ann, do.the.job = getOption("append.annot
 }
 
 
-
-
-
-# Return basics descriptive statistics of a single gene, by group label
-#
-#   gene  = Numeric vector or single-row data frame from gene expression matrix
-#   gr    = Group names
-#   des   = Experimental design (full design mode vector)
-#   prec  = Decimal precision
-#
+#' Return basics descriptive statistics of a single gene, by group label
+#' 
+#' @param gene Numeric vector or single-row data frame from gene expression matrix
+#' @param gr Group names
+#' @param des Experimental design (full design mode vector)
+#' @param prec Decimal precision. Defaults to 4.
 descStat1G = function(gene, gr, des, prec = 4)
 {
   # Define a new empty data frame
@@ -158,24 +165,25 @@ descStat1G = function(gene, gr, des, prec = 4)
 }
 
 
-
-
-
-# Plot single gene comparison chart
-#
-#   exp.mat     = Expression matrix (as data frame)
-#   gr          = Group names
-#   des         = Experimental design (full design mode vector)
-#   gois        = Genes of interest by probe (char vector)
-#   chart.type  = "BP" (Box Plot), "BC" (Bar Chart), or "MS" (Mean & SEM)
-#   ann         = Optional annotation data frame
-#
+#' Plot single gene comparison chart
+#' 
+#' @param exp.mat Expression matrix (as data frame)
+#' @param gr Group names
+#' @param des Experimental design (full design mode vector)
+#' @param gois Genes of interest by probe (char vector)
+#' @param chart.type "BP" (Box Plot), "BC" (Bar Chart), or "MS" (Mean & SEM)
+#'   Defaults to "BP".
+#' @param ann Optional annotation data frame.
+#' 
+#' @author FeAR
 singleGeneView = function(exp.mat, gr, des, gois, chart.type = "BP", ann = NULL)
 {
-  geo = switch(chart.type,
-               "BP" = "point",
-               "BC" = "bar",
-               "MS" = "crossbar")
+  geo = switch(
+    chart.type,
+    "BP" = "point",
+    "BC" = "bar",
+    "MS" = "crossbar"
+  )
   
   for (i in 1:length(gois)) {
     
@@ -228,6 +236,7 @@ singleGeneView = function(exp.mat, gr, des, gois, chart.type = "BP", ann = NULL)
 
 
 # https://stackoverflow.com/questions/14469522/stop-an-r-program-without-error
+#' Stop a program anywhere, but with no errors.
 stop_quietly <- function() {
   opt <- options(show.error.messages = FALSE)
   on.exit(options(opt))
@@ -235,7 +244,17 @@ stop_quietly <- function() {
 }
 
 
-
+#' Make a pistop function.
+#' 
+#' A pitstop function prints out a prompt that the user can reply to
+#' to either continue or silently stop the program.
+#' 
+#' @param check A boolean that governs if all generated pitstops run (`TRUE`)
+#'   or not (`FALSE`). This is useful to globally skip all pitstops.
+#' 
+#' @returns A `pitstop` function that takes a message as prompt.
+#' 
+#' @author Hedmad
 pitstop.maker <- function(check) {
   pitstop <- function(message) {
     if (check) {
@@ -253,6 +272,12 @@ pitstop.maker <- function(check) {
 }
 
 
+#' Print out the topleft part of the input data. Useful to inspect the data
+#' 
+#' @param data The data to be printed. Has to be subsetted with [] and processed
+#'   by `head()`. This works for dataframes and matrices.
+#'   
+#' @author Hedmad
 topleft.head <- function(data) {
   y <- dim(data)[2]
   floored.y <- floor(y * 0.25)
@@ -262,6 +287,14 @@ topleft.head <- function(data) {
 }
 
 
+#' Make a printif. A printif prints only if a global check passes.
+#' 
+#' @param check A boolean that governs if all generated printifs run (`TRUE`)
+#'   or not (`FALSE`). This is useful to globally skip all prints.
+#' @param applied.fun A function applied to the input of all printifs.
+#'   Useful if all inputs need to be preprocessed in the same way.
+#'   
+#' @author Hedmad
 printif.maker <- function(check, applied.fun = function(x) {x}) {
   printif <- function(incoming) {
     if (check) {
@@ -272,6 +305,15 @@ printif.maker <- function(check, applied.fun = function(x) {x}) {
 }
 
 
+#' Capture the output of `print(data)` to a string.
+#' 
+#' Only supports data that can be printed.
+#' 
+#' @param data Object to be printed.
+#' 
+#' @returns A single string.
+#' 
+#' @author Hedmad.
 get.print.str <- function(data) {
   return(paste0(capture.output(print(data)), collapse = "/n"))
 }
