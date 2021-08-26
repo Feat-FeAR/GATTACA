@@ -1,13 +1,23 @@
 #!/bin/bash
 
-## As this should only be run from the main GATTACA file, we can be sure that
-# $1 is input_file_clean and $2 is option_file_clean, both in /GATTACA/input
-# We are also sure that we need to write to /GATTACA/target
+# Take out the order from the GATTACA script, defining what we have to do.
+order=$1; shift # This gets rid of $1 containig the order.
 
-inputfile="/GATTACA/input/${1}"
-optionfile="/GATTACA/input/${2}"
+case "$order" in
+    gattaca)
+        ## As this should only be run from the main GATTACA file, we can be sure that
+        # $1 is input_file_clean and $2 is option_file_clean, both in /GATTACA/input
+        # We are also sure that we need to write to /GATTACA/target
+        inputfile="/GATTACA/input/${1}"
+        optionfile="/GATTACA/input/${2}"
 
-Rscript \
-    --vanilla \
-    -e "source('/GATTACA/GATTACA.R')" \
-    -e "GATTACA('${optionfile}', '${inputfile}', '/GATTACA/target')" 
+        Rscript \
+            --vanilla \
+            -e "source('/GATTACA/GATTACA.R')" \
+            -e "GATTACA('${optionfile}', '${inputfile}', '/GATTACA/target')"
+        ;;
+    *)
+        echo "Unrecognized order: '${order}'"
+        exit 1
+        ;;
+esac

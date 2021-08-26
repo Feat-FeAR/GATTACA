@@ -387,14 +387,14 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
     # Are there any zero values?
     zeroVal = length(which(dataset == 0))
-    log_warn("\n", zeroVal, "null values found. They will get removed.")
     # Value imputation
     if (zeroVal > 0) {
+      log_warn(zeroVal, " null values found. They will get removed.")
       # Non-zero minimum value
       imputation = min(dataset[which(dataset > 0, arr.ind = TRUE)])
       #imputation = NaN # Alternatively
       dataset[which(dataset == 0, arr.ind = TRUE)] = imputation
-      cat("\n", zeroVal, "null values have been imputated with", imputation, "\n\n")
+      log_warn(zeroVal, " null values have been imputated with", imputation)
     }
     
     log_info("Log transforming...")
@@ -823,7 +823,6 @@ GATTACA <- function(options.path, input.file, output.dir) {
       
       # Summary of DEGs (you can change the Log2-Fold-Change Threshold lfc...)
       results.limma = decideTests(efit2, adjust.method = "BH", p.value = 0.05, lfc = thrFC)
-      summary(results.limma)
       p <- function() {
         vennDiagram(results.limma)
       }
@@ -896,7 +895,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
       design = design[index]
       sampleName = sampleName[index]
       d = dim(dataset)
-      log_info(paste("Sub-dataset dimensions:", d))
+      log_info(paste("Sub-dataset dimensions: ", paste(d, collapse = ", ")))
       printdata(dataset)
       
       log_info("Getting patient pairings...")
@@ -904,14 +903,12 @@ GATTACA <- function(options.path, input.file, output.dir) {
       # Always to be checked !!
       patient.ID = factor(as.numeric(substring(sampleName, regexpr("_", sampleName) + 1)))
       #patient.ID = factor(c(1,1,2,2,3,3,4,5,6,4,5,6)) # ...or go manually
-      log_info(paste0("Patient IDs are:", paste0(patient.ID, collapse = ", ")))
+      log_info(paste0("Patient IDs are: ", paste0(patient.ID, collapse = ", ")))
       pitstop("Are the patient IDs ok?")
       cond = factor(groups[design])
       
       log_info("Making limma design formula...")
       limmaDesign = model.matrix(~patient.ID + cond)
-      print(limmaDesign)
-      pitstop("Fit this model?")
       
       log_info("Fitting model...")
       fit = lmFit(dataset, limmaDesign)
@@ -942,7 +939,9 @@ GATTACA <- function(options.path, input.file, output.dir) {
         cat("\n'", degTabName, "' has been saved in ", myFolder, "\n\n", sep = "")
       }
       
-      # TODO: Summary of DEGs for paired test ...to be implemented)
+      # BUG:: This call probaby distorts the data to make the wrong MA plot
+      # described in issue #7.
+      results.limma = decideTests(efit2, adjust.method = "BH", p.value = 0.05, lfc = thrFC)
       
       # Show Hyperparameters
       d0 = efit2$df.prior           # prior degrees of freedom

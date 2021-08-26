@@ -26,6 +26,8 @@ while getopts ":h" opt; do
             echo "    GATTACA -h             Display this help message."
             echo "    GATTACA init           Spawn a default configuration file."
             echo "    GATTACA run            Run GATTACA."
+            echo "    GATTACA prepaffy       Run the preprocessing scripts for Affymetrix .CEL files"
+            echo "    GATTACA prepagil       Run the preprocessing scripts for Agilent .txt and target files."
             echo ""
             echo "Use -h in any subcommand to get more help and possible options"
             exit 0
@@ -40,7 +42,6 @@ shift $((OPTIND -1))
 
 subcommand=$1; shift  # Remove 'subcommand` from the argument list
 case "$subcommand" in
-    # Parse options to the init sub command
     init)
         # Process init options
         while getopts ":t:h" opt; do
@@ -121,10 +122,12 @@ case "$subcommand" in
                     echo ""
                     echo "Options:"
                     echo "    -h                            Display this help message."
-                    echo "    -t <target_folder>            Set the output folder. Defaults to ./GATTACA_output"
+                    echo "    -t <target_folder>            Set the output folder. Defaults to ./GATTACA_output/"
                     echo "    -i <input_file>               Specify the input file path with the microarray intensities."
                     echo "    -o <options_file>             Set the options file. Defaults to ./GATTACA_config.yaml"
-                    echo "    -v <docker version>           Set the version of the docker to download. Defaults to latest."
+                    echo "                                  NOTE: Due to docker limitations, the options file will be"
+                    echo "                                  copied to the input folder, and it must not have the same" echo "                                  name as the input file."
+                    echo "    -v <docker version>           Set the version of the docker to use. Defaults to latest."
                     exit 0
                     ;;
                 \? )
@@ -132,8 +135,7 @@ case "$subcommand" in
                     exit 1
                     ;;
                 : )
-                    echo "Error: You must specify at least the -t option."
-                    exit 1
+                    : # This means do nothing.
                     ;;
             esac
         done
@@ -183,35 +185,41 @@ case "$subcommand" in
         fi
         echo "Using version ${version}"
         shift $((OPTIND -1))
+
+        # Now that we have the options we can fetch the container, mount the
+        # exit directory, and run the container.
+
+        input_mountpoint="$(dirname "$inputfile")"
+        input_file_clean=$(basename -- "$inputfile")
+        option_file_clean=$(basename -- "$optfile")
+
+        if [ "${input_file_clean}" = "${option_file_clean}" ]; then
+            echo "Input and option files cannot have the same name. Sorry!"
+            exit 1
+        fi
+
+        echo "Mounting folders:"
+        echo "      Inputs:  ${input_mountpoint}"
+        echo "      Outputs: ${target}"
+
+        # To avoid mountig the same folder multiple times, I copy the options 
+        # file to the input folder just to be safe.
+        if [ ! $optfile = "${input_mountpoint}/${option_file_clean}" ]; then
+            cp $optfile "${input_mountpoint}/${option_file_clean}"
+        fi
+
+        docker run \
+            -it --rm \
+            --mount type=bind,source=$target,target=/GATTACA/target \
+            --mount type=bind,source=$input_mountpoint,target=/GATTACA/input,readonly \
+            gattaca:$version \
+            "gattaca" $input_file_clean $option_file_clean
+
+        ;;
+    prepaffy)
+        :
+        ;;
+    prepagil)
+        :
         ;;
 esac
-
-# Now that we have the options we can fetch the container, mount the exit directory,
-# and run the container.
-
-input_mountpoint="$(dirname "$inputfile")"
-input_file_clean=$(basename -- "$inputfile")
-option_file_clean=$(basename -- "$optfile")
-
-if [ "${input_file_clean}" = "${option_file_clean}" ]; then
-    echo "Input and option files cannot have the same name. Sorry!"
-    exit 1
-fi
-
-echo "Mounting folders:"
-echo "      Inputs:  ${input_mountpoint}"
-echo "      Outputs: ${target}"
-
-# To avoid mountig the same folder multiple times, I copy the options file to the
-# input folder just to be safe.
-if [ ! $optfile = "${input_mountpoint}/${option_file_clean}" ]; then
-    cp $optfile "${input_mountpoint}/${option_file_clean}"
-fi
-
-docker run \
-    -it --rm \
-    --mount type=bind,source=$target,target=/GATTACA/target \
-    --mount type=bind,source=$input_mountpoint,target=/GATTACA/input,readonly \
-    gattaca:$version \
-    $input_file_clean $option_file_clean
-
