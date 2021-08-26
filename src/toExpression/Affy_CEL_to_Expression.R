@@ -68,7 +68,7 @@ source(file.path(root, "STALKER_Functions.R"))   # Collection of custom function
 
 
 affy2expression <- function(
-    input.folder, output.folder, log_name = NULL,
+    input.folder, output.file, log_name = NULL,
     use.affy = FALSE, remove.controls = FALSE
     ) {
   # ---- Loading packages ----
@@ -81,6 +81,7 @@ affy2expression <- function(
   library(logger)
   
   # Setup logging facilities
+  output.dir <- dirname(output.file)
   start.timedate <- gsub(" ", "_", date())
   log.target <- if (is.null(log_name)) {
     file.path(output.dir, paste0("affy2expression_", start.timedate, ".log"))
@@ -123,7 +124,7 @@ affy2expression <- function(
     }
   }
   log_info("Saving Expression Matrix to file...")
-  write.exprs(eset, file = "RMA-normalized_logExpression_U133Plus2.txt")
+  write.exprs(eset, file = output.file)
   log_info("affy2expression finished")
 }
 
