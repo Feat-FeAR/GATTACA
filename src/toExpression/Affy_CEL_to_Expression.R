@@ -72,21 +72,26 @@ affy2expression <- function(
     use.affy = FALSE, remove.controls = FALSE
     ) {
   # ---- Loading packages ----
-  # As a rule: try oligo first, then if it doesn't work, try affy
-  # For 3' IVT Affymetrix Arrays (older ones; e.g. Mouse 430 and Human U133 series)
-  # For GeneChip/Exon Affymetrix Arrays (newer ones + popular old platforms)
-  if (use.affy) { library(affy) } else { library(oligo) }
+  library(oligo)
   library(limma)          # For plotMD() function
   library(openxlsx)       # Read, Write, and Edit .xlsx (Excel) Files
   library(logger)
+
+  print(paste0("Call: (in/out/log/affy/rm) ", input.folder, output.file, log_name,
+    use.affy, remove.controls, sep = " :: "))
   
   # Setup logging facilities
   output.dir <- dirname(output.file)
   start.timedate <- gsub(" ", "_", date())
+  
+  # I don't know if log_name was passed as a string or NULL, so in the call
+  # made by entry I have to wrap the input in "" to make it a valid string.
+  # This causes NULL to become "NULL", and therefore I have to do this badness
+  log_name <- if (log_name == "NULL") {NULL} else {log_name}
   log.target <- if (is.null(log_name)) {
     file.path(output.dir, paste0("affy2expression_", start.timedate, ".log"))
   } else {
-    log_name
+    file.path(output.dir, log_name)
   }
   file.create(log.target)
   log_appender(appender_tee(log.target))
@@ -97,7 +102,7 @@ affy2expression <- function(
   
   celFiles = list.celfiles()
   paste0(
-      "Found ", length(celFiles), "celfiles: ", paste0(celFiles, collapse = ", ")
+      "Found ", length(celFiles), " celfiles: ", paste0(celFiles, collapse = ", ")
     ) |>
     log_info()
   
@@ -114,13 +119,18 @@ affy2expression <- function(
     probes.before = dim(eset)[1]
     # ^ anchor to match the start of string (see regular expressions)
     eset = eset[-grep("^AFFX", rownames(eset)),]
-    probes.fter = dim(eset)[1]
-    discarded = probes.before - probes.fter
-    log_info(paste0(discarded, " Affymetrix control probes have been discarded"))
-    
+    probes.after = dim(eset)[1]
+    discarded = probes.before - probes.after
+    discarded.percent = round(discarded / probes.before * 100, 4)
+    log_info(
+      paste0(
+        discarded, " Affymetrix control probes have been discarded, ",
+        discarded.percent, "% of total."
+      )
+    )
     # Check for missing values (NA) and NaN entries
     if (any(is.na(exprs((eset)))) || any(is.nan(exprs((eset))))) {
-      log_warn("Detectem some missing values in the dataset. Has somenthing gone terribly wrong?")
+      log_warn("Detected some missing values in the dataset. Has something gone terribly wrong?")
     }
   }
   log_info("Saving Expression Matrix to file...")

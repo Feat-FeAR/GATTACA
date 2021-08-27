@@ -229,6 +229,3 @@ cat("\nExpression matrix (without annotations) has been saved in\n", myFolder, "
 #            sep = "\t", col.names = TRUE, row.names = FALSE)
 #cat("\nExpression matrix (with annotations) has been saved in\n", myFolder, "\n\n", sep = "")
 
-
-
-

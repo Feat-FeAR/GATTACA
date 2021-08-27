@@ -115,10 +115,10 @@ GATTACA <- function(options.path, input.file, output.dir) {
   
   # Setup logging facilities
   start.timedate <- gsub(" ", "_", date())
-  log.target <- if (is.null(opts$general$log_path)) {
+  log.target <- if (is.null(opts$general$log_name)) {
     file.path(output.dir, paste0("GATTACA_", start.timedate, ".log"))
   } else {
-    opts$general$log_path
+    file.path(output.dir, opts$general$log_name)
   }
   file.create(log.target)
   log_appender(appender_tee(log.target))

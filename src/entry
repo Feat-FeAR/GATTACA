@@ -16,6 +16,16 @@ case "$order" in
             -e "source('/GATTACA/GATTACA.R')" \
             -e "GATTACA('${optionfile}', '${inputfile}', '/GATTACA/target')"
         ;;
+    prepaffy)
+        ## Again, we know the order of the iputs:
+        # "$output_file_clean $logname $useAffy $removeControls"
+        outputfile="/GATTACA/target/${1}"
+
+        Rscript \
+            --vanilla \
+            -e "source('/GATTACA/toExpression/Affy_CEL_to_Expression.R')" \
+            -e "affy2expression('/GATTACA/input', '${outputfile}', log_name = '${2}', remove.controls = ${3})"
+        ;;
     *)
         echo "Unrecognized order: '${order}'"
         exit 1

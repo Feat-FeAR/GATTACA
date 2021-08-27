@@ -98,25 +98,10 @@ case "$subcommand" in
         inputfile=$(realpath "./inputfile")
         while getopts ":hi:t:o:v:" opt; do
             case ${opt} in
-                t )
-                    # Set the output (target) folder
-                    target=$OPTARG
-                    target=$(realpath $target)
-                    ;;
-                i )
-                    # Set the input file
-                    inputfile=$OPTARG
-                    inputfile=$(realpath $inputfile)
-                    ;;
-                o )
-                    # Set the options file
-                    optfile=$OPTARG
-                    optfile=$(realpath $optfile)
-                    ;;
-                v )
-                    # Set the version of the container to use
-                    version=$OPTARG
-                    ;;
+                t ) target=$(realpath $OPTARG);;
+                i ) inputfile=$(realpath $OPTARG);;
+                o ) optfile=$(realpath $OPTARG);;
+                v ) version=$OPTARG ;;
                 h )
                     echo "Download and run the GATTACA docker container."
                     echo ""
@@ -134,11 +119,10 @@ case "$subcommand" in
                     echo "Invalid Option: -$OPTARG" 1>&2
                     exit 1
                     ;;
-                : )
-                    : # This means do nothing.
-                    ;;
+                : ) : ;;
             esac
         done
+        shift $((OPTIND -1))
         # Test if the options are valid
         ## Target folder
         if [ -f $target ]; then
@@ -217,9 +201,92 @@ case "$subcommand" in
 
         ;;
     prepaffy)
-        :
+        # Default options
+        inputFolder="."
+        outputFile="./AffyExpression.txt"
+        logName="NULL"
+        removeControls="FALSE"
+        version="latest"
+        
+        while getopts ":i:o:l:v:arh" opt; do
+            case ${opt} in
+                i) inputFolder=$(realpath $OPTARG);;
+                o) outputFile=$OPTARG;;
+                l) logName=$OPTARG;;
+                r) removeControls="TRUE";;
+                v) version=$OPTARG ;;
+                h)
+                    echo "Run preprocessing on .CEL files to get an expression matrix."
+                    echo ""
+                    echo "Options:"
+                    echo "  -h                      Print this message and exit."
+                    echo "  -i <input folder>       Specify the input folder with a collection of .CEL files"
+                    echo "                          Defaults to the current working directory."
+                    echo "  -o <output file>        Specify the output file that will contain the expression matrix"
+                    echo "                          Defaults to '${outputfile}'"
+                    echo "  -l <log filename>       Specify the filename of the log that will be alongside the output file."
+                    echo "  -v <docker version>     Set the version of the docker to use. Defaults to latest."
+                    echo ""
+                    echo "Flags:"
+                    echo "  -r        If set, will remove control probes from the final set."
+                    exit 0
+                ;;
+                \?)
+                    echo "Invalid Option: -$OPTARG" 1>&2
+                    exit 1
+                ;;
+                :) : ;;
+            esac
+        done
+        shift $((OPTIND -1))
+        # Test if the options are valid
+        ## Input folder
+        if [ -f $inputFolder ]; then
+            # The target is a file. Error
+            echo "Error: Input folder (${inputFolder}) cannot be a file."
+            exit 1
+        elif [ ! -d $inputFolder ]; then
+            # The target is a directory that doesn't exist. Error.
+            echo "Error: Input folder (${inputFolder}) doesn't exist."
+            exit 1
+        elif [ -d $inputFolder ]; then
+            # The target is a real folder, wow
+            echo "Using input folder: ${inputFolder}"
+        else
+            # The path is invalid.
+            echo "Error: invalid input path: ${inputFolder}"
+            exit 1
+        fi
+        ## Check if the output folder exists.
+        outputFolder="$(dirname "$outputFile")"
+        if [ ! -d $outputFolder ]; then
+            # The foldes doesn't exist. Make it.
+            mkdir -p $outputFolder
+            echo "Made output folder: ${outputFolder}"
+        elif [ -d $outputFolder ]; then
+            # The outputFolder is a real folder, wow
+            echo "Using output file: ${outputFile}"
+        else
+            # The path is invalid.
+            echo "Error: invalid output path: ${outputFile}"
+            exit 1
+        fi
+        echo "Using version: ${version}"
+        echo "Using logname: ${logName}"
+        echo "Remove control probes? ${removeControls}"
+
+        output_file_clean=$(basename -- "$outputFile")
+
+        # Now that we have the options, we can start the docker container.
+        docker run \
+            -it --rm \
+            --mount type=bind,source=$outputFolder,target=/GATTACA/target \
+            --mount type=bind,source=$inputFolder,target=/GATTACA/input,readonly \
+            gattaca:$version \
+            "prepaffy" $output_file_clean $logName $removeControls
         ;;
     prepagil)
-        :
+        echo "This is not yet implemented. Sorry!"
+        exit 0
         ;;
 esac
