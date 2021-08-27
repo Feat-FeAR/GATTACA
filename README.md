@@ -89,6 +89,14 @@ To run GATTACA, you must provide an options file encoded in [yaml](https://yaml.
         - `fold_change` (num): Fold Change Threshold. Usually, `|log2FC| > 0.5` or `|log2FC| > 1`. The reasoning behind this filter is the same as `log2_expression`.
         - `min_groupwise_presence` (num): The percentage (rouded up) of samples in each group that a gene has to have over `fold_change` expression to have the possibility to be included as as differentially expressed gene. This is done to be sure that the differentially expressed genes are represented in most analysed samples and therefore robust from the biological point of view.
 
+### Script: Affy2Expression
+This script converts a collection of `.CEL` files from Affymetrix chips to an expression matrix.
+It uses the `oligo` package that can automatically detect and download a wide variety of annotation databases for chips.
+
+The script is called with `GATTACA prepaffy` command. The options are straightforward to understand (use `GATTACA prepaffy -h` to see them).
+
+The `.CEL` files in the input folder are found by looking at their file extension, and are not found recursively.
+
 ## Building the image
 If you wish to rebuild the Docker container, simply clone the repo, and run `docker build .`. More information on the [docker build documentation page](https://docs.docker.com/engine/reference/commandline/build/).
 Note that rebuilding the image can take a long, long time due to the need to install required packages (that need to be compiled).
