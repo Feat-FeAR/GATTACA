@@ -506,8 +506,8 @@ GATTACA <- function(options.path, input.file, output.dir) {
   }
 
   p <- function() {
-    plot.new() # This is needed for some reason.
-    rect.hclust(hc, k = kNum, border = myColors[2]) # Red borders around the kNum clusters 
+    plot(hc)
+    print(rect.hclust(hc, k = kNum, border = myColors[2])) # Red borders around the kNum clusters 
   }
   printPlots(p, "Dendrogram and Clusters")
   
