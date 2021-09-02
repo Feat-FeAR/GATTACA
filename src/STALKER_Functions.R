@@ -36,7 +36,6 @@ printPlots = function(
   plot.width = getOption("plot.width"), plot.height = getOption("plot.height")
   ) {
   library(logger)
-  flag = FALSE # A dummy flag to insert a couple of 'new lines' in case of WARNINGs
 
   # Check argument values
   # NOTE: considering that getOption("...") returns NULL for undefined arguments,
@@ -46,13 +45,11 @@ printPlots = function(
   #           no argument is passed runtime
   if (is.null(PNG)) { 
     PNG = TRUE
-    flag = TRUE
-    cat("\nWARNING: \'save.PNG.plot\' option defaulted to TRUE")
+    log_warn("save.PNG.plot option defaulted to TRUE")
   }
   if (is.null(PDF)) {
     PDF = TRUE
-    flag = TRUE
-    cat("\nWARNING: \'save.PDF.plot\' option defaulted to TRUE")
+    log_warn("save.PDF.plot option defaulted to TRUE")
   }
   if (is.null(folderPrefix)) {
     figSubFolder = "Figures"
@@ -71,7 +68,6 @@ printPlots = function(
   
   if (!file.exists(figSubFolder) && (PNG || PDF)) {
     dir.create(figSubFolder)
-    flag = TRUE
     log_info("New folder '", figSubFolder, "' has been created in the current WD", sep = "")
   }
   if (PNG) { # invisible(capture.output()) to suppress automatic output to console
@@ -92,9 +88,6 @@ printPlots = function(
     plotfun()
     dev.off()
   }
-  if (flag) {
-    cat("\n\n")
-  }
 }
 
 
@@ -108,7 +101,11 @@ printPlots = function(
 #' @param sort.by the name or index of the column used to sort the final data set
 #' 
 #' @author FeAR
-appendAnnotation = function(gene.stat, ann, do.the.job = getOption("append.annot"), sort.by = 1)
+appendAnnotation = function(
+  gene.stat, ann,
+  do.the.job = getOption("append.annot"),
+  sort.by = 1
+  )
 {
   #' 
   # Check argument values
@@ -141,13 +138,15 @@ appendAnnotation = function(gene.stat, ann, do.the.job = getOption("append.annot
 descStat1G = function(gene, gr, des, prec = 4)
 {
   # Define a new empty data frame
-  stat.frame = data.frame(GROUP = character(),
-                          n = integer(),
-                          MEAN = double(),
-                          VAR = double(),
-                          SD = double(),
-                          SEM = double(),
-                          stringsAsFactors = FALSE)
+  stat.frame = data.frame(
+    GROUP = character(),
+    n = integer(),
+    MEAN = double(),
+    VAR = double(),
+    SD = double(),
+    SEM = double(),
+    stringsAsFactors = FALSE
+  )
   
   for (i in 1:length(gr)) {
     

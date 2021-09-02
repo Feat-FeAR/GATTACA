@@ -245,6 +245,15 @@ GATTACA <- function(options.path, input.file, output.dir) {
   
   # Flags for script-wide IFs
   saveOut = !opts$switches$dryrun # The ! is important.
+  if (opts$switches$dryrun & opts$general$save_png) {
+    log_warn("save_png forced to be FALSE as this is a dryrun")
+    opts$general$save_png <- FALSE
+  }
+  if (opts$switches$dryrun & opts$general$save_pdf) {
+    log_warn("save_pdf forced to be FALSE as this is a dryrun")
+    opts$general$save_pdf <- FALSE
+  }
+  
   logConversion = opts$switches$log2_transform
   secondNorm = opts$switches$renormalize
   
