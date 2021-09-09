@@ -1,5 +1,18 @@
+# VsCode junk
+.vscode
+
+# Accidental test files
+tests.*
+test.*
+test
+tests
+
+# RENV things
+renv/
+
 # Rproject files 
 *.Rproj
+*.Rprofile
 
 # -----------------------------------------------------------------------------
 # Please put all custom ignores above this line
