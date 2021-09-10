@@ -10,6 +10,10 @@
 # ------------------------------------------------------------------------------
 
 
+# Module level constants
+ALEPH <- "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+
 #' Save a graphical output to '<folderPrefix> Figures' sub-directory.
 #' 
 #' Automatically makes the output folder if not there.
@@ -314,4 +318,116 @@ printif.maker <- function(check, applied.fun = function(x) {x}) {
 #' @author Hedmad.
 get.print.str <- function(data) {
   return(paste0(capture.output(print(data)), collapse = "\n"))
+}
+
+#' Finds all the chars in `possibilities` that are also in `input`,
+#' returning a vector of unique chars.
+#' 
+#' @param str1 The first string
+#' @param str2 The second string
+#' 
+#' @author Hedmad
+str_intersection <- function(str1, str2) {
+  intersection <- c()
+  str1 <- strsplit(str1, "")[[1]]
+  str2 <- strsplit(str2, "")[[1]]
+
+  for (char in str1) {
+    if (char %in% str2 && ! char %in% intersection) {
+      intersection <- c(intersection, char)
+    }
+  }
+
+  return(used)
+}
+
+#' Removes all characters in `to.remove` from `original` returning a string.
+subtract.str <- function(to.remove, original) {
+  result <- gsub(paste0("[", to.remove, "]"), "", original)
+  return(result)
+}
+
+
+#' Parses a compact design string to a fully fledged one.
+#' 
+#'  The compact design string is a series of patterns, divided by commas.
+#'  The possible patterns are:
+#'  - Basics: <integer><characters>, like 1A, 3AG, 11EEW
+#'  - Repeats: (<other patterns>):<integer>, where <other patterns> are
+#'    comma separated basic patterns. The basic patterns in the parenthesis
+#'    will be repeated the specified number of times (after the `:`).
+#'    The other patterns in the parentheses can have the `*` wildcard instead
+#'    of the character portions. The wildcards will be replaced with unique
+#'    character strings.
+#'    
+#'  The function will crash if all letters, both uppercase and lowercase,
+#'  are used already in the design string, and the wildcard is used.
+#'  
+#'  Wildcard replacements are otherwise guaranteed to be unique.
+#'    
+#'  @param rawstr The raw design string to be parsed.
+#'  
+#'  @author Hedmad
+design_parser <- function(rawstr) {
+  
+  rawstr <- gsub(" ", "", rawstr)
+  
+  used.letters <- str_intersection(ALEPH, rawstr)
+  if (!is.null(used.letters)) {
+    available.letters <- subtract.str(paste0(used.letters, collapse = ""), ALEPH) 
+  } else {
+    available.letters <- ALEPH
+  }
+  # We need a vector of available characters
+  available.letters <- strsplit(available.letters, "")[[1]]
+  
+  splitted <- strsplit(rawstr, ",(?![^(]*\\))", perl = TRUE)[[1]]
+  
+  # Note: this breaks if all ALEPH is used. This should never happen,
+  # but it's good to point it out.
+  # I put a lot of comments here as there are many nested ifs and its hard
+  # to know what is doing what.
+  letters.holder <- available.letters
+  to.pop <- 1
+  pattern <- "\\((.*?)\\):([0-9]+)"
+  result <- ""
+  
+  for (unexpanded in splitted) {
+    if (length(grep(pattern, unexpanded)) == 0) {
+      # There is no match, so we do nothing but append the string.
+      result <- paste(result, unexpanded, sep = ",")
+    } else {
+      # We found a match. Unpack its capture groups.
+      regexec(pattern, unexpanded) -> matches
+      captures <- regmatches(unexpanded, matches)
+      captures <- captures[[1]][2:3]
+      # Captures has the two capture groups (in the () and the number after the :)
+      for (x in 1:as.integer(captures[2])) {
+        # We iterate n times, based on how many times the match has to be repeated
+        if ("*" %in% strsplit(captures[1], "")[[1]]) {
+          # If we find a wildcard, we swap it out with an available letter
+          if (length(letters.holder) < to.pop) {
+            # If we ran out of letters, refill the holder
+            letters.holder <- available.letters
+            to.pop <- to.pop + 1
+          }
+          popped <- letters.holder[1:to.pop]
+          letters.holder <- letters.holder[-1:-to.pop]
+          uniquestr <- gsub("\\*", popped, captures[1])
+          result <- paste(result, uniquestr, sep = ",")
+          # We append the result and move on to the next string
+        } else {
+          # There are no wildcards, just duplicate
+          repeated <- rep(captures[1], times=captures[2])
+          result <- paste(result, paste(repeated, collapse = ","), sep = ",")
+        }
+      }
+    }
+  }
+  # The result starts with an extra , as there is a paste("", ..., sep = ",")
+  # This gets rid of it.
+  result <- paste0(strsplit(result, "")[[1]][-1], collapse = "")
+  result <- gsub(",", ", ", result) # Some extra space to be easy on the eyes
+  
+  return(result)
 }
