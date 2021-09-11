@@ -320,6 +320,7 @@ get.print.str <- function(data) {
   return(paste0(capture.output(print(data)), collapse = "\n"))
 }
 
+
 #' Finds all the chars in `possibilities` that are also in `input`,
 #' returning a vector of unique chars.
 #' 
@@ -338,7 +339,7 @@ str_intersection <- function(str1, str2) {
     }
   }
 
-  return(used)
+  return(intersection)
 }
 
 #' Removes all characters in `to.remove` from `original` returning a string.
@@ -418,8 +419,7 @@ design_parser <- function(rawstr) {
           # We append the result and move on to the next string
         } else {
           # There are no wildcards, just duplicate
-          repeated <- rep(captures[1], times=captures[2])
-          result <- paste(result, paste(repeated, collapse = ","), sep = ",")
+          result <- paste(result, captures[1], sep = ",")
         }
       }
     }
@@ -431,3 +431,4 @@ design_parser <- function(rawstr) {
   
   return(result)
 }
+
