@@ -9,11 +9,6 @@
 #
 # ------------------------------------------------------------------------------
 
-
-# Module level constants
-ALEPH <- "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-
 #' Save a graphical output to '<folderPrefix> Figures' sub-directory.
 #' 
 #' Automatically makes the output folder if not there.
@@ -257,7 +252,7 @@ stop_quietly <- function() {
 #' 
 #' @returns A `pitstop` function that takes a message as prompt.
 #' 
-#' @author Hedmad
+#' @author MrHedmad
 pitstop.maker <- function(check) {
   pitstop <- function(message) {
     if (check) {
@@ -279,7 +274,7 @@ pitstop.maker <- function(check) {
 #' @param data The data to be printed. Has to be subsetted with [] and processed
 #'   by `head()`. This works for dataframes and matrices.
 #'   
-#' @author Hedmad
+#' @author MrHedmad
 topleft.head <- function(data) {
   y <- dim(data)[2]
   floored.y <- floor(y * 0.25)
@@ -296,7 +291,7 @@ topleft.head <- function(data) {
 #' @param applied.fun A function applied to the input of all printifs.
 #'   Useful if all inputs need to be preprocessed in the same way.
 #'   
-#' @author Hedmad
+#' @author MrHedmad
 printif.maker <- function(check, applied.fun = function(x) {x}) {
   printif <- function(incoming) {
     if (check) {
@@ -315,7 +310,7 @@ printif.maker <- function(check, applied.fun = function(x) {x}) {
 #' 
 #' @returns A single string.
 #' 
-#' @author Hedmad.
+#' @author MrHedmad
 get.print.str <- function(data) {
   return(paste0(capture.output(print(data)), collapse = "\n"))
 }
@@ -327,7 +322,7 @@ get.print.str <- function(data) {
 #' @param str1 The first string
 #' @param str2 The second string
 #' 
-#' @author Hedmad
+#' @author MrHedmad
 str_intersection <- function(str1, str2) {
   intersection <- c()
   str1 <- strsplit(str1, "")[[1]]
@@ -342,93 +337,212 @@ str_intersection <- function(str1, str2) {
   return(intersection)
 }
 
+#' Find all numbers in a string and return them in a vector.
+#' 
+#' @author MrHedmad
+find_nums <- function(chars) {
+  library(stringr)
+  pattern <- "([0-9])+"
+  if (length(grep(pattern, chars)) == 0) {
+    # There are no numbers here...
+    return(NULL) 
+  }
+  
+  captures <- str_extract_all(chars, pattern, simplify = TRUE)
+  numbers <- sapply(captures, as.numeric)
+  
+  return(numbers)
+}
+
+
 #' Removes all characters in `to.remove` from `original` returning a string.
+#'
+#' @author MrHedmad
 subtract.str <- function(to.remove, original) {
   result <- gsub(paste0("[", to.remove, "]"), "", original)
   return(result)
 }
 
-
-#' Parses a compact design string to a fully fledged one.
+#' Expand labels with the intercalated strategy.
 #' 
-#'  The compact design string is a series of patterns, divided by commas.
-#'  The possible patterns are:
-#'  - Basics: <integer><characters>, like 1A, 3AG, 11EEW
-#'  - Repeats: (<other patterns>):<integer>, where <other patterns> are
-#'    comma separated basic patterns. The basic patterns in the parenthesis
-#'    will be repeated the specified number of times (after the `:`).
-#'    The other patterns in the parentheses can have the `*` wildcard instead
-#'    of the character portions. The wildcards will be replaced with unique
-#'    character strings.
-#'    
-#'  The function will crash if all letters, both uppercase and lowercase,
-#'  are used already in the design string, and the wildcard is used.
-#'  
-#'  Wildcard replacements are otherwise guaranteed to be unique.
-#'    
-#'  @param rawstr The raw design string to be parsed.
-#'  
-#'  @author Hedmad
-design_parser <- function(rawstr) {
-  
-  rawstr <- gsub(" ", "", rawstr)
-  
-  used.letters <- str_intersection(ALEPH, rawstr)
-  if (!is.null(used.letters)) {
-    available.letters <- subtract.str(paste0(used.letters, collapse = ""), ALEPH) 
-  } else {
-    available.letters <- ALEPH
-  }
-  # We need a vector of available characters
-  available.letters <- strsplit(available.letters, "")[[1]]
-  
-  splitted <- strsplit(rawstr, ",(?![^(]*\\))", perl = TRUE)[[1]]
-  
-  # Note: this breaks if all ALEPH is used. This should never happen,
-  # but it's good to point it out.
-  # I put a lot of comments here as there are many nested ifs and its hard
-  # to know what is doing what.
-  letters.holder <- available.letters
-  to.pop <- 1
-  pattern <- "\\((.*?)\\):([0-9]+)"
+#' @param core A string of comma separated labels to expand
+#' @param times The number of times to expand
+#' @param initial.num The initial number to use to expand wildcards.
+#' 
+#' @returns The expanded labels as a single string
+#' 
+#' @author MrHedmad
+expand_intercalated <- function(core, times, initial.num) {
   result <- ""
-  
-  for (unexpanded in splitted) {
-    if (length(grep(pattern, unexpanded)) == 0) {
-      # There is no match, so we do nothing but append the string.
-      result <- paste(result, unexpanded, sep = ",")
-    } else {
-      # We found a match. Unpack its capture groups.
-      regexec(pattern, unexpanded) -> matches
-      captures <- regmatches(unexpanded, matches)
-      captures <- captures[[1]][2:3]
-      # Captures has the two capture groups (in the () and the number after the :)
-      for (x in 1:as.integer(captures[2])) {
-        # We iterate n times, based on how many times the match has to be repeated
-        if ("*" %in% strsplit(captures[1], "")[[1]]) {
-          # If we find a wildcard, we swap it out with an available letter
-          if (length(letters.holder) < to.pop) {
-            # If we ran out of letters, refill the holder
-            letters.holder <- available.letters
-            to.pop <- to.pop + 1
-          }
-          popped <- letters.holder[1:to.pop]
-          letters.holder <- letters.holder[-1:-to.pop]
-          uniquestr <- gsub("\\*", popped, captures[1])
-          result <- paste(result, uniquestr, sep = ",")
-          # We append the result and move on to the next string
-        } else {
-          # There are no wildcards, just duplicate
-          result <- paste(result, captures[1], sep = ",")
-        }
-      }
-    }
+  rep.number <- initial.num
+  for (i in rep(0, times)) {
+    uniquestr <- gsub("\\*", rep.number, core)
+    result <- paste(result, uniquestr, sep = ",")
+    rep.number <- rep.number + 1
   }
   # The result starts with an extra , as there is a paste("", ..., sep = ",")
   # This gets rid of it.
   result <- paste0(strsplit(result, "")[[1]][-1], collapse = "")
-  result <- gsub(",", ", ", result) # Some extra space to be easy on the eyes
   
   return(result)
 }
 
+
+#' Expand labels with the ordered strategy.
+#' 
+#' @param core A string of comma separated labels to expand
+#' @param times The number of times to expand
+#' @param initial.num The initial number to use to expand wildcards.
+#' 
+#' @returns The expanded labels as a single string
+#' 
+#' @author MrHedmad
+expand_ordered <- function(core, times, initial.num) {
+  result <- ""
+  rep.number <- initial.num
+  for (entry in strsplit(core, ",")[[1]]) {
+
+    for (i in rep(0, times)){
+      uniquestr <- gsub("\\*", rep.number, entry)
+      result <- paste(result, uniquestr, sep = ",")
+      rep.number <- rep.number + 1
+    }
+
+    rep.number <- initial.num
+  }
+  
+  # The result starts with an extra , as there is a paste("", ..., sep = ",")
+  # This gets rid of it.
+  result <- paste0(strsplit(result, "")[[1]][-1], collapse = "")
+  
+  return(result)
+}
+
+
+#' Get the capture groups from a regexec and regmatches call.
+#' 
+#' @param patters A RegEx pattern to use.
+#' @param string The string to test against
+#' 
+#' @returns A vector with the first match found in first position and the
+#' capture groups in the rest of the vector.
+#' 
+#' @author MrHedmad
+get_captures <- function(pattern, string) {
+  matches <- regexec(pattern, string, perl = TRUE)
+  captures <- regmatches(string, matches)
+  
+  return(captures[[1]])
+}
+
+
+#' Parser for experimental designs
+#' Each sample is marked with a letter (or series of letters) representing
+#' conditions. They can also be marked with arbitrary numbers representing
+#' sample pairs for paired designs. The letter and optional numbers are known as
+#' labels, and are separated by commas (all spaces are ignored).
+#'
+#' The parser respects already expanded labels
+#'   > design_parser("a, b, c") # Unpaired
+#'     [1] "a, b, c"
+#'   > design_parser("a1, b2, c3") # Paired
+#'     [1] "a1, b2, c3"
+#' To avoid high repetition, the parser supports two types of pattern expansion:
+#' Round brackets represent intercalated expansions, where labels inside the
+#' brackets are repeated in the order inside the brackets for the number
+#' of times specified:
+#'   > design_parser("(a, b):3") # Unpaired 'intercalated'
+#'     [1] "a, b, a, b, a, b"
+#' Square brackets represent ordered expansions, where each label in the brackets
+#' is repeated on its own the number of times specified:
+#'   > design_parser("[a, b]:3") # Unpaired 'ordered'
+#'     [1] "a, a, a, b, b, b"
+#'   > design_parser("[a, b, c]:3") # Unpaired 'ordered'
+#'     [1] "a, a, a, b, b, b, c, c, c"
+#' The * wildcard inside the brackets will be replaced with unique numbers, so
+#' that expansion is actually useful for paired designs:
+#'   > design_parser("(a*, b*):3") # Paired 'intercalated'
+#'     [1] "a1, b1, a2, b2, a3, b3"
+#'   > design_parser("[a*, b*]:3") # Paired 'ordered'
+#'     [1] "a1, a2, a3, b1, b2, b3"
+#'   > design_parser("[a*, b*, c*]:2") # Paired 'ordered'
+#'     [1] "a1, a2, b1, b2, c1, c2"
+#' The wildcard is assured to not collide with any already used numbers in the
+#' pattern, starting one number after the largest number found:
+#'   > design_parser("a3, b7, (a*, b*):3") # Paired 'intercalated'
+#'     [1] "a3, b7, a8, b8, a9, b9, a10, b10"
+#'   > design_parser("a3, b7, [a*, b*]:3") # Paired 'ordered'
+#'     [1] "a3, b7, a8, a9, a10, b8, b9, b10"
+#'  The various patterns can be mixed and matched:
+#'   > design_parser("(a*, b*):3, a3, b6, [a*]:2")
+#'     [1] "a7, b7, a8, b8, a9, b9, a3, b6, a10, a11"
+#'  Note: Both types of expansion work identically if only one label is specified
+#'  in the brackets.
+#'
+#'  @param rawstr The raw design string to be parsed.
+#'  
+#'  @author MrHedmad
+design_parser <- function(rawstr) {
+  
+  rawstr <- gsub(" ", "", rawstr)
+  
+  # The `:x` modifiers pollute finding the max patient number. This removes
+  # them.
+  str_no_times = gsub(":[0-9]+", "", rawstr)
+  used.numbers <- find_nums(str_no_times)
+  initial.num <- if (is.null(used.numbers)) {1} else {max(used.numbers) + 1}
+  
+  # Split the initial string by commas *not* in parenthesis.
+  splitted <- strsplit(rawstr, ",(?![^(^\\[]*[\\)\\]])", perl = TRUE)[[1]]
+  
+
+  # I put a lot of comments here as there are many nested ifs and its hard
+  # to know what is doing what.
+  intercalated.pattern <- "\\((.*?)\\):([0-9]+)"
+  ordered.pattern <- "\\[(.*?)\\]:([0-9]+)"
+  
+  result <- ""
+  
+  for (unexpanded in splitted) {
+    # There is some code duplication here that I leave for clarity as
+    # this bit is complex enough already...
+    if (length(grep(intercalated.pattern, unexpanded)) == 1) {
+      captures <- get_captures(intercalated.pattern, unexpanded)
+      expanded <- expand_intercalated(
+        core = captures[2],
+        times = as.integer(captures[3]),
+        initial.num = initial.num
+        )
+      # As we've used as.integer(captures[3]) many nums, we need to increase
+      # this number that much for the other expansions.
+      initial.num <- initial.num + as.integer(captures[3])
+      
+      result <- paste0(result, expanded, sep = ",")
+      next
+    }
+    if (length(grep(ordered.pattern, unexpanded)) == 1) {
+      captures <- get_captures(ordered.pattern, unexpanded)
+      expanded <- expand_ordered(
+        core = captures[2],
+        times = as.integer(captures[3]),
+        initial.num = initial.num
+      )
+      # As we've used as.integer(captures[3]) many nums, we need to increase
+      # this number that much for the other expansions.
+      initial.num <- initial.num + as.integer(captures[3])
+      
+      result <- paste0(result, expanded, sep = ",")
+      next
+    }
+    
+    # If we get here then the unexpanded pattern needs no expanding
+    result <- paste0(result, unexpanded, sep = ",")
+  }
+
+  # The result starts with an extra , as there is a paste("", ..., sep = ",")
+  # This gets rid of it.
+  result <- gsub('.{1}$', '', result)
+  result <- gsub(",", ", ", result) # Some extra space to be easy on the eyes
+  
+  return(result)
+}
