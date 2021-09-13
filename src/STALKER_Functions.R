@@ -483,7 +483,6 @@ get_captures <- function(pattern, string) {
 #'  
 #'  @author MrHedmad
 design_parser <- function(rawstr) {
-  
   rawstr <- gsub(" ", "", rawstr)
   
   # The `:x` modifiers pollute finding the max patient number. This removes

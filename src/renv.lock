@@ -262,12 +262,6 @@
       "Source": "Bioconductor",
       "Hash": "69561546420aaed2b95309c5e6564603"
     },
-    "affy": {
-      "Package": "affy",
-      "Version": "1.70.0",
-      "Source": "Bioconductor",
-      "Hash": "a6967b9739275a2917357a7499ebb211"
-    },
     "affyio": {
       "Package": "affyio",
       "Version": "1.62.0",
@@ -600,13 +594,6 @@
       "Repository": "CRAN",
       "Hash": "2ace6c4a06297d0b364e0444384a2b82"
     },
-    "here": {
-      "Package": "here",
-      "Version": "1.0.1",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Hash": "24b224366f9c2e7534d2344d10d59211"
-    },
     "hgu133a.db": {
       "Package": "hgu133a.db",
       "Version": "3.13.0",
@@ -908,15 +895,15 @@
     },
     "renv": {
       "Package": "renv",
-      "Version": "0.14.0-4",
+      "Version": "0.14.0-8",
       "Source": "GitHub",
       "RemoteType": "github",
       "RemoteHost": "api.github.com",
-      "RemoteRepo": "renv",
       "RemoteUsername": "rstudio",
-      "RemoteRef": "HEAD",
-      "RemoteSha": "515ecb3feb68c191ae2b0ad734bb549d425a5857",
-      "Hash": "cc43434f22bbe3f9884c26a52118087f"
+      "RemoteRepo": "renv",
+      "RemoteRef": "0.14.0-8",
+      "RemoteSha": "4642f5dc7058e067438966ef99a28c0b84fd87c8",
+      "Hash": "a9111741eb18c560feef36aed96cb374"
     },
     "reshape2": {
       "Package": "reshape2",
@@ -932,12 +919,12 @@
       "Repository": "CRAN",
       "Hash": "515f341d3affe0de9e4a7f762efb0456"
     },
-    "rprojroot": {
-      "Package": "rprojroot",
-      "Version": "2.0.2",
+    "rstudioapi": {
+      "Package": "rstudioapi",
+      "Version": "0.13",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "249d8cd1e74a8f6a26194a91b47f21d1"
+      "Hash": "06c85365a03fdaf699966cc1d3cf53ea"
     },
     "rsvd": {
       "Package": "rsvd",
@@ -975,10 +962,10 @@
     },
     "stringi": {
       "Package": "stringi",
-      "Version": "1.7.3",
+      "Version": "1.7.4",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "7943cfae120c77a255025e5f63856532"
+      "Hash": "ebaccb577da50829a3bb1b8296f318a5"
     },
     "stringr": {
       "Package": "stringr",
