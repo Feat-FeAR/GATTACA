@@ -18,8 +18,8 @@ general:
   # Plot width and height in pixels
   plot_width: 16 # int
   plot_height: 9 # int
-  # ??????
-  append_annotation: true # bool
+  # Annotate data with this chip id.
+  annotation_chip_id: null # null OR str
 
 
 ## SWITCHES - Various switches to turn parts of the analysis on or off
@@ -51,24 +51,6 @@ switches:
     # analysis. Note:: Paired analysis can only be run when only one contrast is
     # selected. Check the README if you intend to use this option.
     run_paired_DEA: false # bool
-
-
-## CHIP - Information about the chips.
-chip:
-  # Type of the chip. This is used to source annotation data
-  # Currently supported chips:
-  # -- Affymetrix Human Genome U133 Set (A)
-  # -- Affymetrix Human Genome U133 Set (B)
-  # -- Affymetrix Human Genome HG-U133 Plus 2.0 Array
-  # -- Affymetrix Human Gene 1.0-ST Array
-  # -- Agilent-026652 Whole Human Genome Microarray 4x44K v2
-  type: null # str
-  # Should the tool use remote or local databases?
-  # Note: setting this to false makes the `type` option obsolete.
-  use_remote: true # bool
-  # If a local database is used, where is it stored (absolute paths only)?
-  # Read the readme for more info on the expected format of the database file
-  local_database_path: null # str path like
 
 
 # DESIGN - Experimental design

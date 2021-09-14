@@ -56,8 +56,7 @@ library(RColorBrewer)     # Color Palette for R - display.brewer.all()
 library(yaml)             # Yaml file parsing
 library(logger)           # Well, logging
 
-source("./STALKER_Functions.R")   # Collection of custom functions
-
+source(file.path(ROOT, "STALKER_Functions.R"))   # Collection of custom functions
 
 GATTACA <- function(options.path, input.file, output.dir) {
   # This function is so long, a description wouldn't fit here.

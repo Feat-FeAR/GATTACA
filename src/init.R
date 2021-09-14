@@ -35,3 +35,5 @@ tryCatch(
     stop("No `renv` project found. Did you run the installation script?")
   }
 )
+
+setwd(ROOT)
