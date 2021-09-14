@@ -13,7 +13,7 @@ case "$order" in
 
         Rscript \
             --vanilla \
-            
+            -e "source('/GATTACA/init.R')" \
             -e "source('/GATTACA/GATTACA.R')" \
             -e "GATTACA('${optionfile}', '${inputfile}', '/GATTACA/target')"
         ;;

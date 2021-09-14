@@ -17,56 +17,9 @@
 #   - Save expression matrix
 # ------------------------------------------------------------------------------
 
-
-thisFile <- function() {
-  #' Returns the location of the file from where this is run from.
-  #' 
-  #' @returns A string with the current path. The path separators might
-  #'   be arbitrary. 
-  cmdArgs <- commandArgs(trailingOnly = FALSE)
-  needle <- "--file="
-  match <- grep(needle, cmdArgs)
-  if (length(match) > 0) {
-    # Rscript
-    return(normalizePath(sub(needle, "", cmdArgs[match])))
-  } else {
-    # 'source'd via R console
-    return(normalizePath(sys.frames()[[1]]$ofile))
-  }
-}
-
-# Note for devs: this will only work on r-studio if used in interactive
-# mode.
-if (!interactive()) {
-  root <- dirname(thisFile())
-} else {
-  if (!require("rstudioapi")) {
-    install.packages("rstudioapi")
-  }
-  root <- dirname(rstudioapi::getSourceEditorContext()$path)
-}
-
-## NOTE:: This file is one folder deeper than the root, so i need to go one
-# up. This is fragile, but I cannot be bothered to make a better implementation.
-root <- dirname(root)
-
-# This will assure that the `renv` env is active. For instance if this
-# script was started in `--vanilla` mode (as it should).
-tryCatch(
-  {
-    cat("Attempting to activate the existing `renv` environment...")
-    source(file.path(root, "renv", "activate.R"))
-    cat("...OK\n")
-  },
-  error = function(err) {
-    stop("No `renv` project found. Did you run the installation script?")
-  }
-)
-
 # Load the helper functions.
-source(file.path(root, "STALKER_Functions.R"))   # Collection of custom functions
-source(file.path(root, "annotator.R"))
-
+source("STALKER_Functions.R")   # Collection of custom functions
+source("annotator.R")
 
 affy2expression <- function(
     input.folder, output.file, log_name = NULL,
