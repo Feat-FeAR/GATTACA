@@ -38,48 +38,6 @@
 #
 # ------------------------------------------------------------------------------
 
-
-thisFile <- function() {
-  #' Returns the location of the file from where this is run from.
-  #' 
-  #' @returns A string with the current path. The path separators might
-  #'   be arbitrary. 
-  cmdArgs <- commandArgs(trailingOnly = FALSE)
-  needle <- "--file="
-  match <- grep(needle, cmdArgs)
-  if (length(match) > 0) {
-    # Rscript
-    return(normalizePath(sub(needle, "", cmdArgs[match])))
-  } else {
-    # 'source'd via R console
-    return(normalizePath(sys.frames()[[1]]$ofile))
-  }
-}
-
-# Note for devs: this will only work on r-studio if used in interactive
-# mode.
-if (!interactive()) {
-  root <- dirname(thisFile())
-} else {
-  if (!require("rstudioapi")) {
-    install.packages("rstudioapi")
-  }
-  root <- dirname(rstudioapi::getSourceEditorContext()$path)
-}
-
-# This will assure that the `renv` env is active. For instance if this
-# script was started in `--vanilla` mode (as it should).
-tryCatch(
-  {
-    cat("Attempting to activate the existing `renv` environment...")
-    source(file.path(root, "renv", "activate.R"))
-    cat("...OK\n")
-  },
-  error = function(err) {
-    stop("No `renv` project found. Did you run the installation script?")
-  }
-)
-
 # ---- Package Loading ----
 # Load required packages and source external scripts
 
@@ -98,7 +56,7 @@ library(RColorBrewer)     # Color Palette for R - display.brewer.all()
 library(yaml)             # Yaml file parsing
 library(logger)           # Well, logging
 
-source(file.path(root, "STALKER_Functions.R"))   # Collection of custom functions
+source("./STALKER_Functions.R")   # Collection of custom functions
 
 
 GATTACA <- function(options.path, input.file, output.dir) {
@@ -217,14 +175,6 @@ GATTACA <- function(options.path, input.file, output.dir) {
   myFolder <- output.dir
   myFile <- input.file
   
-  # TODO : Remove these.
-  # Row offset, including the header (How many rows above the first number?)
-  rowOffset = 1
-  # Column containing (unique) gene identifiers
-  colWithID = 1
-  # Column offset, including row names (How many columns before the first number?)
-  colOffset = 1
-  
   # Experimental Design - Group Names (start with control condition)
   groups <- opts$design$experimental_groups
   # Experimental Design vector
@@ -296,23 +246,11 @@ GATTACA <- function(options.path, input.file, output.dir) {
   dataset = read.table(myFile, header = FALSE, sep = "\t", dec = ".")
   d = dim(dataset)
   log_info(paste("Raw dataset dimensions:", paste0(d, collapse = ", ")))
-  printdata(dataset)
-  
-  # Extract column headings (sample identifiers)
-  log_info("Extracting sample identifiers...")
-  header  = read.table(myFile, nrows = 1, header = FALSE, sep = "\t", stringsAsFactors = FALSE)
-  dataset = read.table(myFile, skip = rowOffset, header = FALSE, sep = "\t", dec = ".")
-  colnames(dataset) = unlist(header)
-  d = dim(dataset)
-  log_info(paste("Headed dataset dimensions:", paste0(d, collapse = ", ")))
-  printdata(dataset)
   
   # Extract row names (gene identifiers)
-  log_info("Extracting gene identifiers...")
-  rownames(dataset) = dataset[,colWithID]
-  dataset = dataset[,(colOffset+1):d[2]]
-  header  = header[,(colOffset+1):d[2]]
-  d = dim(dataset)
+  log_info("Extracting probe ids...")
+  rownames(dataset) = dataset[["probe_id"]]
+  dataset[["probe_id"]] <- NULL
   log_info(paste("Final dataset dimensions:", paste0(d, collapse = ", ")))
   printdata(dataset)
 

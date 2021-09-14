@@ -65,20 +65,26 @@ tryCatch(
 
 # Load the helper functions.
 source(file.path(root, "STALKER_Functions.R"))   # Collection of custom functions
+source(file.path(root, "annotator.R"))
 
 
 affy2expression <- function(
     input.folder, output.file, log_name = NULL,
-    use.affy = FALSE, remove.controls = FALSE
+    use.affy = FALSE, remove.controls = TRUE,
+    annotate = TRUE
     ) {
   # ---- Loading packages ----
   library(oligo)
   library(limma)          # For plotMD() function
   library(openxlsx)       # Read, Write, and Edit .xlsx (Excel) Files
   library(logger)
+  library(affycoretools)
 
-  print(paste0("Call: (in/out/log/affy/rm) ", input.folder, output.file, log_name,
-    use.affy, remove.controls, sep = " :: "))
+  print(paste0(
+    "Call: (in/out/log/affy/rm/annotate) ",
+    input.folder, output.file, log_name,
+    use.affy, remove.controls, annotate, sep = " :: "
+  ))
   
   # Setup logging facilities
   output.dir <- dirname(output.file)
@@ -111,27 +117,39 @@ affy2expression <- function(
   affyRaw = read.celfiles(celFiles)
   
   log_info("Running RMA normalization...")
-  eset = rma(affyRaw)
+  expression_set = rma(affyRaw)
   
   if (remove.controls) {
     log_info("Removing control probes...")
     # Remove Affymetrix control probes
-    probes.before = dim(eset)[1]
+    probes.before = dim(expression_set)[1]
     # ^ anchor to match the start of string (see regular expressions)
-    eset = eset[-grep("^AFFX", rownames(eset)),]
-    probes.after = dim(eset)[1]
+    expression_set = getMainProbes(expression_set, level = "core")
+    probes.after = dim(expression_set)[1]
     discarded = probes.before - probes.after
     discarded.percent = round(discarded / probes.before * 100, 4)
-    log_info(
-      paste0(
-        discarded, " Affymetrix control probes have been discarded, ",
-        discarded.percent, "% of total."
-      )
-    )
+    paste0(
+      discarded, " Affymetrix control probes have been discarded, ",
+      discarded.percent, "% of total."
+    ) |>
+      log_info()
     # Check for missing values (NA) and NaN entries
-    if (any(is.na(exprs((eset)))) || any(is.nan(exprs((eset))))) {
+    if (any(is.na(exprs((expression_set)))) || any(is.nan(exprs((expression_set))))) {
       log_warn("Detected some missing values in the dataset. Has something gone terribly wrong?")
     }
+  }
+  
+  print(str(expression_set))
+  
+  # I make ids into an explicit column now that filtering is done.
+  # Explicit is betters than implicit
+  log_info("Making probe ids explicit...")
+  expression_set <- t(as.matrix(expression_set))
+  expression_set$probe_id <- row.names(expression_set)
+  
+  if (annotate) {
+    print(str(expression_set))
+    print(expression_set$probe_id)
   }
   log_info("Saving Expression Matrix to file...")
   write.exprs(eset, file = output.file)
