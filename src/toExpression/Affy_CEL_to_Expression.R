@@ -18,8 +18,8 @@
 # ------------------------------------------------------------------------------
 
 # Load the helper functions.
-source(file.path(ROOT, "STALKER_Functions.R"))   # Collection of custom functions
-source(file.path(ROOT, "annotator.R"))
+source(file.path(ROOT, "src", "STALKER_Functions.R"))   # Collection of custom functions
+source(file.path(ROOT, "src", "annotator.R"))
 
 affy2expression <- function(
     input.folder, output.file, log_name = NULL,

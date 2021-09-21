@@ -196,7 +196,7 @@ case "$subcommand" in
             -it --rm \
             --mount type=bind,source=$target,target=/GATTACA/target \
             --mount type=bind,source=$input_mountpoint,target=/GATTACA/input,readonly \
-            gattaca:$version \
+            mrhedmad/gattaca:$version \
             "gattaca" $input_file_clean $option_file_clean
 
         ;;
@@ -282,7 +282,7 @@ case "$subcommand" in
             -it --rm \
             --mount type=bind,source=$outputFolder,target=/GATTACA/target \
             --mount type=bind,source=$inputFolder,target=/GATTACA/input,readonly \
-            gattaca:$version \
+            mrhedmad/gattaca:$version \
             "prepaffy" $output_file_clean $logName $removeControls
         ;;
     prepagil)

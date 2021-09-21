@@ -56,7 +56,11 @@ library(RColorBrewer)     # Color Palette for R - display.brewer.all()
 library(yaml)             # Yaml file parsing
 library(logger)           # Well, logging
 
-source(file.path(ROOT, "STALKER_Functions.R"))   # Collection of custom functions
+source(file.path(ROOT, "src", "STALKER_Functions.R"))   # Collection of custom functions
+
+# The annotation DB loads after dplyr so the `select` function gets overwritten.
+# Why does R allow this?
+dp_select <- dplyr::select
 
 GATTACA <- function(options.path, input.file, output.dir) {
   # This function is so long, a description wouldn't fit here.
@@ -65,7 +69,6 @@ GATTACA <- function(options.path, input.file, output.dir) {
   # ---- Option parsing ----
   opts <- yaml.load_file(options.path)
   
-
   # ---- Making static functions ----
   pitstop <- pitstop.maker(opts$general$slowmode)
   printdata <- printif.maker(opts$general$show_data_snippets, topleft.head)
@@ -82,118 +85,25 @@ GATTACA <- function(options.path, input.file, output.dir) {
   
   log_info("Parsed options.")
   
-  # ---- Prepare Annotations ----
-  log_info("Grabbing annotations from database...")
-  if (opts$chip$use_remote) {
-    # NOTE : This is why languages should have a `match` statement...
-    # Using a remote annotation database
-    if (opts$chip$type == "Affymetrix Human Genome U133 Set (A)") {
-      log_info("Using Affymetrix Human Genome U133 Set (A)")
-      library(hgu133a.db)
-      db.data <- list(
-        acc = hgu133aACCNUM,
-        symb = hgu133aSYMBOL,
-        gname = hgu133aGENENAME
-      )
-    } else if (opts$chip$type == "Affymetrix Human Genome U133 Set (B)") {
-      log_info("Using Affymetrix Human Genome U133 Set (B)")
-      library(hgu133b.db)
-      db.data <- list(
-        acc = hgu133bACCNUM,
-        symb = hgu133bSYMBOL,
-        gname = hgu13bGENENAME
-      )
-    } else if (opts$chip$type == "Affymetrix Human Genome HG-U133 Plus 2.0 Array") {
-      log_info("Using Affymetrix Human Genome HG-U133 Plus 2.0 Array")
-      library(hgu133plus2.db)
-      db.data <- list(
-        acc = hgu133plus2ACCNUM,
-        symb = hgu133plus2SYMBOL,
-        gname = hgu133plus2GENENAME
-      )
-    } else if (opts$chip$type == "Agilent-026652 Whole Human Genome Microarray 4x44K v2") {
-      log_info("Using Agilent-026652 Whole Human Genome Microarray 4x44K v2")
-      library(HsAgilentDesign026652.db)
-      db.data <- list(
-        acc = HsAgilentDesign026652ACCNUM,
-        symb = HsAgilentDesign026652SYMBOL,
-        gname = HsAgilentDesign026652GENENAME
-      )
-    } else if (opts$chip$type == "Affymetrix Human Gene 1.0-ST Array") {
-      log_info("Using Affymetrix Human Gene 1.0-ST Array")
-      library(hugene10sttranscriptcluster.db)
-      db.data <- list(
-        acc = hugene10sttranscriptclusterACCNUM,
-        symb = hugene10sttranscriptclusterSYMBOL,
-        gname = hugene10sttranscriptclusterGENENAME
-      )
-    }
-
-    annotation <- data.frame(
-      Accession = sapply(contents(db.data$acc), paste, collapse = ", "),
-      GeneSymbol = sapply(contents(db.data$symb), paste, collapse = ", "),
-      Description = sapply(contents(db.data$gname), paste, collapse = ", ")
-    )
-
-    missing.annotations <- sum(annotation[,2] == "NA")
-
-  } else {
-    # Using local annotation database
-    log_info("Using a local database: `", opts$chip$database_path, "`")
-    tryCatch(
-      {
-        log_info("Attempting to load the database...")
-        annotation <- read.xlsx(
-          opts$chip$database_path,
-          colNames = TRUE, rowNames = TRUE,
-          sep.names = "_")
-        log_info("Done loading. Attempting to use database...")
-        annotation <-
-          annotation[,c("Representative_Public_ID", "Gene_Symbol", "Gene_Title")]
-        missing.annotations <- sum(annotation[,2] == "---")
-      }
-    )
-  }
-  log_info("Done loading annotations.")
-  missing.percentage <- round(missing.annotations/dim(annotation)[1]*1e2, digits = 2)
-  
-  ## Reached milestone: loaded annotations
-  log_info(
-    paste0(
-      missing.annotations, " unannotated genes (", missing.percentage, " %).\n"
-    )
-  )
-  pitstop("Finished loading annotations.")
-  
+  # ---- Move to output.dir ----
+  setwd(output.dir)
 
   # ---- Variable setup ----
   # To reuse as-is the script, I unpack the variables from the yaml file here
   # TODO : Improvement - These should be checked here for basic validity, so
-  #   we crash sooner rather than later. 
+  #        we crash sooner rather than later. 
   log_info("Inputting variables...")
-  myFolder <- output.dir
-  myFile <- input.file
-  
-  # Experimental Design - Group Names (start with control condition)
-  groups <- opts$design$experimental_groups
-  # Experimental Design vector
-  design <- opts$design$experimental_design
-  # The design vector will be later on tested for elongation (Compact design) 
-  # and correctness (both design modes)
-  
-  myColors <- opts$design$group_colors
-  if (length(myColors) < length(groups)) {
-    stop("Too few colors in \'myColors\' vector!")
-  }
+
+  user_colours <- opts$design$group_colors
   
   # Log2 expression threshold
-  thr0 = opts$design$filters$log2_expression
+  min_log2_expression = opts$design$filters$log2_expression
   
   # Fold Change Threshold
   thrFC = opts$design$filters$fold_change
   
   # Flags for script-wide IFs
-  saveOut = !opts$switches$dryrun # The ! is important.
+  write_data_to_disk = !opts$switches$dryrun # The ! is important.
   if (opts$switches$dryrun & opts$general$save_png) {
     log_warn("save_png forced to be FALSE as this is a dryrun")
     opts$general$save_png <- FALSE
@@ -203,257 +113,211 @@ GATTACA <- function(options.path, input.file, output.dir) {
     opts$general$save_pdf <- FALSE
   }
   
-  logConversion = opts$switches$log2_transform
-  secondNorm = opts$switches$renormalize
-  
   # Global options suitable for STALKER_Functions
   options(
     scriptName = "GATTACA",
     save.PNG.plot = opts$general$save_png,
     save.PDF.plot = opts$general$save_pdf,
-    append.annot = opts$general$append_annotation,
+    use.annotations = !is.null(opts$general$annotation_chip_id),
     plot.width = opts$general$plot_width,
-    plot.height = opts$general$plot_height
+    plot.height = opts$general$plot_height,
+    png_ppi = opts$general$png_resolution
   )
   
-  if (getOption("append.annot")) {
-    # If 'annotation' is not defined an error message will be displayed
-    dim.annot = dim(annotation)
-    log_info(
-      paste0(
-        "A ", dim.annot[1], " x ", dim.annot[2],
-        " annotation dataframe has been loaded."
-      )
+  if (getOption("use.annotations")) {
+    # If we need to use annotations, we need to load the annotation data
+    source(file.path(ROOT, "src", "annotator.R"))
+    annotation_data <- get_remote_annotations(
+      CHIP_TO_DB[[opts$general$annotation_chip_id]], "SYMBOL"
     )
+    log_info("Loaded annotations")
   } else {
-    annotation = NULL
-    log_info("No annotation loaded.")
+    log_info("No annotations loaded")
   }
-  
-  ### TODO: PLEASE REFACTOR ME!
-  annot <- annotation
-  rm(annotation)
-
 
   # ---- Data Loading ----
   # Gene Expression Matrix - log2-Intensity-Values
   log_info("Loading data...")
-  setwd(myFolder)
-  
-  # Read raw data
-  log_info("Loading raw data...")
-  dataset = read.table(myFile, header = FALSE, sep = "\t", dec = ".")
-  d = dim(dataset)
-  log_info(paste("Raw dataset dimensions:", paste0(d, collapse = ", ")))
-  
-  # Extract row names (gene identifiers)
-  log_info("Extracting probe ids...")
-  rownames(dataset) = dataset[["probe_id"]]
-  dataset[["probe_id"]] <- NULL
-  log_info(paste("Final dataset dimensions:", paste0(d, collapse = ", ")))
-  printdata(dataset)
 
-  # NOTICE:
-  # The rows of the final expression matrix could be 1 more than annot matrix rows in case of Agilent arrays
-  # because of the presence of the NegativeControl probe (-)3xSLv1
+  expression_set <- read.csv(input.file, header = TRUE, row.names = "probe_id")
+  log_info(paste(
+    "Loaded expression_set dimensions:", paste0(dim(expression_set), collapse = ", ")
+  ))
+  printdata(expression_set)
+
   pitstop("Finished loading data.")
   
+  # ---- Load the experimental design ----
+  log_info("Loading experimental design...")
+  experimental_design <- design_parser(opts$design$experimental_design)
+  
+  # This is a list with as `groups` the groups and as `pairings` the 
+  # ID for pairing
+  experimental_design <- split_design(experimental_design)
+  
+  # Check the design
+  if (length(experimental_design$groups) != ncol(expression_set)) {
+    stop(paste0(
+      "The number of patients (", ncol(expression_set),
+      ") does not match the number of design groups (", length(experimental_design), ")"
+    ))
+  }
+  
+  # Test if we are in paired or unpaired mode
+  ..pairing_NAs <- is.na(experimental_design$pairings)
+  # We need either ALL or NONE patient NAs
+  if (all(..pairing_NAs)) {
+    log_info("No sample pairing detected. Running in unpaired mode.")
+    paired_mode <- FALSE
+  } else if (!all(..pairing_NAs)) {
+    log_info("Found sample pairings. Running in paired mode.")
+    paired_mode <- TRUE
+  } else {
+    stop("Some samples have pairing data and some do not. Cannot proceed with pairing ambiguity.")
+  }
+  
+  log_info("Experimental desing loaded.")
 
-  # ---- Rename Samples ----
   # Tidy Sample Names According to the Experimental Design
-  log_info("Checking experimental design...")
-  sampleName = vector() # To declare an empty vector
-  m = length(groups)
-  badMsg = "Bad Experimental \'design\' vector!\n\n"
-  
-  # Design check
-  if (length(design) != m && length(design) != d[2]) {
-    stop(badMsg)
-  }
-  if (length(design) == m) {
-    design = rep(c(1:m), design) # Convert from Compact to Full Design mode
-    log_info("Compact design mode approved")
-  } else if (length(design) == d[2]) {
-    if (max(design) > m || min(design) < 1 || sum((design %% 1) != 0)) {
-      stop(badMsg)
-    } else {
-      log_info("Full design mode approved")
-    }
-  }
-  
   # Create a new vector containing tidy group names
   log_info("Making tidy group names using the experimental design...")
-  for (i in 1:m) {
-    index = which(design == i)
-    grpName = paste0(groups[i], "_", c(1:length(index)))
-    sampleName[index] = grpName
-  }
+  unique_simple_groups <- unique(experimental_design$groups)
+  unique_groups <- make.unique(experimental_design$groups, sep = "_")
+  ..old_colnames <- colnames(expression_set)
+  colnames(expression_set) <- unique_groups
   
-  # Correspondences Table
-  corrTable = cbind(unlist(header), sampleName) # Cast to matrix
-  colnames(corrTable) = c("Original_ID", "R_Name")
-  rownames(corrTable) = c(1:d[2])
-  printdata(corrTable)
+  if (length(user_colours) < length(unique_simple_groups)) {
+    stop("Too few colors in \'user_colours\' vector!")
+  }
+  # Bind colours to groups
+  names(user_colours[1:length(unique_simple_groups)]) <- unique_simple_groups
+  
+  # Save Correspondences Table so we can check it later
+  ..corrTable = cbind(..old_colnames, colnames(expression_set)) # Cast to matrix
+  colnames(..corrTable) = c("Original_ID", "Group_Name")
+  printdata(..corrTable)
 
-  if (saveOut) {
+  if (write_data_to_disk) {
     write.table(
-      corrTable,
-      "Corresp Table.txt", sep = "\t",
+      ..corrTable,
+      "Corresp Table.tsv", sep = "\t",
       col.names = TRUE, row.names = TRUE, quote = FALSE
     )
-    log_info(paste("'Corresp Table.txt' has been saved in", myFolder))
+    log_info(paste("'correspondence_table.tsv' has been saved in", output.dir))
   }
   
-  colnames(dataset) = sampleName
-  log_info("Desing matrix loaded.")
-  printdata(dataset)
-  pitstop("Done loading the design matrix. Do the snippets of data above look ok?")
+  # Check the contrasts
+  raw_contrasts <- opts$design$contrasts
+  
+  unpack_contrasts <- function(contrasts_list) {
+    lapply(contrasts_list, strsplit, split = "-") |> 
+      lapply(unlist) |>
+      lapply(as.list) |> 
+      lapply(\(inner_list) {names(inner_list) <- c("control", "treated")}) ->
+      unpacked
+    return(unpacked)
+  }
+  
+  raw_contrasts |> unpack_contrasts() -> group_contrasts
+  
+  # Check if the contrasts groups are actually in the data
+  ..check <- unlist(group_contrasts) %in% unique_simple_groups
+  if (! all(..check)) {
+    stop(paste0(
+      "Some groups defined in the contrasts are not present in the data. ",
+      "Conflicting groups: ", paste0(group_contrasts[!..check])
+    ))
+  }
+  
+  log_info("Design loaded and approved.")
+  pitstop("")
 
 
-  # ---- Log Transformation ----
+  # ---- Preliminary Boxplots ----
   # Distribution Inspection to Spot Non-Logarithmic Data
-  p <- function() {
-    boxplot(dataset, las = 2) # las = style of axis labels
-  }
-  printPlots(p, "Raw boxpot")
-  p <- function() {
-    plotDensities(dataset, legend = FALSE) # From limma package
-  }
-  printPlots(p, "Raw density")
-  
-  # log2-transform if intensities are in linear scale
-  if (logConversion) {
-    log_info("Log-transforming the intensities...")
-
-    # Are there any negative values?
-    negVal = length(which(dataset < 0))
-    if (negVal > 0) {
-      stop(negVal, " negative expression values detected. Cannot log-normalize.")
-    }
-
-    # Are there any zero values?
-    zeroVal = length(which(dataset == 0))
-    # Value imputation
-    if (zeroVal > 0) {
-      log_warn(zeroVal, " null values found. They will get removed.")
-      # Non-zero minimum value
-      imputation = min(dataset[which(dataset > 0, arr.ind = TRUE)])
-      #imputation = NaN # Alternatively
-      dataset[which(dataset == 0, arr.ind = TRUE)] = imputation
-      log_warn(zeroVal, " null values have been imputated with", imputation)
-    }
-    
-    log_info("Log transforming...")
-    dataset = log2(dataset)
-    log_info("Transformation complete.")
-    printdata(dataset)
-    pitstop("Done log transformation. Continue if the outputs above look ok.")
-  }
+  printPlots(\() {boxplot(expression_set, las = 2)}, "Raw boxpot")
+  printPlots(\() {plotDensities(expression_set, legend = FALSE)}, "Raw density")
   
 
   # ---- Normalization ----
   # After-RMA 2nd Quantile Normalization
-  if (secondNorm) {
+  if (opts$switches$renormalize) {
     log_info("Renormalizing data...")
-    normData = normalize.quantiles(as.matrix(dataset)) # From preprocessCore package
-    normData = as.data.frame(normData)
-    rownames(normData) = rownames(dataset)
-    colnames(normData) = colnames(dataset)
-    
-    # Inspect...
-    printdata(normData)
-    p <- function () {
-      boxplot(normData, las = 2) # las = style of axis labels
-    }
-    printPlots(p, "Renormalized Boxplot")
-    p <- function () {
-      plotDensities(normData, legend = FALSE) # From limma package
-    }
-    printPlots(p, "Renormalized Densities")
-    pitstop("Do the normalized boxplots and data look ok?")
-    
-    # ...if ok, then reassign
-    dataset = normData
+    ..renormalized_data = normalize.quantiles(as.matrix(expression_set))
+    ..renormalized_data = as.data.frame(..renormalized_data)
+    # We need to restore the labels as before
+    rownames(..renormalized_data) = rownames(expression_set)
+    colnames(..renormalized_data) = colnames(expression_set)
+
+    expression_set <- ..renormalized_data
+    rm(..renormalized_data)
     log_info("Renormalization complete.")
   }
   
 
   # ---- MA-Plot & Box-Plot ----
   # Normalization Final Check with Figure Production
-  p <- function() {
+  printPlots(function() {
     boxplot(
-      dataset,
-      las = 2, col = myColors[design],
+      expression_set,
+      las = 2, col = user_colours,
       main = "Expression values per sample", ylab = "log2 (intesity)"
-    ) # las = style of axis labels
-  }
-  printPlots(p, "Final Boxplots")
-  p <- function() {
-    plotDensities(dataset, legend = FALSE, main = "Expression values per sample") # From limma package
-  }
-  printPlots(p, "Final Density")
+      )
+    },
+    "Final Boxplot"
+  )
+  printPlots(function() {
+    plotDensities(expression_set, legend = FALSE, main = "Expression values per sample")
+  }, "Final Density")
   
   pitstop("Maybe check the plots and come back?")
   
   # MA-Plot for bias detection
   # From limma package: array 'column' vs the average of all the arrays other than that
-  p <- function() {
-    plotMD(dataset, column = 1)
-  }
-  printPlots(p, "Mean-Difference Plot")
-  for (i in 1:(m-1)) { # All the possible combinations of two groups
-    for (j in (i+1):m) {
-      
-      arr1 = rowMeans(dataset[,which(design == i)])
-      arr2 = rowMeans(dataset[,which(design == j)])
-      
-      # From rafalib package
-      p <- function() {
-        maplot(
-          arr1, arr2, 
-          xlab = "A (Average log-expression)", ylab = "M (Expression log-ratio)",
-          n = 5e4,
-          curve.add = TRUE, curve.col = myColors[2], curve.lwd = 1.5, curve.n = 1e4,
-          pch = 20, cex = 0.1
-        )
-        # As an alternative, from limma package (without trend curve)
-        #plotMD(cbind(arr2, arr1),
-        #       xlab = "A (Average log-expression)",
-        #       ylab = "M (Expression log-ratio)")
-        title(main = paste(groups[j], "vs", groups[i]))
-        abline(h = 0, col = myColors[1], lty = 2) # lty = line type
-        abline(h = c(1,-1), col = myColors[1])
-        abline(v = thr0, col = myColors[1]) # Platform-specific log2-expression threshold
-      }
-      printPlots(p, paste("MA-Plot ", groups[j], "_vs_", groups[i], sep = ""))
+  printPlots(function(){plotMD(expression_set, column = 1)}, "Mean-Difference Plot")
+  
+  for (combo in combn(unique_simple_groups, 2, simplify = FALSE)) {
+    expression_set |> group_by(across(starts_with(combo[[1]]))) |>
+      rowMeans() -> group1
+    expression_set |> group_by(across(starts_with(combo[[2]]))) |>
+      rowMeans() -> group2
+
+    p <- function() {
+      maplot(
+        group1, group2, 
+        xlab = "A (Average log-expression)", ylab = "M (Expression log-ratio)",
+        n = 5e4,
+        curve.add = TRUE, curve.col = user_colours[2], curve.lwd = 1.5, curve.n = 1e4,
+        pch = 20, cex = 0.1
+      )
+      title(main = paste(combo[[1]], "vs", combo[[2]]))
+      abline(h = 0, col = user_colours[1], lty = 2) # lty = line type
+      abline(h = c(1,-1), col = user_colours[1])
+      abline(v = min_log2_expression, col = user_colours[1]) # Platform-specific log2-expression threshold
     }
+    printPlots(p, paste0("MA-Plot", combo[[1]], "_vs_", combo[[2]]))
   }
 
 
   # ---- Clustering ----
-  # Sample-wise Hierarchical Clustering for Batch-Effect Detection
   log_info("Starting sample-wise hierarchical clustering for batch-effect detection...")
   # Matrix Transpose t() is used because dist() computes the distances between
   # the ROWS of a matrix
-  # Distance matrix (NOTE: t(dataset) is coerced to matrix)
-  sampleDist = dist(t(dataset), method = "euclidean")
-  hc = hclust(sampleDist, method = "ward.D")
-  p <- function() {
-    plot(hc) # Display Dendrogram
-  }
-  printPlots(p, "Dendrogram")
+  # Distance matrix (NOTE: t(expression_set) is coerced to matrix)
+  expression_set |> t() |> dist() |> hclust(method = "ward.D2") ->
+    hierarchical_clusters
+
+  printPlots(\(){plot(hierarchical_clusters)}, "Dendrogram")
   # Desired number of clusters
-  kNum = 6
-  
-  clust = cutree(hc, k = kNum) # Cut tree into kNum clusters
-  clustList = list() # Create an empty list
-  for (i in 1:kNum) {
-    clustList[[i]] = cbind(clust[which(clust == i)]) # list of matrices
-  }
+  # TODO : Should this be an option?
+  nr_shown_clusters = 6
 
   p <- function() {
-    plot(hc)
-    print(rect.hclust(hc, k = kNum, border = myColors[2])) # Red borders around the kNum clusters 
+    plot(hierarchical_clusters)
+    # Red borders around the kNum clusters 
+    rect.hclust(
+      hierarchical_clusters, k = nr_shown_clusters, border = user_colours[2]
+    )
   }
   printPlots(p, "Dendrogram and Clusters")
   
@@ -464,63 +328,31 @@ GATTACA <- function(options.path, input.file, output.dir) {
   # ---- PCA ----
   # Performed on Samples for Batch-Effect Detection
   log_info("Performing PCA to detect batch sampling...")
-  # Strictly enforced that rownames(metadata) == colnames(dataset)
-  myMetadata = data.frame(row.names = colnames(dataset))
-  # Add column 'Group' to metadata dataframe
-  myMetadata$Group = rep(NA, d[2])
-  for (i in 1:m) {
-    myMetadata$Group[which(design == i)] = groups[i]
-  }
+  # Bundle some metadata in the PCA object for later.
+  # Strictly enforced that rownames(metadata) == colnames(expression_set)
+  metadata = data.frame(
+    groups = experimental_design$groups,
+    row.names = unique_groups
+  )
+
   # Do the PCA (centering the data before performing PCA, by default)
-  pcaOut = pca(dataset, metadata = myMetadata)
+  PCA_object = pca(expression_set, metadata = metadata)
   log_info("Finished running PCA. Plotting results...")
   # Plot results
+  printPlots(\(){print(screeplot(PCA_object))}, "Scree Plot")
+
   p <- function() {
-    print(screeplot(pcaOut))
-  }
-  printPlots(p, "Scree Plot")
-  
-  colMAtch = myColors[1:m] # Vector for color matching
-  
-  names(colMAtch) = groups
-  p <- function() {
-    suppressMessages(print(biplot(pcaOut, colby = "Group", colkey = colMAtch)))
+    suppressMessages(print(biplot(PCA_object, colby = "groups", colkey = user_colours)))
   }
   printPlots(p, "PCA")
   p <- function() {
-    suppressMessages(print(pairsplot(pcaOut, colby = "Group", colkey = colMAtch)))
+    suppressMessages(print(pairsplot(PCA_object, colby = "groups", colkey = user_colours)))
   }
   printPlots(p, "PCA Pairs")
-
-  # Possibly remove some 'batched' samples, by sample name, e.g.:
-  # toBeRemoved = c("TG_1","WT_2","TGFK_1","Ab_5")
-  # TODO: implement this.
-  toBeRemoved = c()
-  if (length(toBeRemoved) > 0) {
-    for (i in 1:length(toBeRemoved)) {
-      rem.Index = which(colnames(dataset) == toBeRemoved[i])
-      dataset = dataset[,-rem.Index]
-      design = design[-rem.Index]
-      sampleName = sampleName[-rem.Index]
-    }
-    log_info(paste0(length(toBeRemoved), " samples have been removed."))
-    d = dim(dataset)
-    paste0("Sub-dataset dimensions: ", d)
-    printdata(dataset)
-  }
-  
-  pitstop("Take a look at the PCA results.")
-  
-  # NOTE - NOTE - NOTE - NOTE - NOTE - NOTE - NOTE - NOTE - NOTE - NOTE - NOTE - NOTE
-  # You can rerun this section to get the PC representation without the batched samples
-  # TODO : Wrap this step in a fun, and place a general option to redo this to 
-  # make new plots. Remember to have the fun rename the plots so that they don't
-  # overwrite each other.
-  # TODO : In interactive mode, allow the interactive selection of which samples 
-  # to discard. NOTE :: This lowers reproducibility. I suggest **just having the
-  # user either set in the conf which samples to remove**, or not allow the
-  # option in the first place.
-
+  pitstop(paste0(
+    "Take a look at the PCA results.",
+    " If there are some batched samples, remove them and re-run GATTACA."
+    ))
   
   # ---- SD vs Mean Plot ----
   # Poisson Hypothesis Check
@@ -528,414 +360,310 @@ GATTACA <- function(options.path, input.file, output.dir) {
   
   # Un-log intensity values
   log_info("Returning to linear intensities...")
-  unlogged.dataset = 2^dataset
-  printdata(unlogged.dataset)
+  unlogged_expression_set = 2 ^ expression_set
+  printdata(unlogged_expression_set)
   pitstop("Did the 'unlogging' mess anything up?")
   
   # Store values using matrices
   log_info("Making matrices...")
-  meansArr = matrix(nrow = d[1], ncol = m+1)
-  SDsArr = matrix(nrow = d[1], ncol = m+1)
-  corrArr = vector()
+  ..nr_unique_simple_groups <- length(unique_simple_groups)
+  
+  matrix(nrow = nrow(expression_set), ncol = ..nr_unique_simple_groups + 1) |>
+    as.data.frame() -> ..means_frame
+  colnames(..means_frame) <- c(unique_simple_groups, "Global")
+  
+  # Make a copy in memory
+  ..sd_matrix <- data.frame(..means_frame) 
+
+  ..correlation_vector <- as.vector(rep(NA, length(unique_simple_groups) + 1))
+  names(..correlation_vector) <- c(unique_simple_groups, "Global")
   
   # Statistics for each group...
   log_info("Calculating groupwise statistics...")
-  for (i in 1:m) {
-    meansArr[,i] = rowMeans(unlogged.dataset[,which(design == i)], na.rm = TRUE) # Within-group mean
-    SDsArr[,i] = apply(unlogged.dataset[,which(design == i)], 1, sd, na.rm = TRUE) # Within-group SD
-    corrArr[i] = cor(meansArr[,i], SDsArr[,i]) # Mean-SD Correlation
+  for (group in unique_simple_groups) {
+    unlogged_expression_set |> dp_select(starts_with(group)) |>
+      rowMeans(na.rm = TRUE) ->
+      ..means_frame[[group]]
+    
+    unlogged_expression_set |> dp_select(starts_with(group)) |>
+      apply(1, sd, na.rm = TRUE) ->
+      ..sd_matrix[[group]]
+    
+    cor(..means_frame[[group]], ..sd_matrix[[group]]) ->
+      ..correlation_vector[[group]]
   }
+  
   # ...and for the whole experiment
-  log_info("Calculating overall statistics...")
-  meansArr[,m+1] = rowMeans(unlogged.dataset, na.rm = TRUE)
-  SDsArr[,m+1] = apply(unlogged.dataset, 1, sd, na.rm = TRUE)
-  corrArr[m+1] = cor(meansArr[,m+1], SDsArr[,m+1])
-  meansArr[is.nan(meansArr)] = NA # To convert NaN in NA when some of the original groups are actually missing
+  log_info("Calculating global statistics...")
+
+  ..means_frame[["Global"]] = rowMeans(unlogged_expression_set, na.rm = TRUE)
+  ..sd_matrix[["Global"]] = apply(unlogged_expression_set, 1, sd, na.rm = TRUE)
+  ..correlation_vector[["Global"]] = cor(..means_frame[,"Global"], ..sd_matrix[,"Global"])
   
   # Scatter plot
   log_info("Making plots...")
   p <- function() {
-    par(mfrow = c(1, m+1)) # Optional, for sub-plotting
-    X.max = max(meansArr, na.rm = TRUE)
-    Y.max = max(SDsArr, na.rm = TRUE)
-    for (i in 1:(m+1)) {
+    par(mfrow = c(1, length(unique_simple_groups)+1))
+    X.max = max(..means_frame, na.rm = TRUE)
+    Y.max = max(..sd_matrix, na.rm = TRUE)
+    for (group in unique_simple_groups) {
       
-      plot(meansArr[,i], SDsArr[,i],
+      plot(..means_frame[[group]], ..sd_matrix[[group]],
            xlab = "Mean", ylab = "SD",
            xlim = c(0, X.max), ylim = c(0, Y.max),
            pch = 20, cex = 0.1)
-      
-      if (i <= m) {
-        title(main = groups[i])
-      }
-      else {
-        title(main = "Global")
-      }
-      mtext(side = 3, paste("Corr =", toString(round(corrArr[i], digits = 5))))
+      title(main = group)
+      mtext(side = 3, paste("Corr =", toString(round(..sd_matrix[[group]], digits = 5))))
     }
+    par(mfrow = c(1, 1))
   }
   printPlots(p, "SD_vs_Mean Plot") # Save just the 'Global' one
-  par(mfrow = c(1, 1)) # To reset sub-plotting
   
-  
+
   # ---- Filtering ----
   # Eliminate Low-Intensity Probes
   log_info("Startig filtering steps...")
   # Minimum gene presence per group - Default=0.80
-  kFac = opts$design$filters$min_groupwise_presence 
-  grSize = vector()
-  for (i in 1:m) {
-    grSize[i] = sum(design == i)
-  }
-  kSize = ceiling(grSize * kFac) # 'ceiling' to be more stringent than 'round'
-  ## NOTE :: I have NO idea why it doesen't work without the ending [1]...
-  log_info(paste0("Filtering with a k Factor of ", kFac, " and k Size of ", kSize)[1])
+  ..min_groupwise_presence = opts$design$filters$min_groupwise_presence 
+  ..group_sizes <- table(unique_simple_groups)
+  
+  # 'ceiling' to be more stringent than 'round'
+  ..min_presences = ceiling(..group_sizes * ..min_groupwise_presence) 
+  ## NOTE :: I have NO idea why it doesn't work without the ending [1]...
+  log_info(paste0(
+    "Filtering with a minimum groupwise presence of ", ..min_groupwise_presence,
+    " and groupwise sizes of ", paste(..group_sizes, collapse = ", ") 
+  )[1])
   
   # Filtering Table
   log_info("Making filtering report ...")
   # Cast to matrix
-  filTable = cbind(grSize, grSize*kFac, kSize, round(100*(kSize/grSize), 1))
-  colnames(filTable) = c("Group_Size", "Min_Presence", "Rounded", "Actual %")
-  rownames(filTable) = groups
-  mgppg = paste0("Minimum gene presence per group = ", kFac*100, "% of the samples.")
-  log_info(mgppg)
-  printdata(filTable)
+  ..filtering_table_report = cbind(
+    ..group_sizes, ..group_sizes * ..min_groupwise_presence,
+    ..min_presences, round(100*(..min_groupwise_presence/..group_sizes), 2)
+  )
+  colnames(..filtering_table_report) = c("Group_Size", "Min_Presence", "Rounded", "Actual %")
+  rownames(..filtering_table_report) = unique_simple_groups
+  ..min_presence_msg = paste0(
+    "Minimum gene presence per group = ", ..min_groupwise_presence*100,
+    "% of the samples."
+    )
+  log_info(..min_presence_msg)
+  printdata(..filtering_table_report)
 
-  if (saveOut) {
+  if (write_data_to_disk) {
     log_info("Saving filtering report...")
-    write(
-      paste0("Filtering Summary File\n======================\n"),
-      "Filtering Report.txt"
-    )
-    write(
-      paste0("Presence threshold thr0 = ", thr0),
-      "Filtering Report.txt",
-      append = TRUE
-    )
-    write(mgppg, "Filtering Report.txt", append = TRUE)
+    filtering_report_name <- "filtering_report.txt"
+    
+    .write_to_report <- function(string, append = TRUE) {
+      write(string, append = append, filtering_report_name)
+    }
+    
+    "Filtering Summary File\n======================\n" |> .write_to_report(append = FALSE)
+    paste0("Presence threshold min_log2_expression = ", min_log2_expression) |>
+      .write_to_report()
+    ..min_presence_msg |> .write_to_report()
+
     suppressWarnings(
       write.table(
-        filTable, "Filtering Report.txt", sep = "\t", append = TRUE,
-        col.names = TRUE, row.names = TRUE, quote = FALSE
+        ..filtering_table_report, filtering_report_name,
+        sep = "\t", append = TRUE,
+        col.names = TRUE, row.names = TRUE,
+        quote = FALSE
       )
     )
-    log_info(paste0("'Filtering Report.txt' has been saved in", myFolder))
+  
+    log_info(paste0("'Filtering Report.txt' has been saved in", output.dir))
   }
   pitstop("Does the filtering report look ok? If so, continue.")
 
   log_info("Running Filtering...")
-  # Above thr0 value in at least kSize samples out of grSize (kFac*100 % - Default=80%)...
-  presenceIndx = matrix(nrow = d[1], ncol = m) # Store values using matrices
-  for (i in 1:m) {
-    f1 = kOverA(kSize[i], thr0)
-    ffun1 = filterfun(f1)
-    presenceIndx[,i] = genefilter(dataset[,which(design == i)], ffun1)
-  }
-  retained = as.matrix(colSums(presenceIndx)) # Cast to matrix
-  colnames(retained) = c("Retained_Genes")
-  rownames(retained) = groups
-  if (saveOut) {
-    write("\n", "Filtering Report.txt", append = TRUE)
-    suppressWarnings(
-      write.table(
-        retained, "Filtering Report.txt", append = TRUE,
-        sep = "\t", col.names = TRUE, row.names = TRUE, quote = FALSE
-      )
-    )
-  }
-  
-  #...in at least 1 group (row-wise logical OR)
-  unionSet = (rowSums(presenceIndx) > 0)
-  
-  filtSize = sum(unionSet)
-  report = paste0(
-    "\nFiltering Report:\n=================\n",
-    "  ", d[1] - filtSize, " genes have been filtered out (",
-    round(((d[1] - filtSize)/d[1])*1e2, digits = 2), "%)\n",
-    "  ", filtSize, " retained genes out of ", d[1], " (",
-    round((filtSize/d[1])*1e2, digits = 2), "%)\n\n"
-  )
-  cat(report)
-  if (saveOut) {
-    write(paste("\n", report, sep = ""), "Filtering Report.txt", append = TRUE)
-  }
-  
-  dataset = dataset[which(unionSet),]
-  log_info("Done filtering...")
-  
+  # Above min_log2_expression value in at least kSize samples out of grSize (kFac*100 % - Default=80%)...
+  # Store values using matrices
 
-  # ---- Contrast Definition ----
-  log_info("Selecting contrasts...")
-  # Reassignment to get 'filtSize' defined even in the case of no filtering
-  filtSize = dim(dataset)[1]
-  
-  counter = 1
-  myContr = vector()
-  for (i in 1:(m-1)) { # All the possible combinations of two groups
-    for (j in (i+1):m) {
-      # Character vector specifying contrasts
-      myContr[counter] = paste(groups[j], "-", groups[i], sep = "")
-      counter = counter + 1
-    }
-  }
-  
-  myContr = as.matrix(myContr)
-  rownames(myContr) = c(1:length(myContr))
-  
-  # Check with the user if the contrasts are OK
-  paste0(1:length(myContr), ": ", myContr[1,]) |>
-    paste0(collapse = " / ") ->
-    available.contrasts
-  log_info(paste0("Available contrasts: ", available.contrasts))
-  selected.contrasts <- opts$design$contrasts
-  log_info(paste0("Selected contrasts: ", selected.contrasts))
-  pitstop("Check the contrasts before continuing.")
-  # Check if the contrasts are ok
-  log_info("Cheking contrasts...")
-  nr.contrasts <- length(myContr[1,])
-  if (length(selected.contrasts) > nr.contrasts || any(selected.contrasts > nr.contrasts)) {
-    stop(paste0("Invalid contrast selection: ", selected.contrasts))
-  }
-  log_info("Selecting contrasts...")
-  myContr = as.matrix(myContr[selected.contrasts,])
-  rownames(myContr) = c(1:length(myContr))
-  log_info("Contrast set.")
-  pitstop("")
-  
-  # ---- DE by Limma ----
-  if (opts$switches$limma$run_DEA) {
-    log_info("Running DEA with `limma`...")
-    pitstop("")
-    if (opts$switches$limma$run_paired_DEA == FALSE) {
-      # ---- Unpaired analysis ----
-      # Differential Expression Assessment and Figure Production
-      log_info("Running differential expression analysis in unpaired mode.")
-      log_info("Making limma desing matrix...")
-      limmaDesign = matrix(data = 0, nrow = d[2], ncol = m)
-      for (i in 1:m) {
-        limmaDesign[which(design == i),i] = 1
-      }
-      colnames(limmaDesign) = groups
-      
-      fit = lmFit(dataset, limmaDesign)
-      
-      log_info("Making contrasts matrix...")
-      contrast.matrix = makeContrasts(
-        contrasts = myContr,
-        levels = limmaDesign)
-      
-      log_info("Computing contrasts...")
-      fit2 = contrasts.fit(fit, contrast.matrix)
-      efit2 = eBayes(fit2)
-      
-      # Print Results (Top-Ten genes) for all the contrasts of interest
-      # This is only useful in slowmode.
-      if (opts$general$slowmode) {
-        for (i in 1:length(myContr)) {
-          # 'print' because automatic printing is turned off in loops (and functions)
-          cat("\nDEG Top-List for contrast: ", myContr[i], "\n", sep = "")
-          print(topTable(efit2, coef = i, adjust.method = "BH", sort.by = "B"))
-          cat("\n") # The one time I like a bit more space.
-        }
-      }
-      pitstop("Compute all DEGs? ")
-
-      # Compute full DEG Tables
-      log_info("Computing Differential expressions...")
-      progress <- txtProgressBar(min = 0, max = length(myContr))
-      DEGs.limma = list() # Create an empty list
-      for (i in 1:length(myContr)) {
-        DEGs.limma[[i]] = topTable(
-          efit2, coef = i, number = filtSize,
-          adjust.method = "BH", sort.by = "B"
-        ) # this is a list of Data Frames
-        DEGs.limma[[i]] = appendAnnotation(DEGs.limma[[i]], annot, sort.by = "adj.P.Val")
-        setTxtProgressBar(progress, i)
-      }
-      close(progress)
-      
-      # Save full DEG Tables
-      if (saveOut) {
-        log_info("Saving Differential expression tables...")
-        progress <- txtProgressBar(min = 0, max = length(myContr))
-        for (i in 1:length(myContr)) {
-          degTabName = paste("Limma - DEG Table ", myContr[i], ".txt", sep = "")
-          write.table(DEGs.limma[[i]], degTabName, sep = "\t", col.names = TRUE, row.names = TRUE, quote = FALSE)
-          setTxtProgressBar(progress, i)
-        }
-        close(progress)
-        log_info(paste0("Saved tables in ", myFolder))
-      }
-      
-      # Summary of DEGs (you can change the Log2-Fold-Change Threshold lfc...)
-      results.limma = decideTests(efit2, adjust.method = "BH", p.value = 0.05, lfc = thrFC)
-      p <- function() {
-        vennDiagram(results.limma)
-      }
-      printPlots(p, "Limma Venn")
-      
-      # Show Hyperparameters
-      d0 = efit2$df.prior           # prior degrees of freedom
-      dg = mean(fit$df.residual)    # original degrees of freedom
-      hyp = cbind(
-        c(efit2$s2.prior,     # prior variance
-        mean(fit$sigma^2),    # mean sample residual variance
-        mean(efit2$s2.post),  # mean posterior residual variance
-        d0, dg, d0/(d0+dg))   # Shrinkage degree
-      )
-      rownames(hyp) = c(
-        "Prior Var",
-        "Sample Residual Mean Var",
-        "Posterior Residual Mean Var",
-        "Prior df",
-        "Original df",
-        "Shrinkage degree"
-      )
-      colnames(hyp) = "Hyperparameters"
-      log_info(paste0("Hyperparameters:: \n", get.print.str(hyp)))
-      
-      # Save significant DEG list in Excel format with annotations
-      log_info("Saving DEGs into xlsx files. Generating tables...")
-      progress <- txtProgressBar(min = 0, max = length(myContr))
-      all.limma.sigs = list() # Create an empty list
-      for (i in 1:length(myContr)) {
-        all.limma.sigs[[i]] = topTable(
-          efit2, coef = i, number = filtSize,
-          adjust.method = "BH", sort.by = "B",
-          p.value = 0.05, lfc = thrFC
-        ) # list of Data Frames
-        setTxtProgressBar(progress, i)
-      }
-      close(progress)
-
-      log_info("Saving tables...")
-      progress <- txtProgressBar(min = 0, max = length(myContr))
-      for (i in 1:length(myContr)) {
-        if (saveOut & dim(all.limma.sigs[[i]])[1] > 0) {
-          all.limma.sigs[[i]] = appendAnnotation(all.limma.sigs[[i]], annot, sort.by = "adj.P.Val")
-          write.xlsx(
-            all.limma.sigs[[i]],
-            paste("Significant Genes by limma - ", myContr[i], ".xlsx", sep = ""),
-            colNames = TRUE, rowNames = TRUE, sheetName = myContr[i],
-            keepNA = TRUE, firstRow = TRUE, overwrite = TRUE
-          ) # Freezes the first row!
-        }
-        setTxtProgressBar(progress, i)
-      }
-      close(progress)
-      pitstop("Finishen running DEA.")
-    } else {
-      # ---- Paired Analysis ----
-      # Differential Expression Assessment in Paired-Sample Design
-      # (for two-group comparison only)
-      log_info("Running differential expression in paired mode.")
-      # Reduce dataset to the sole two groups to be compared by paired test
-      log_info("Reducing dataset to only data of interest...")
-      # TODO : These tests should be placed at the start of the script!
-      if (length(myContr) > 1) {
-        stop("Too many contrasts loaded - Paired test is for two-group comparison only!")
-      }
-      pg = strsplit(myContr, "-", fixed = TRUE) # List of the two groups to pair
-      index = which(grepl(pg[[1]][1], sampleName) | grepl(pg[[1]][2], sampleName))
-      dataset = dataset[,index]
-      design = design[index]
-      sampleName = sampleName[index]
-      d = dim(dataset)
-      log_info(paste("Sub-dataset dimensions: ", paste(d, collapse = ", ")))
-      printdata(dataset)
-      
-      log_info("Getting patient pairings...")
-      # Define pairing based on sampleName
-      # Always to be checked !!
-      patient.ID = factor(as.numeric(substring(sampleName, regexpr("_", sampleName) + 1)))
-      #patient.ID = factor(c(1,1,2,2,3,3,4,5,6,4,5,6)) # ...or go manually
-      log_info(paste0("Patient IDs are: ", paste0(patient.ID, collapse = ", ")))
-      pitstop("Are the patient IDs ok?")
-      cond = factor(groups[design])
-      
-      log_info("Making limma design formula...")
-      limmaDesign = model.matrix(~patient.ID + cond)
-      
-      log_info("Fitting model...")
-      fit = lmFit(dataset, limmaDesign)
-      efit2 = eBayes(fit)
-      
-      # Print Results (Top-Ten genes)
-      log_info("Getting results...")
-      coeff = tail(colnames(limmaDesign), n = 1) # Return the last element of the vector
-      log_info(paste0("DEG Top-List for contrast: ", myContr, " (design column: ", coeff, ")"))
-      topTable(efit2, coef = coeff, adjust.method = "BH", sort.by = "B") # just on-Screen
-      
-      pitstop("")
-      
-      # Compute full DEG Tables
-      log_info("Getting Differential expressions...")
-      DEGs.limma = list() # Create an empty list (for compatibility with independent-sample test)
-      DEGs.limma[[1]] = topTable(
-        efit2, coef = coeff, number = filtSize,
-        adjust.method = "BH", sort.by = "B"
-      ) # list of Data Frames
-      DEGs.limma[[1]] = appendAnnotation(DEGs.limma[[1]], annot, sort.by = "adj.P.Val")
-      
-      # Save full DEG Tables
-      if (saveOut) {
-        log_info("Saving Differential expression table...")
-        degTabName = paste("Limma - DEG Table ", myContr, " - Paired.txt", sep = "")
-        write.table(DEGs.limma[[1]], degTabName, sep = "\t", col.names = TRUE, row.names = TRUE, quote = FALSE)
-        cat("\n'", degTabName, "' has been saved in ", myFolder, "\n\n", sep = "")
-      }
-      
-      # BUG:: This call probaby distorts the data to make the wrong MA plot
-      # described in issue #7.
-      results.limma = decideTests(efit2, adjust.method = "BH", p.value = 0.05, lfc = thrFC)
-      
-      # Show Hyperparameters
-      d0 = efit2$df.prior           # prior degrees of freedom
-      dg = mean(fit$df.residual)    # original degrees of freedom
-      hyp = cbind(
-        c(efit2$s2.prior,       # prior variance
-        mean(fit$sigma^2),      # mean sample residual variance
-        mean(efit2$s2.post),    # mean posterior residual variance
-        d0, dg, d0/(d0+dg))     # Shrinkage degree
-      )
-      rownames(hyp) = c(
-        "Prior Var",
-        "Sample Residual Mean Var",
-        "Posterior Residual Mean Var",
-        "Prior df",
-        "Original df",
-        "Shrinkage degree"
-      )
-      colnames(hyp) = "Hyperparameters"
-      # TODO : The formatting of the hyperparameters is terrible. But i don't 
-      # want to lose anymore time.
-      log_info(paste0("Hyperparameters:: ", get.print.str(hyp)))
-      # Get rid of this print when you fix above.
-      print(hyp)
-      
-      # Save significant DEG list in Excel format with annotations
-      log_info("Saving DEGs into a xlsx file. Generating table...")
-      all.limma.sigs = list() # Create an empty list
-      all.limma.sigs[[1]] = topTable(
-        efit2, coef = coeff, number = filtSize,
-        adjust.method = "BH", sort.by = "B",
-        p.value = 0.05, lfc = thrFC
-      ) # list of Data Frames
-      
-      if (saveOut & dim(all.limma.sigs[[1]])[1] > 0) {
-        log_info("Saving table...")
-        all.limma.sigs[[1]] = appendAnnotation(all.limma.sigs[[1]], annot, sort.by = "adj.P.Val")
-        write.xlsx(
-          all.limma.sigs[[1]],
-          paste0("Significant Genes by limma - ", myContr, " - Paired.xlsx"),
-          colNames = TRUE, rowNames = TRUE, sheetName = myContr,
-          keepNA = TRUE, firstRow = TRUE, overwrite = TRUE
-        ) # Freezes the first row!
-      }
-      
-      pitstop("Finished running DEA with limma.")
+  ..truth_dataframe <- data.frame(row.names = rownames(expression_set))
+  for (group in unique_simple_groups) {
+    # I cannot use "filter" as we first need to compare all cols to see if
+    # the rowwise test passes, and only then we can filter.
+    filter_fun <- function(frame) {
+      kOverA_filter <- kOverA(..min_presences[[group]], min_log2_expression)
+      frame |> apply(MARGIN = 1, FUN = kOverA_filter) ->
+        filter_key
+      return(filter_key)
     }
     
+    expression_set |> dp_select(starts_with(group)) |> filter_fun() ->
+      ..truth_dataframe[[group]]
+    
+    print(head(..truth_dataframe))
+  }
+  
+  # truth_dataframe has FALSE where the genes need to be dropped,
+  # so we need to use `complete_cases` later.
+  
+  ..truth_dataframe |> apply(2, sum) -> ..nr_kept_genes
+
+  report = paste(
+    "Filtering Report:", "=================", "Surviving Genes:",
+    paste0(capture.output(print(..nr_kept_genes)), collapse = "\n"),
+    "Percentage:",
+    paste0(capture.output(print(..nr_kept_genes / nrow(expression_set) * 100)), collapse = "\n"),
+    sep = "\n"
+  )
+
+  # We keep all rows where the gene passed the test in at least one group
+  ..truth_dataframe |> apply(1, any) -> ..truth_key
+  
+  ..old_dims <- dim(expression_set)
+  expression_set <- expression_set[..truth_key, ]
+  
+  report <- paste(
+    report, "\nOriginal size (row, col):",
+    paste(..old_dims, collapse = ", "),
+    "Final size (row, col):", 
+    paste(dim(expression_set), collapse = ", "),
+    "% obs retained: ",
+    round(nrow(expression_set) / ..old_dims[1] * 100, 3), "%"
+    )
+  
+  log_info(report)
+  if (write_data_to_disk) {
+    paste("\n", report, sep = "") |> .write_to_report()
+  }
+
+  log_info("Done filtering.")
+
+
+  # ---- DE by Limma ----
+  if (opts$switches$limma) {
+    log_info("Running DEA with `limma`...")
+    pitstop("")
+
+    # Differential Expression Assessment and Figure Production
+    log_info("Running differential expression analysis in paired mode.")
+
+    log_info("Making limma desing matrix...")
+    # Based on the following:
+    # https://stats.stackexchange.com/questions/64249/creating-contrast-matrix-for-linear-regression-in-r
+    # https://stat.ethz.ch/pipermail/bioconductor/2012-July/046968.html
+
+    ..limma_design <- matrix(
+      nrow = ncol(expression_set),
+      ncol = length(unique_simple_groups)
+    )
+    colnames(..limma_design) <- unique_simple_groups
+    row.names(..limma_design) <- colnames(expression_set)
+    for (group in unique_simple_groups) {
+      startsWith(rownames(..limma_design), group) |> as.numeric() ->
+        ..limma_design[, group]
+    }
+
+    log_info(paste0("Design matrix:\n", paste(
+      capture.output(print(..limma_design)), collapse = "\n"
+    )))
+    
+    if (paired_mode) {
+      log_info("Calculating paired correlation...")
+      duplicateCorrelation(
+        expression_set, design = ..limma_design,
+        block = experimental_design$pairings
+      ) -> corfit
+      
+      log_info("Calculated a block correlation of ", round(corfit$consensus, 5))
+    }
+
+    log_info("Making contrasts matrix...")
+    makeContrasts(
+      contrasts = raw_contrasts,
+      levels = ..limma_design
+    ) -> ..contrast_matrix
+
+    log_info(paste0("Contrasts matrix:\n", paste(
+      capture.output(print(..contrast_matrix)), collapse = "\n"
+    )))
+
+    log_info("Computing contrasts...")
+    if (paired_mode) {
+      lmFit(
+        expression_set, ..limma_design,
+        block = experimental_design$pairings,
+        correlation = corfit$consensus
+      ) -> ..limma_fit
+    } else {
+      lmFit(expression_set, ..limma_design) -> ..limma_fit
+    }
+    ..limma_fit |> contrasts.fit(..contrast_matrix) |> eBayes() -> ..limma_Bayes
+
+    # Print Results (Top-Ten genes) for all the contrasts of interest
+    # This is only useful in slowmode.
+    if (opts$general$slowmode) {
+      for (i in seq_along(raw_contrasts)) {
+        # 'print' because automatic printing is turned off in loops (and functions)
+        # `cat` is also OK here as we are in slowmode.
+        cat("\nDEG Top-List for contrast: ", raw_contrasts[i], "\n", sep = "")
+        print(topTable(..limma_Bayes, coef = i, adjust.method = "BH", sort.by = "B"))
+        cat("\n") # The one time I like a bit more space.
+      }
+    }
+    pitstop("Next: Save all DEGs.")
+
+    log_info("Getting Differential expressions...")
+    progress <- txtProgressBar(min = 0, max = length(raw_contrasts))
+    DEGs.limma = list() # Create an empty list
+    for (i in seq_along(raw_contrasts)) {
+      DEGs.limma[[i]] = topTable(
+        ..limma_Bayes, coef = i, number = Inf,
+        adjust.method = "BH", sort.by = "B"
+      ) # this is a list of Data Frames
+      setTxtProgressBar(progress, i)
+    }
+    close(progress)
+
+    # Save full DEG Tables
+    if (write_data_to_disk) {
+      log_info("Saving Differential expression tables...")
+      progress <- txtProgressBar(min = 0, max = length(raw_contrasts))
+      for (i in seq_along(raw_contrasts)) {
+        degTabName = paste("Limma - DEG Table ", raw_contrasts[i], ".csv", sep = "")
+        write.csv(DEGs.limma[[i]], degTabName, row.names = TRUE, quote = FALSE)
+        setTxtProgressBar(progress, i)
+      }
+      close(progress)
+      log_info(paste0("Saved tables in ", output.dir))
+    }
+    
+    # Summary of DEGs (you can change the Log2-Fold-Change Threshold lfc...)
+    results.limma = decideTests(
+      ..limma_Bayes, adjust.method = "BH", p.value = 0.05,
+      lfc = opts$design$filters$fold_change
+    )
+    p <- function() {
+      vennDiagram(results.limma)
+    }
+    printPlots(p, "Limma Venn")
+    
+    # Show Hyperparameters
+    d0 = ..limma_Bayes$df.prior           # prior degrees of freedom
+    dg = mean(..limma_fit$df.residual)    # original degrees of freedom
+    hyp = cbind(
+      c(..limma_Bayes$s2.prior,     # prior variance
+      mean(..limma_fit$sigma^2),    # mean sample residual variance
+      mean(..limma_Bayes$s2.post),  # mean posterior residual variance
+      d0, dg, d0/(d0+dg))   # Shrinkage degree
+    )
+    rownames(hyp) = c(
+      "Prior Var",
+      "Sample Residual Mean Var",
+      "Posterior Residual Mean Var",
+      "Prior df",
+      "Original df",
+      "Shrinkage degree"
+    )
+    colnames(hyp) = "Hyperparameters"
+    log_info(paste0("Hyperparameters:: \n", get.print.str(hyp)))
+
+    pitstop("Finished running DEA.")
+
     # ---- Limma Plot ----
     log_info("Making DEG plots...")
     # MA-Plots with significant DEGs and Volcano plots
@@ -943,28 +671,28 @@ GATTACA <- function(options.path, input.file, output.dir) {
     # Find Axis Limits
     log_info("Finding axis limits...")
     max.M.value = 0
-    for (i in 1:length(myContr)) {
+    for (i in seq_along(raw_contrasts)) {
       temp = max(abs(DEGs.limma[[i]]$logFC))
       if (temp > max.M.value) {
         max.M.value = temp
       }
     }
     max.A.value = 0
-    for (i in 1:length(myContr)) {
+    for (i in seq_along(raw_contrasts)) {
       temp = max(DEGs.limma[[i]]$AveExpr)
       if (temp > max.A.value) {
         max.A.value = temp
       }
     }
     min.A.value = Inf
-    for (i in 1:length(myContr)) {
+    for (i in seq_along(raw_contrasts)) {
       temp = min(DEGs.limma[[i]]$AveExpr)
       if (temp < min.A.value) {
         min.A.value = temp
       }
     }
     min.P.value = 1
-    for (i in 1:length(myContr)) {
+    for (i in seq_along(raw_contrasts)) {
       temp = min(DEGs.limma[[i]]$P.Value)
       if (temp < min.P.value) {
         min.P.value = temp
@@ -974,32 +702,32 @@ GATTACA <- function(options.path, input.file, output.dir) {
     # MA-Plot with DEGs
     log_info("Making Limma MA plots...")
     # I cannot place a progress bar here as `printPlots` logs to stdout.
-    for (i in 1:length(myContr)) {
+    for (i in seq_along(raw_contrasts)) {
       # Mark in red/blue all the up-/down- regulated genes (+1/-1 in 'results.limma' matrix)
       p <- function() {
         plotMD(
-          efit2, coef = i, status = results.limma[,i],
-          values = c(1,-1), hl.col = myColors[c(2,1)],
-          xlim = c(min.A.value, max.A.value), ylim = c(-max.M.value, max.M.value),
+          expression_set, status = results.limma[,i],
+          values = c(1,-1), hl.col = user_colours[c(2,1)],
           xlab = "A (Average log-expression)",
           ylab = "M (log2-Fold-Change)"
         )
-        abline(h = 0, col = myColors[1], lty = 2) # lty = line type
-        abline(h = c(thrFC,-thrFC), col = myColors[1])
-        abline(v = thr0, col = myColors[1]) # Platform-specific log2-expression threshold
+        abline(h = 0, col = user_colours[1], lty = 2) # lty = line type
+        abline(h = c(thrFC,-thrFC), col = user_colours[1])
+        abline(v = min_log2_expression, col = user_colours[1]) # Platform-specific log2-expression threshold
       }
-      printPlots(p, paste("MA-Plot with Limma DEGs ", myContr[i], sep = ""))
+      printPlots(p, paste("MA-Plot with Limma DEGs ", raw_contrasts[i], sep = ""))
     }
     
     # Volcano Plots
     log_info("Making Limma Volcano plots...")
-    for (i in 1:length(myContr)) {
+    for (i in seq_along(raw_contrasts)) {
       tot.DEG = sum(DEGs.limma[[i]]$adj.P.Val < 0.05) # Total number of significant DEGs (without any FC cutoff)
       high.DEG = min(c(5,tot.DEG)) # To highlight no more than 5 genes per plot
       
       # Significance Threshold
+      # TODO : Discuss if this is right
       # Find that p-value corresponding to BH-adj.p-value ~ 0.05 (or Bonferroni point when tot.DEG = 0)
-      thrP = (0.05/filtSize)*(tot.DEG + 1)
+      thrP = (0.05/nrow(expression_set))*(tot.DEG + 1)
       # TODO : Implement this?
       # Alternative approach - Suitable also for correction methods other than BH
       # WARNING: DEG list has to be sorted by p-value or B statistics!
@@ -1011,7 +739,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
       # Check the threshold p-value
       log_info(
         paste0(
-          "\n", myContr[i], " - Threshold Report:\n",
+          "\n", raw_contrasts[i], " - Threshold Report:\n",
           "--------------------------------------\n",
           "  p-value threshold  =  ", thrP, "\n",
           "  -log10(p-value)    =  ", -log10(thrP), "\n",
@@ -1031,233 +759,90 @@ GATTACA <- function(options.path, input.file, output.dir) {
       # TODO: A pitstop here maybe?
       
       # Enhanced Volcano Plot
-      if (getOption("append.annot")) {
-        # Case-insensitive search of Gene Symbol column
-        myLabels = DEGs.limma[[i]][,grep("symbol",tolower(colnames(DEGs.limma[[i]])))]
+      if (getOption("use.annotations")) {
+        ..annotation_data <- merge_annotations(DEGs.limma[[i]], annotation_data)
+        print(colnames(..annotation_data))
+        ..volcano_labels <- ..annotation_data$gene_symbol
       } else {
-        myLabels = rownames(DEGs.limma[[i]])
+        ..volcano_labels = rownames(DEGs.limma[[i]])
       }
       p <- function() {
         # NOTICE: When in a for loop, you have to explicitly print your
         # resulting EnhancedVolcano object
-        print(
-          EnhancedVolcano(
-            DEGs.limma[[i]],
-            x = "logFC", y = "P.Value", ylim = c(0, -log10(min.P.value)),
-            pCutoff = thrP, FCcutoff = thrFC,
-            pointSize = 1,
-            col = c("black", "black", "black", myColors[2]),
-            lab = myLabels,
-            #selectLab = myLabels[1:high.DEG],
-            labSize = 4,
-            title = myContr[i],
-            subtitle = "Limma",
-            legendPosition = "none"
+        suppressWarnings(
+          # This prints warnings as - I think - the internal implementation
+          # uses xlim and ylim but ggplot2 ignores them.
+          print(
+            EnhancedVolcano(
+              DEGs.limma[[i]],
+              x = "logFC", y = "P.Value",
+              pCutoff = thrP, FCcutoff = thrFC,
+              pointSize = 1,
+              col = c("black", "black", "black", user_colours[2]),
+              lab = ..volcano_labels,
+              #selectLab = myLabels[1:high.DEG],
+              labSize = 4,
+              title = raw_contrasts[i],
+              subtitle = "Limma",
+              legendPosition = "none"
+            )
           )
         )
       }
-      printPlots(p, paste("Volcano with Limma DEGs ", myContr[i], sep = ""))
-      
-      # TODO :: Implement this?
-      if (FALSE) {
-        # Alternative Volcano Plot From limma package
-        volcanoplot(efit2, coef = i, style = "p-value",
-                    highlight = high.DEG, names = rownames(dataset), hl.col = myColors[1],
-                    xlim = c(-max.M.value, max.M.value), ylim = c(0, -log10(min.P.value)),
-                    xlab = "log2-Fold-Change")
-        title(main = myContr[i])
-        abline(v = c(thrFC,-thrFC), col = myColors[2])
-        abline(h = -log10(thrP), col = myColors[2])
-        abline(h = -log10(0.05), col = myColors[2], lty = 2)
-        printPlots(paste("Volcano with Limma DEGs ", myContr[i], sep = ""))
-      }
+      printPlots(p, paste("Volcano with Limma DEGs ", raw_contrasts[i], sep = ""))
+
     }
   }
   
   # ---- DE by RankProduct ----
-  if (opts$switches$rankproduct$run_DEA) {
-    log_info("Running Differential expression analysis with rankproduct...")
-    if (opts$switches$rankproduct$run_paired_DEA == FALSE) {
-      log_info("Running in paired mode.")
-      # Differential Expression Assessment and Figure Production
-      results.RP = matrix(data = 0, nrow = filtSize, ncol = length(myContr))
-      rownames(results.RP) = rownames(dataset)
-      colnames(results.RP) = myContr
-      for (i in 1:length(myContr)) {
-        log_info(paste0("Running analysis ", i, "of", length(myContr)))
-        
-        log_info("Finding control and case groups...")
-        contr.groups = strsplit(myContr[i], split = "-", fixed = TRUE)
-        
-        case.id = which(groups == contr.groups[[1]][1])
-        case.index = which(design == case.id)
-        ctrl.id = which(groups == contr.groups[[1]][2])
-        ctrl.index = which(design == ctrl.id)
-        
-        sub.dataset = dataset[,c(ctrl.index,case.index)]
-        cl = c(rep(0,length(ctrl.index)), rep(1,length(case.index)))
-        
-        # Single Origin
-        log_info("Setting origins...")
-        origin = rep(1,length(cl))
-        # Multiple origins
-        # TODO : Implement this?
-        # For-looping would require a length(myContr)-long list... to be done
-        #origin = c(1,1,1,1,2,3,1,1,1,1,2,3,2,2)
-        
-        # invisible(capture.output()) is to suppress automatic output to console
-        # WARNING: therein <- (instead of =) is mandatory for assignment!
-        log_info("Running RankProduct...")
-        invisible(
-          capture.output(
-            RP.out <- RP.advance(
-              sub.dataset, cl, origin, gene.names = rownames(dataset),
-              logged = TRUE, na.rm = FALSE, plot = FALSE, rand = 123
-            )
-          )
-        )
-        invisible(capture.output(plotRP(RP.out, cutoff = 0.05)))
-        
-        # Compute full DEG Tables (returns a list of 2 matrices, not data frames)
-        log_info("Computing DEG table...")
-        invisible(
-          capture.output(
-            DEGs.RP <- topGene(RP.out, logged = TRUE, logbase = 2, num.gene = filtSize)
-          )
-        )
-        for (j in 1:2) {
-           # Invert FC to get Case vs Ctrl and take the log2 values
-          DEGs.RP[[j]][,3] = log2(1/DEGs.RP[[j]][,3])
-          colnames(DEGs.RP[[j]])[3] = "Log2FC" # Correct column name
-        }
-        
-        # Print Results (Top-Ten genes) for all the contrasts of interest
-        log_info("Getting top contrasts...")
-        log_info(paste0("DEG Top-List for contrast: ", myContr[i]))
-        tops = rbind(DEGs.RP$Table1[1:10,], DEGs.RP$Table2[1:10,])
-        # Sort by PFP (~FDR) and take just the 'absolute' Top-Ten
-        tops = tops[order(tops[,4])[1:10],]
-        print(tops) # just on-Screen
-        pitstop("")
-        
-        # Save full DEG Tables
-        if (saveOut) {
-          log_info("Saving full DEG tables...")
-          upDegTabName = paste0("RP_Up - DEG Table ", myContr[i], ".txt")
-          dwnDegTabName = paste0("RP_Down - DEG Table ", myContr[i], ".txt")
-          write.table(
-            DEGs.RP[[1]], upDegTabName,
-            sep = "\t", col.names = TRUE, row.names = TRUE, quote = FALSE
-          )
-          write.table(
-            DEGs.RP[[2]], dwnDegTabName,
-            sep = "\t", col.names = TRUE, row.names = TRUE, quote = FALSE
-          )
-          log_info(
-            paste0(
-              upDegTabName, "' and '", dwnDegTabName,
-              "' have been saved in ", myFolder
-            )
-          )
-        }
-        
-        # Fetch indexes of significant DEGs
-        log_info("Finding DEGs of interest...")
-        ups.Index = which(DEGs.RP$Table1[,4] < 0.05 & DEGs.RP$Table1[,3] > thrFC)
-        dwn.Index = which(DEGs.RP$Table2[,4] < 0.05 & DEGs.RP$Table2[,3] < -thrFC)
-        log_info(
-          paste(
-            "Found", length(ups.Index), "upregulated and",
-            length(dwn.Index), "downregulated genes."
-          )
-        )
-        
-        # Here 'results.RP' is filled in analogy to 'results.limma':
-        # (-1,0,+1) for (Down, NotSig, Up)-regulated genes
-        # Accessing matrix rows by row name: matrix[rowname, col_i]
-        results.RP[rownames(DEGs.RP$Table1)[ups.Index],i] = 1
-        results.RP[rownames(DEGs.RP$Table2)[dwn.Index],i] = -1
-        
-        # Save significant DEG list in Excel format with annotations
-        if (saveOut & (length(ups.Index) > 1 | length(dwn.Index) > 1)) {
-          log_info("Saving annotated DEGs in excel format...")
-          # To join two objects vertically
-          all.RP.sigs = rbind(DEGs.RP$Table1[ups.Index,], DEGs.RP$Table2[dwn.Index,])
-          all.RP.sigs = appendAnnotation(all.RP.sigs, annot, sort.by = "pfp")
-          write.xlsx(
-            all.RP.sigs, paste0("Significant Genes by RP - ", myContr[i], ".xlsx"),
-            colNames = TRUE, rowNames = TRUE, sheetName = myContr[i],
-            keepNA = TRUE, firstRow = TRUE, overwrite = TRUE
-          ) # Freezes the first row!
-        }
-      }
-      
-      log_info("Calculating summary statistics...")
-      summary.RP = rbind(
-        colSums(results.RP == -1), # Cast to matrix
-        colSums(results.RP == 0),
-        colSums(results.RP == 1)
-      )
-      rownames(summary.RP) = c("Down", "NotSig", "Up")
-      print(summary.RP)
-      
-      log_info("Finished DEA.")
-      pitstop("")
-    } else {
-      # ---- DE by RP - Paired ----
-      # One-class Analysis of the Paired (log)-Differences
-      log_info("Running in paired mode.")
+  if (opts$switches$rankproduct) {
+    log_info("Running differential expression analysis with rankproduct...")
+    if (paired_mode) {
+      log_warn("Rankprod currently does not implement paired analysis.")
+    }
+    log_info("Running in unpaired mode.")
+    # Differential Expression Assessment and Figure Production
+    results.RP = matrix(
+      data = 0,
+      nrow = nrow(expression_set), ncol = length(raw_contrasts)
+    )
+    rownames(results.RP) = rownames(expression_set)
+    colnames(results.RP) = raw_contrasts
 
-      log_info("Reducing dataset to values of interest...")
-      if (length(myContr) > 1) {
-        stop("Too many contrasts loaded - Paired test is for two-group comparison only!\n\n")
-      }
-      pg = strsplit(myContr, "-", fixed = TRUE) # List of the two groups to pair
-      index = which(grepl(pg[[1]][1], sampleName) | grepl(pg[[1]][2], sampleName))
-      dataset = dataset[,index]
-      design = design[index]
-      sampleName = sampleName[index]
-      d = dim(dataset)
-      cat("\nSub-dataset dimensions:", d, "\n\n", sep = " ")
-      printdata(dataset)
-    
-      log_info("Calculating results matrix...")
-      results.RP = matrix(data = 0, nrow = filtSize, ncol = 1)
-      rownames(results.RP) = rownames(dataset)
-      colnames(results.RP) = myContr
+    for (i in seq_along(raw_contrasts)) {
+      log_info(paste0("Running analysis ", i, " of ", length(raw_contrasts)))
       
-      log_info("Finding pairs based on sample names...")
-      case.index = which(grepl(pg[[1]][1], sampleName))
-      ctrl.index = which(grepl(pg[[1]][2], sampleName))
-      # ...or go manually
-      # TODO : Implement this?
-      #case.index = c(1,2,3,5,7)
-      #ctrl.index = c(8,9,10,4,6)
+      log_info("Finding control and case groups...")
+      ..unpacked_groups = strsplit(raw_contrasts[i], split = "-", fixed = TRUE)[[1]]
       
-      # Check the re-ordering before pairing
-      cat("Pairings:/n")
-      print(cbind(sampleName[case.index], sampleName[ctrl.index]))
-      pitstop("Do the pairings look ok?")
+      ..control_group <- ..unpacked_groups[1]
+      ..treated_group <- ..unpacked_groups[2]
       
-      # Pair Samples
-      log_info("Pairing samples...")
-      paired.dataset = dataset[,case.index] - dataset[,ctrl.index]
-      cl = rep(1,dim(paired.dataset)[2])
+      expression_set |> dp_select(
+        starts_with(..control_group) | starts_with(..treated_group)
+        ) -> ..sub_expression_set
       
-      # Single Origin
+      # Make the cl array, representing class labels of the sample
+      colnames(..sub_expression_set) |> startsWith(..treated_group) |> as.numeric() ->
+        ..rp_class_labels
+      
       log_info("Setting origins...")
-      origin = rep(1, length(paired.dataset))
-      # Multiple origins
-      # TODO : Implement this?
-      #origin = c(1,1,1,1,2,2)
+      ..rp_origin <- opts$design$rp_origins
+      if (is.null(..rp_origin)) {
+        ..rp_origin = rep(1, length(..rp_class_labels))
+      } else {
+        ..rp_origin <- as.integer(design_parser(..rp_origin))
+      }
       
       # invisible(capture.output()) is to suppress automatic output to console
       # WARNING: therein <- (instead of =) is mandatory for assignment!
-      log_info("Running rankproduct...")
+      log_info("Running RankProduct...")
       invisible(
         capture.output(
           RP.out <- RP.advance(
-            paired.dataset, cl, origin, gene.names = rownames(dataset),
+            ..sub_expression_set,
+            ..rp_class_labels, ..rp_origin,
+            gene.names = rownames(expression_set),
             logged = TRUE, na.rm = FALSE, plot = FALSE, rand = 123
           )
         )
@@ -1265,46 +850,46 @@ GATTACA <- function(options.path, input.file, output.dir) {
       p <- function() {
         invisible(capture.output(plotRP(RP.out, cutoff = 0.05)))
       }
-      printPlots(p, "Rankproduct plot")
+      printPlots(p, paste("Rankprod ", raw_contrasts[i]))
       
-      # Compute full DEG Tables (it returns a list of 2 matrices, not data frames)
-      log_info("Computing DEG tables...")
+      # Compute full DEG Tables (returns a list of 2 matrices, not data frames)
+      log_info("Computing DEG table...")
       invisible(
         capture.output(
-          DEGs.RP <- topGene(RP.out, logged = TRUE, logbase = 2, num.gene = filtSize)
+          # The Inf cutoff is to print all genes
+          DEGs.RP <- topGene(RP.out, logged = TRUE, logbase = 2, cutoff = Inf)
         )
       )
       for (j in 1:2) {
-        DEGs.RP[[j]][,3] = log2(DEGs.RP[[j]][,3]) # Take the log2 values
+         # Invert FC to get Case vs Ctrl and take the log2 values
+        DEGs.RP[[j]][,3] = log2(1/DEGs.RP[[j]][,3])
         colnames(DEGs.RP[[j]])[3] = "Log2FC" # Correct column name
       }
       
-      # Print Results (Top-Ten genes) for the contrast of interest
-      cat("DEG Top-List for paired contrast: ", myContr, "\n", sep = "")
+      # Print Results (Top-Ten genes) for all the contrasts of interest
+      log_info("Getting top contrasts...")
+      log_info(paste0("DEG Top-List for contrast: ", raw_contrasts[i]))
       tops = rbind(DEGs.RP$Table1[1:10,], DEGs.RP$Table2[1:10,])
-      # Sort by PFP (~FDR) and take just the 'absolute' Top-Ten
-      tops = tops[order(tops[,4])[1:10],]
-      print(tops) # just on-Screen
+      printdata(tops) # just on-Screen
       pitstop("")
       
       # Save full DEG Tables
-      if (saveOut) {
+      if (write_data_to_disk) {
         log_info("Saving full DEG tables...")
-        upDegTabName = paste("RP_Up - DEG Table ", myContr, ".txt", sep = "")
-        dwnDegTabName = paste("RP_Down - DEG Table ", myContr, ".txt", sep = "")
-        write.table(DEGs.RP[[1]], upDegTabName, sep = "\t", col.names = TRUE, row.names = TRUE, quote = FALSE)
-        write.table(DEGs.RP[[2]], dwnDegTabName, sep = "\t", col.names = TRUE, row.names = TRUE, quote = FALSE)
-        log_info(
-          paste0(
-            upDegTabName, "' and '", dwnDegTabName, "' have been saved in ", myFolder
-          )
-        )
+        upDegTabName = paste0("RP_Up - DEG Table ", raw_contrasts[i], ".csv")
+        dwnDegTabName = paste0("RP_Down - DEG Table ", raw_contrasts[i], ".csv")
+        write.csv(DEGs.RP[[1]], upDegTabName, row.names = TRUE, quote = FALSE)
+        write.csv(DEGs.RP[[2]], dwnDegTabName, row.names = TRUE, quote = FALSE)
+        log_info(paste0(
+          upDegTabName, "' and '", dwnDegTabName,
+          "' have been saved in ", output.dir
+        ))
       }
       
       # Fetch indexes of significant DEGs
       log_info("Finding DEGs of interest...")
-      dwn.Index = which(DEGs.RP$Table1[,4] < 0.05 & DEGs.RP$Table1[,3] < -thrFC)
-      ups.Index = which(DEGs.RP$Table2[,4] < 0.05 & DEGs.RP$Table2[,3] > thrFC)
+      ups.Index = which(DEGs.RP$Table1[,4] < 0.05 & DEGs.RP$Table1[,3] > thrFC)
+      dwn.Index = which(DEGs.RP$Table2[,4] < 0.05 & DEGs.RP$Table2[,3] < -thrFC)
       log_info(
         paste(
           "Found", length(ups.Index), "upregulated and",
@@ -1315,40 +900,26 @@ GATTACA <- function(options.path, input.file, output.dir) {
       # Here 'results.RP' is filled in analogy to 'results.limma':
       # (-1,0,+1) for (Down, NotSig, Up)-regulated genes
       # Accessing matrix rows by row name: matrix[rowname, col_i]
-      results.RP[rownames(DEGs.RP$Table1)[dwn.Index],1] = -1
-      results.RP[rownames(DEGs.RP$Table2)[ups.Index],1] = 1
+      results.RP[rownames(DEGs.RP$Table1)[ups.Index],i] = 1
+      results.RP[rownames(DEGs.RP$Table2)[dwn.Index],i] = -1
       
-      # Save significant DEG list in Excel format with annotations
-      if (saveOut & (length(ups.Index) > 1 | length(dwn.Index) > 1)) {
-        log_info("Saving annotated DEGs in excel format...")
-        # To join two objects vertically use `rbind`
-        all.RP.sigs = rbind(DEGs.RP$Table1[dwn.Index,], DEGs.RP$Table2[ups.Index,])
-        all.RP.sigs = appendAnnotation(all.RP.sigs, annot, sort.by = "pfp")
-        write.xlsx(
-          all.RP.sigs,
-          paste("Significant Genes by RP - ", myContr, ".xlsx", sep = ""),
-          colNames = TRUE, rowNames = TRUE, sheetName = myContr,
-          keepNA = TRUE, firstRow = TRUE
-        ) # Freezes the first row!
-      }
-      
-      log_info("Calculating summary statistics...")
-      summary.RP = rbind(
-        colSums(results.RP == -1), # Cast to matrix
-        colSums(results.RP == 0),
-        colSums(results.RP == 1)
-      )
-      rownames(summary.RP) = c("Down", "NotSig", "Up")
-      print(summary.RP)
-      
-      log_info("Finished running DEA.")
-      pitstop("")
     }
+    
+    log_info("Calculating summary statistics...")
+    summary.RP = rbind(
+      colSums(results.RP == -1), # Cast to matrix
+      colSums(results.RP == 0),
+      colSums(results.RP == 1)
+    )
+    rownames(summary.RP) = c("Down", "NotSig", "Up")
+    print(summary.RP)
+    
+    log_info("Finished DEA.")
+    pitstop("")
   }
   
-  if (opts$switches$limma$run_DEA & opts$switches$rankproduct$run_DEA) {
+  if (opts$switches$limma & opts$switches$rankproduct) {
     log_info("Making comparison plots between limma and rankproduct...")
-    # DEG Comparison -------------------------------------------------------------------------------------------------------
     # Venn diagrams of DEGs from Limma and RP methods
     
     # To suppress 'venn.diagram()' logging
@@ -1356,7 +927,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
     
     # Plot Venn diagrams
     log_info("Plotting Venn diagrams...")
-    for (i in 1:length(myContr)) {
+    for (i in seq_along(raw_contrasts)) {
       for (j in c(1, -1)) {
 
         DEG.id.limma = rownames(results.limma)[which(results.limma[,i] == j)]
@@ -1369,7 +940,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
         }
         
         if (length(DEG.id.limma) == 0 & length(DEG.id.RP) == 0) {
-          cat("\nBoth the sets are empty in the contrast: ", myContr[i], " (", venn.sub, ")\n\n", sep = "")
+          log_warn("Both the sets are empty in the contrast: ", raw_contrasts[i], " (", venn.sub, ")")
           next # Skip the current iteration of the for loop without terminating it
         }
         
@@ -1377,9 +948,9 @@ GATTACA <- function(options.path, input.file, output.dir) {
           x = list(DEG.id.limma, DEG.id.RP),
           filename = NULL, # to print just on screen
           force.unique = TRUE,
-          main = myContr[i], main.cex = 2, main.fontface = "bold", main.fontfamily = "sans", # Title
+          main = raw_contrasts[i], main.cex = 2, main.fontface = "bold", main.fontfamily = "sans", # Title
           sub = venn.sub, sub.fontfamily = "sans", # Subtitle
-          lwd = 2, lty = "blank", fill = myColors[1:2], # circles
+          lwd = 2, lty = "blank", fill = user_colours[1:2], # circles
           cex = 2, fontface = "bold", fontfamily = "sans", # numbers
           category.names = c("Limma", "Rank Product"), # names
           cat.cex = 2,
@@ -1398,7 +969,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
         printPlots(
           p,
           paste0(
-            "Comparison Venn ", myContr[i], "_",
+            "Comparison Venn ", raw_contrasts[i], "_",
             strsplit(venn.sub, split = "-")[[1]][1]
           )
         )

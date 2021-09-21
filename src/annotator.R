@@ -73,8 +73,19 @@ merge_annotations <- function(gene.stat, annotation, sort.by = 1) {
 }
 
 
+#' Get the possible annotation names of a specific database.
+#'  
+#' This also installs and loads the database package from Bioconductor.
+#' 
+#' @param db_namespace The name of the library containing the db
+#' 
+#' @returns A string vector with the names of the available annotations.
+#' 
+#' @author MrHedmad 
 get_db_names <- function(db_namespace) {
-  library(db_namespace, character.only = TRUE)
+  if (require(db_namespace, character.only = TRUE)) {
+    install.packages(paste0("bioc::", db_namespace))
+  }
   possibilities <- ls(paste0("package:", db_namespace))
   db_name = gsub("\\.db", "", db_namespace)
   possibilities <- sapply(
@@ -93,6 +104,8 @@ get_db_names <- function(db_namespace) {
 }
 
 
+#' Get specified annotations from a certain db.
+#'
 #' Possible db_names:
 #'   hgu133a.db (Affymetrix Human Genome U133 Set (A))
 #'   hgu133b.db (Affymetrix Human Genome U133 Set (B))
@@ -106,11 +119,19 @@ get_db_names <- function(db_namespace) {
 #'   GO2PROBE, MAP, MAPCOUNTS, OMIM, ORGANISM, ORGPKG, PATH, PATH2PROBE, PFAM,
 #'   PMID, PMID2PROBE, PROSITE, REFSEQ, SYMBOL, UNIPROT
 #' 
+#' @param db_name The id of the db. See above and the CHIP_TO_DB object.
+#' @param selections A vector of strings with the annotations to get from the db.
+#'   The available annotations can be seen above or by using the `get_db_names`
+#'   function
+#' @returns A data.frame with probe IDs as rownames and one column per annotation.
+#'  
+#' @author MrHedmad
 get_remote_annotations <- function(
   db_name, selections = c("ACCNUM", "SYMBOL", "GENENAME")
 ) {
   library(logger)
   library(purrr)
+  # get_db_names also loads the db in memory, so I don't do it here.
   possible_selections <- get_db_names(db_name)
   log_info("Checking selections...")
   if (!all(selections %in% possible_selections)) {
@@ -174,9 +195,9 @@ get_remote_annotations <- function(
   data <- container
   rm(container)
   log_info("Collapsing annotations again...")
-  data <- reduce(data, merge_genedata)
+  data <- purrr::reduce(data, merge_genedata)
   
-  # The merging functions need the probe_ids as rownames.
+  # The merging functions need the probe_ids as rownames
   log_info("Cleaning up rownames...")
   row.names(data) <- data$probe_id
   data$probe_id <- NULL
@@ -184,42 +205,24 @@ get_remote_annotations <- function(
   return(data)
 }
 
-# I expect that there is a col named "probe_id"
-annotate_data <- function(
-  expression_data_path, output_path,
-  chip_id, selections,
-  log_name = NULL
-  ) {
-  
-  paste0(
-    "Call: (exprpath/outputpath/chip/selections/logname):\n",
-    expression_data_path, output_path, chip_id, selections, log_name,
-    collapse = " :: "
-  ) |>
-    print()
-  
-  # Setup logging facilities
-  output.dir <- dirname(output_path)
-  start.timedate <- gsub(" ", "_", date())
-  
-  library(logger)
-  
-  log.target <- if (is.null(log_name)) {
-    file.path(output.dir, paste0("GATTACA_annotator_", start.timedate, ".log"))
-  } else {
-    file.path(output.dir, log_name)
-  }
-  file.create(log.target)
-  log_appender(appender_tee(log.target))
-  
+#' Annotatet a dataframe with data from a chip.
+#' 
+#' See the `get_remote_annotations` function for info on the possible chip_ids
+#' and selections.
+#' 
+#' @param expression_set A data.frame with row.names the probe ids.
+#' @param chip_id A str representing the chip used by the experiment.
+#' @param selections A vector of str with valid annotation names to use to
+#'   annotate the data.
+#'   
+#' @returns A dataframe with `selections` additional columns containing the
+#'   selections.
+annotate_data <- function(expression_set, chip_id, selections) {
   log_info("Checking chip selection...")
   database_name <- CHIP_TO_DB[[chip_id]]
   if (is.null(database_name)) {
     stop(paste0("Invalid chip id: ", chip_id))
   }
-  
-  log_info("Loading input data...")
-  expression_set <- read.csv(file = expression_data_path, row.names = "probe_id")
   
   log_info("Finding annotations...")
   annotations <- get_remote_annotations(database_name, selections = selections)
@@ -242,9 +245,60 @@ annotate_data <- function(
   log_info("Merging annotations with the data...")
   merged_data <- merge_annotations(expression_set, annotations)
   
-  log_info("Extracting probe ids...")
-  merged_data$probe_id <- row.names(merged_data)
+  return(merged_data)
+}
+
+#' Annotate a file containing expression data with annotations from a db.
+#' 
+#' The file needs to be in .csv format with a column named "probe_id" representing
+#' probe ids. The output file is similarly formatted.
+#' 
+#' See the `get_remote_annotations` function for info on the possible chip_ids
+#' and selections.
+#' 
+#' @param expression_data_path A str with the path to the csv file containing
+#'   the data to be annotated.
+#' @param output_path A full path to the output file.
+#' @param chip_id A str representing the chip used by the experiment.
+#' @param selections A vector of str with valid annotation names to use to
+#'   annotate the data.
+#' @param log_nale Name of the logfile written in the same directory as the 
+#'   output file.
+annotate_to_file <- function(
+  expression_data_path, output_path,
+  chip_id, selections,
+  log_name = NULL
+) {
+  paste0(
+    "Call: (exprpath/outputpath/chip/selections/logname):\n",
+    expression_data_path, output_path, chip_id, selections, log_name,
+    collapse = " :: "
+  )[1] |>
+    print()
   
-  write.csv(merged_data, file = output_path, row.names = FALSE)
-  log_info("Finished annotating.")
+  # Setup logging facilities
+  output.dir <- dirname(output_path)
+  start.timedate <- gsub(" ", "_", date())
+  
+  library(logger)
+  
+  log.target <- if (is.null(log_name)) {
+    file.path(output.dir, paste0("GATTACA_annotator_", start.timedate, ".log"))
+  } else {
+    file.path(output.dir, log_name)
+  }
+  file.create(log.target)
+  log_appender(appender_tee(log.target))
+  
+  log_info("Loading input data...")
+  expression_set <- read.csv(file = expression_data_path, row.names = "probe_id")
+ 
+  log_info("Annotating data...")
+  annotated_set <- annotate_data(expression_set, chip_id, selections)
+  
+  log_info("Extracting probe ids...")
+  annotated_set$probe_id <- row.names(annotated_set)
+  
+  write.csv(annotated_set, file = output_path, row.names = FALSE)
+  log_info("Written annotations.")
 }

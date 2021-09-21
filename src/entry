@@ -13,8 +13,8 @@ case "$order" in
 
         Rscript \
             --vanilla \
-            -e "source('/GATTACA/init.R')" \
-            -e "source('/GATTACA/GATTACA.R')" \
+            -e "source('/GATTACA/src/__init__.R')" \
+            -e "source('/GATTACA/src/GATTACA.R')" \
             -e "GATTACA('${optionfile}', '${inputfile}', '/GATTACA/target')"
         ;;
     prepaffy)
@@ -24,8 +24,8 @@ case "$order" in
 
         Rscript \
             --vanilla \
-            -e "source('/GATTACA/init.R')" \
-            -e "source('/GATTACA/toExpression/Affy_CEL_to_Expression.R')" \
+            -e "source('/GATTACA/src/__init__.R')" \
+            -e "source('/GATTACA/src/toExpression/Affy_CEL_to_Expression.R')" \
             -e "affy2expression('/GATTACA/input', '${outputfile}', log_name = '${2}', remove.controls = ${3})"
         ;;
     *)
