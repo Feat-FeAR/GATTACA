@@ -211,9 +211,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   
   unpack_contrasts <- function(contrasts_list) {
     lapply(contrasts_list, strsplit, split = "-") |> 
-      lapply(unlist) |>
-      lapply(as.list) |> 
-      lapply(\(inner_list) {names(inner_list) <- c("control", "treated")}) ->
+      lapply(unlist) ->
       unpacked
     return(unpacked)
   }
@@ -494,8 +492,6 @@ GATTACA <- function(options.path, input.file, output.dir) {
     
     expression_set |> dp_select(starts_with(group)) |> filter_fun() ->
       ..truth_dataframe[[group]]
-    
-    print(head(..truth_dataframe))
   }
   
   # truth_dataframe has FALSE where the genes need to be dropped,
@@ -543,34 +539,25 @@ GATTACA <- function(options.path, input.file, output.dir) {
     log_info("Running differential expression analysis in paired mode.")
 
     log_info("Making limma desing matrix...")
-    # Based on the following:
-    # https://stats.stackexchange.com/questions/64249/creating-contrast-matrix-for-linear-regression-in-r
-    # https://stat.ethz.ch/pipermail/bioconductor/2012-July/046968.html
-
-    ..limma_design <- matrix(
-      nrow = ncol(expression_set),
-      ncol = length(unique_simple_groups)
-    )
-    colnames(..limma_design) <- unique_simple_groups
-    row.names(..limma_design) <- colnames(expression_set)
-    for (group in unique_simple_groups) {
-      startsWith(rownames(..limma_design), group) |> as.numeric() ->
-        ..limma_design[, group]
+    
+    if (paired_mode) {
+      experimental_design$pairings <- as.factor(experimental_design$pairings)
+      ..pairings_levels <- levels(experimental_design$pairings)
+      ..pairings_levels <- ..pairings_levels[1:length(..pairings_levels)-1]
+      ..pairings_levels <- make.names(..pairings_levels)
+      ..groups_levels <- sort(unique_simple_groups)
+      ..limma_design <- model.matrix(
+        ~ 0 + experimental_design$groups + experimental_design$pairings
+      )
+      colnames(..limma_design) <- c(..groups_levels, ..pairings_levels)
+    } else {
+      ..limma_design <- model.matrix(~ 0 + experimental_design$groups)
+      colnames(..limma_design) <- unique_simple_groups
     }
 
     log_info(paste0("Design matrix:\n", paste(
       capture.output(print(..limma_design)), collapse = "\n"
     )))
-    
-    if (paired_mode) {
-      log_info("Calculating paired correlation...")
-      duplicateCorrelation(
-        expression_set, design = ..limma_design,
-        block = experimental_design$pairings
-      ) -> corfit
-      
-      log_info("Calculated a block correlation of ", round(corfit$consensus, 5))
-    }
 
     log_info("Making contrasts matrix...")
     makeContrasts(
@@ -583,15 +570,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
     )))
 
     log_info("Computing contrasts...")
-    if (paired_mode) {
-      lmFit(
-        expression_set, ..limma_design,
-        block = experimental_design$pairings,
-        correlation = corfit$consensus
-      ) -> ..limma_fit
-    } else {
-      lmFit(expression_set, ..limma_design) -> ..limma_fit
-    }
+    lmFit(expression_set, ..limma_design) -> ..limma_fit
     ..limma_fit |> contrasts.fit(..contrast_matrix) |> eBayes() -> ..limma_Bayes
 
     # Print Results (Top-Ten genes) for all the contrasts of interest
@@ -747,21 +726,9 @@ GATTACA <- function(options.path, input.file, output.dir) {
         )
       )
       
-      # Check within the DEG list
-      # WARNING: DEG list has to be sorted by p-value or B statistics!
-      # It should be the alpha-crossing-point for BH-adj.p-values column...
-      # ...and a thrP-containing interval for un-adjusted p-values column.
-      if (tot.DEG > 0) {
-        print(DEGs.limma[[i]][tot.DEG:(tot.DEG + 1), c("logFC","AveExpr","t","P.Value","adj.P.Val","B")])
-      } else {
-        print(DEGs.limma[[i]][1, c("logFC","AveExpr","t","P.Value","adj.P.Val","B")])
-      }
-      # TODO: A pitstop here maybe?
-      
       # Enhanced Volcano Plot
       if (getOption("use.annotations")) {
         ..annotation_data <- merge_annotations(DEGs.limma[[i]], annotation_data)
-        print(colnames(..annotation_data))
         ..volcano_labels <- ..annotation_data$gene_symbol
       } else {
         ..volcano_labels = rownames(DEGs.limma[[i]])

@@ -205,7 +205,7 @@ get_remote_annotations <- function(
   return(data)
 }
 
-#' Annotatet a dataframe with data from a chip.
+#' Annotate a dataframe with data from a chip.
 #' 
 #' See the `get_remote_annotations` function for info on the possible chip_ids
 #' and selections.
