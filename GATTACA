@@ -284,6 +284,68 @@ case "$subcommand" in
             --mount type=bind,source=$inputFolder,target=/GATTACA/input,readonly \
             mrhedmad/gattaca:$version \
             "prepaffy" $output_file_clean $logName $removeControls
+        exit 0
+        ;;
+    annotate)
+        # Default options
+        # "$input_file_clean $output_file_clean $chip_id $selections $logname"
+        inputFile=""
+        outputFile="./annotated_expressions.csv"
+        chipID=""
+        logName="NULL"
+        selections=""
+        version="latest"
+        
+        while getopts ":i:o:c:l:v:s:h" opt; do
+            case ${opt} in
+                i) inputFile=$(realpath $OPTARG);;
+                o) outputFile=$(realpath $OPTARG);;
+                l) logName=$OPTARG;;
+                c) chipID=$OPTARG;;
+                s) selections=$OPTARG ;;
+                v) version=$OPTARG ;;
+                h)
+                    echo "Annotate an expression dataset."
+                    echo ""
+                    echo "Options:"
+                    echo "  -h                      Print this message and exit."
+                    echo "  -i <input file>         Specify the input file to annotate."
+                    echo "  -o <output file>        Specify the output file path."
+                    echo "  -c <chip id>            Specify the chip id. See the readme for a list of supported chips."
+                    echo "  -l <log filename>       Specify the filename of the log that will be alongside the output file."
+                    echo "  -v <docker version>     Set the version of the docker to use. Defaults to latest."
+                    echo ""
+                    echo "Flags:"
+                    echo "  -r        If set, will remove control probes from the final set."
+                    exit 0
+                ;;
+                \?)
+                    echo "Invalid Option: -$OPTARG" 1>&2
+                    exit 1
+                ;;
+                :) : ;;
+            esac
+        done
+        
+
+        echo "Using logname: ${logName}"
+        echo "Using chip id: ${chipID}"
+        
+        output_file_clean=$(basename -- "$outputFile")
+        outputFolder="$(dirname "$outputFile")"
+        input_file_clean=$(basename -- "$inputFile")
+        inputFolder="$(dirname "$inputFile")"
+        
+        # Now that we have the options, we can start the docker container.
+        # "$input_file_clean $output_file_clean $chip_id $selections $logname"
+        docker run \
+            -it --rm \
+            --mount type=bind,source=$outputFolder,target=/GATTACA/target \
+            --mount type=bind,source=$inputFolder,target=/GATTACA/input,readonly \
+            gattaca:$version \
+            "annotate" $input_file_clean $output_file_clean $chipID $selections $logName
+        
+        exit 0
         ;;
     prepagil)
         echo "This is not yet implemented. Sorry!"

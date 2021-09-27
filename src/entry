@@ -28,6 +28,17 @@ case "$order" in
             -e "source('/GATTACA/src/toExpression/Affy_CEL_to_Expression.R')" \
             -e "affy2expression('/GATTACA/input', '${outputfile}', log_name = '${2}', remove.controls = ${3})"
         ;;
+    annotate)
+        # "$input_file_clean $output_file_clean $chip_id $selections $logname"
+        outputfile="/GATTACA/target/${2}"
+        
+        Rscript \
+            --vanilla \
+            -e "source('/GATTACA/src/__init__.R')" \
+            -e "source('/GATTACA/src/annotator.R')" \
+            -e "selections <- strsplit('${4}', ',')[[1]]" \
+            -e "annotate_to_file(expression_data_path = '/GATTACA/input/${1}', output_path = '${outputfile}', chip_id = '${3}', selections = selections, log_name = '${5}')"
+        ;;
     *)
         echo "Unrecognized order: '${order}'"
         exit 1

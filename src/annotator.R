@@ -83,9 +83,12 @@ merge_annotations <- function(gene.stat, annotation, sort.by = 1) {
 #' 
 #' @author MrHedmad 
 get_db_names <- function(db_namespace) {
-  if (require(db_namespace, character.only = TRUE)) {
-    install.packages(paste0("bioc::", db_namespace))
-  }
+  suppressWarnings({
+    if (!require(db_namespace, character.only = TRUE)) {
+      install.packages(paste0("bioc::", db_namespace))
+      suppressPackageStartupMessages(library(db_namespace, character.only = TRUE))
+    }
+  })
   possibilities <- ls(paste0("package:", db_namespace))
   db_name = gsub("\\.db", "", db_namespace)
   possibilities <- sapply(
@@ -113,11 +116,9 @@ get_db_names <- function(db_namespace) {
 #'   HsAgilentDesign026652.db (Agilent-026652 Whole Human Genome Microarray 4x44K v2)
 #'   hugene10sttranscriptcluster.db (Affymetrix Human Gene 1.0-ST Array)
 #' 
-#' All bioconductor databases use the following possible selections:
-#'   ACCNUM, ALIAS2PROBE, CHR, CHRLENGTHS, CHRLOC, CHRLOCEND, ENSEMBL,
-#'   ENSEMBL2PROBE, ENTREZID, ENZYME, ENZYME2PROBE, GENENAME, GO, GO2ALLPROBES,
-#'   GO2PROBE, MAP, MAPCOUNTS, OMIM, ORGANISM, ORGPKG, PATH, PATH2PROBE, PFAM,
-#'   PMID, PMID2PROBE, PROSITE, REFSEQ, SYMBOL, UNIPROT
+#' All bioconductor databases can use the following possible selections:
+#'   ACCNUM, CHR, CHRLOC, CHRLOCEND, ENSEMBL, ENTREZID, ENZYME, GENENAME, GO,
+#'   MAP, OMIM, PATH, PMID, REFSEQ, SYMBOL, UNIPROT
 #' 
 #' @param db_name The id of the db. See above and the CHIP_TO_DB object.
 #' @param selections A vector of strings with the annotations to get from the db.
@@ -271,9 +272,9 @@ annotate_to_file <- function(
 ) {
   paste0(
     "Call: (exprpath/outputpath/chip/selections/logname):\n",
-    expression_data_path, output_path, chip_id, selections, log_name,
-    collapse = " :: "
-  )[1] |>
+    paste(expression_data_path, output_path, chip_id, paste(selections, collapse = ", "), log_name,
+    sep = " :: ")
+  ) |>
     print()
   
   # Setup logging facilities

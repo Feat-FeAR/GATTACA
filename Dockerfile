@@ -19,12 +19,6 @@ RUN Rscript --vanilla \
   -e "source('./dock_install.R')" \
   -e "renv::isolate()"
 
-
-FROM rocker/r-ver:4.1.1
-
-WORKDIR /GATTACA
-# Copy the renv
-COPY --from=0 /GATTACA/renv .
 # Copy the rest of the files
 COPY ./ ./ 
 
@@ -32,4 +26,4 @@ COPY ./ ./
 RUN mkdir ./target && mkdir ./input
 
 # Setup the entrypoint
-ENTRYPOINT [ "./entry" ]
+ENTRYPOINT [ "./src/entry" ]

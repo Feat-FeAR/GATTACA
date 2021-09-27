@@ -10,7 +10,7 @@
 if (!interactive()) {
   # This is wrapped in an interactive call to not run it when sourcing this
   # while working in rstudio and the like.
-  ROOT <- "/GATTACA/" # The root in the docker
+  ROOT <- "/GATTACA" # The root in the docker
   source(file.path(ROOT, "renv", "activate.R")) 
 } else {
   ROOT <- getwd()
