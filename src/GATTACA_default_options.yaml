@@ -59,10 +59,6 @@ design:
   # type "<group1>-<group2>" to see group1 vs group2 (group1 will be the 
   # "control" condition).
   contrasts: ["control-treated"] # list of str
-  # Rankproduct can discriminate between different sources of data. Specify them
-  # here, as arbitrary integers. This is a string that is parsed identically
-  # as the experimental design, for ease of use.
-  rp_origins: "(1):4" # str or null
   # Specify the colours that represent the groups above. Must cover all groups (or more)
   group_colors: [
     "cornflowerblue", "firebrick3", "olivedrab3",

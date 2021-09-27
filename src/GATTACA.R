@@ -541,13 +541,13 @@ GATTACA <- function(options.path, input.file, output.dir) {
     log_info("Making limma desing matrix...")
     
     if (paired_mode) {
-      experimental_design$pairings <- as.factor(experimental_design$pairings)
-      ..pairings_levels <- levels(experimental_design$pairings)
+      ..factor_pairings <- as.factor(experimental_design$pairings)
+      ..pairings_levels <- levels(..factor_pairings)
       ..pairings_levels <- ..pairings_levels[1:length(..pairings_levels)-1]
       ..pairings_levels <- make.names(..pairings_levels)
       ..groups_levels <- sort(unique_simple_groups)
       ..limma_design <- model.matrix(
-        ~ 0 + experimental_design$groups + experimental_design$pairings
+        ~ 0 + experimental_design$groups + ..factor_pairings
       )
       colnames(..limma_design) <- c(..groups_levels, ..pairings_levels)
     } else {
@@ -764,9 +764,6 @@ GATTACA <- function(options.path, input.file, output.dir) {
   # ---- DE by RankProduct ----
   if (opts$switches$rankproduct) {
     log_info("Running differential expression analysis with rankproduct...")
-    if (paired_mode) {
-      log_warn("Rankprod currently does not implement paired analysis.")
-    }
     log_info("Running in unpaired mode.")
     # Differential Expression Assessment and Figure Production
     results.RP = matrix(
@@ -789,31 +786,103 @@ GATTACA <- function(options.path, input.file, output.dir) {
         starts_with(..control_group) | starts_with(..treated_group)
         ) -> ..sub_expression_set
       
+      # The above filter rearranges the columns. This crashes later as the
+      # column order is needed to match the pairings for subtraction.
+      # So we return to the original one here.
+      ..original_col_order <- colnames(expression_set)[
+        colnames(expression_set) %in% colnames(..sub_expression_set)
+      ] 
+      ..sub_expression_set <- ..sub_expression_set[, ..original_col_order]
+      
       # Make the cl array, representing class labels of the sample
       colnames(..sub_expression_set) |> startsWith(..treated_group) |> as.numeric() ->
         ..rp_class_labels
       
-      log_info("Setting origins...")
-      ..rp_origin <- opts$design$rp_origins
-      if (is.null(..rp_origin)) {
-        ..rp_origin = rep(1, length(..rp_class_labels))
-      } else {
-        ..rp_origin <- as.integer(design_parser(..rp_origin))
+      if (paired_mode) {
+        # To make a paired run, we need to subtract the matching paired sets.
+        # First, we need to get the pairings that survived the filtering
+        colnames(expression_set) %in% colnames(..sub_expression_set) ->
+          ..surviving_cols
+        ..sub_parings <- experimental_design$pairings[..surviving_cols]
+
+        # We make an empty dataframe to hold the subtraction result
+        ..subtracted_expression_set <- data.frame(row.names = rownames(..sub_expression_set))
+        for (pairing in unique(..sub_parings)) {
+
+          ..paired_expression_set <- ..sub_expression_set[..sub_parings == pairing]
+          
+          ..paired_expression_set |> dp_select(starts_with(..control_group)) ->
+            ..control_set
+          ..paired_expression_set |> dp_select(starts_with(..treated_group)) ->
+            ..treated_set
+          
+          if (ncol(..control_set) != 1) {
+            log_warn(
+              paste0(
+                "There are more than 1 '", ..control_group, 
+                "' paired samples (",
+                paste(colnames(..control_set), collapse = ", "), ").",
+                " The average of them will be used instead."
+              )
+            )
+            ..control_set <- rowMeans(..control_set)
+            colnames(..control_set) <- paste0("averaged_", ..control_group)
+          } else if (ncol(..control_set) == 0) {
+            stop(
+              paste0(
+                "There are no paired columns for group '", ..control_group,
+                "' for pairing ", pairing
+              )
+            )
+          }
+          
+          if (ncol(..treated_set) != 1) {
+            log_warn(
+              paste0(
+                "There are more than 1 '", ..treated_group, 
+                "' paired samples (",
+                paste(colnames(..treated_set), collapse = ", "), ").",
+                " The average of them will be used instead."
+              )
+            )
+            ..treated_set <- rowMeans(..treated_set)
+            colnames(..treated_set) <- paste0("averaged_", ..treated_group)
+          } else if (ncol(..treated_set) == 0) {
+            stop(
+              paste0(
+                "There are no paired columns for group '", ..treated_group,
+                "' for pairing ", pairing
+              )
+            )
+          }
+          
+          # Now, control and treated sets can be subtracted as they are one
+          # and only one column.
+          ..subtracted_partial_set <- ..control_set - ..treated_set
+          
+          ..subtracted_expression_set <- merge(
+            ..subtracted_expression_set, ..subtracted_partial_set,
+            all = TRUE, by = 0
+          )
+          # the merge makes the rownames into their own col
+          rownames(..subtracted_expression_set) <- ..subtracted_expression_set$Row.names
+          ..subtracted_expression_set$Row.names <- NULL
+        }
+        log_info("Finished pairing dataset.")
+        ..sub_expression_set <- ..subtracted_expression_set
+        ..rp_class_labels <- rep(1, ncol(..subtracted_expression_set))
       }
-      
+
       # invisible(capture.output()) is to suppress automatic output to console
       # WARNING: therein <- (instead of =) is mandatory for assignment!
       log_info("Running RankProduct...")
-      invisible(
-        capture.output(
-          RP.out <- RP.advance(
-            ..sub_expression_set,
-            ..rp_class_labels, ..rp_origin,
-            gene.names = rownames(expression_set),
-            logged = TRUE, na.rm = FALSE, plot = FALSE, rand = 123
-          )
-        )
+      RP.out <- RP.advance(
+        ..sub_expression_set,
+        ..rp_class_labels, origin = rep(1, ncol(..sub_expression_set)),
+        gene.names = rownames(expression_set),
+        logged = TRUE, na.rm = FALSE, plot = FALSE, rand = 123
       )
+      cat("\n")
       p <- function() {
         invisible(capture.output(plotRP(RP.out, cutoff = 0.05)))
       }

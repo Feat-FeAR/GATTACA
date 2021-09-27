@@ -71,7 +71,7 @@ To run GATTACA, you must provide an options file encoded in [yaml](https://yaml.
     - `limma` (bool): If true, detects Differentially Expressed Genes (DEGs) using the `limma` package (Performs Differential Expression Analysis). This performs better than `rankProd` for well-behaved data.
     - `rankproduct` options: If true, detects Differentially Expressed Genes (DEGs) using the `rankproduct` package (Performs Differential Expression Analysis). This performs better than `rankProd` for well-behaved data.
 - Design options:
-    - `experimental_design` (str): A string representing the experimental desing. See the special section at the end of this list..
+    - `experimental_design` (str): A string representing the experimental desing. See the special section at the end of this list.
     - `group_colors` (list of str): A list of strings representing names of colors to be used in some plots. The list must be as long or longer than the number of `experimental_groups`.
     - `contrasts` (list of int): This list defines which group pairs are tested against each other to find differentially expressed genes. The pairs are generated from the experimental groups as non-palindrome ordered combinations. If the `experimental_groups` are `["control", "treat1", "treat2"]` then the generated pairs are `["treat1-control", "treat2-control", "treat2-treat1"]` A `slowmode` `dryrun` is especially useful to check if this option was set correctly.
     - Filters applied to the dataset:
