@@ -56,7 +56,7 @@ case "$subcommand" in
                         exit 0
                     elif [ -d $target ]; then
                         # The target is a directory. Copy it there
-                        cp "${DIR}/GATTACA_default_options.yaml" "${target}/GATTACA_config.yaml"
+                        cp "${DIR}/src/GATTACA_default_options.yaml" "${target}/GATTACA_config.yaml"
                         echo "Spawned config file: ${target}/GATTACA_config.yaml"
                     else
                         # The path is invalid.
