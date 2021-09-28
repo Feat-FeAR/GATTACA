@@ -729,7 +729,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
       # Enhanced Volcano Plot
       if (getOption("use.annotations")) {
         ..annotation_data <- merge_annotations(DEGs.limma[[i]], annotation_data)
-        ..volcano_labels <- ..annotation_data$gene_symbol
+        ..volcano_labels <- ..annotation_data$SYMBOL
       } else {
         ..volcano_labels = rownames(DEGs.limma[[i]])
       }
