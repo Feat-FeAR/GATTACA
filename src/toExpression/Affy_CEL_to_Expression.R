@@ -1,6 +1,6 @@
 # Header Info ------------------------------------------------------------------
 #
-# Affymetrix CEL file -> Expression matrix
+# Affymetrix CEL files -> Expression matrix
 #
 # a FeAR R-script
 # based on: "Homer MiniTutorial - Processing Affymetrix Gene Expression Arrays"
@@ -18,13 +18,12 @@
 # ------------------------------------------------------------------------------
 
 # Load the helper functions.
-source("STALKER_Functions.R")   # Collection of custom functions
-source("annotator.R")
+source(file.path(ROOT, "src", "STALKER_Functions.R"))   # Collection of custom functions
+source(file.path(ROOT, "src", "annotator.R"))
 
 affy2expression <- function(
     input.folder, output.file, log_name = NULL,
-    use.affy = FALSE, remove.controls = TRUE,
-    annotate = TRUE
+    use.affy = FALSE, remove.controls = TRUE
     ) {
   # ---- Loading packages ----
   library(oligo)
@@ -34,9 +33,9 @@ affy2expression <- function(
   library(affycoretools)
 
   print(paste0(
-    "Call: (in/out/log/affy/rm/annotate) ",
+    "Call: (in/out/log/affy/rm) ",
     input.folder, output.file, log_name,
-    use.affy, remove.controls, annotate, sep = " :: "
+    use.affy, remove.controls, sep = " :: "
   ))
   
   # Setup logging facilities
@@ -69,15 +68,43 @@ affy2expression <- function(
   # This should also install-and-load the platform design package (e.g. pd.hg.u133a)
   affyRaw = read.celfiles(celFiles)
   
-  log_info("Running RMA normalization...")
-  expression_set = rma(affyRaw)
+  # Check Platform and set the exon.probes flag
+  # This is done as newer platforms need different processing than old ones.
+  platform <- affyRaw@annotation
+  log_info(paste0("Detected platform: ", platform))
+  if (platform %in% c("pd.hg.u133a", "pd.hg.u133b", "pd.hg.u133.plus.2")) {
+    exon.probes = FALSE
+  } else if (platform %in% c("pd.hugene.1.0.st.v1")) {
+    exon.probes = TRUE
+  } else {
+    stop("Invalid or unsupported platform")
+  }
+  
+  if (exon.probes) {
+    log_info("Running RMA normalization...")
+    # The parameter 'target' (only for Gene ST and Exon ST) defines the degree
+    # of summarization, "core" is the default option which use transcript
+    # clusters containing "safely" annotated genes. For summarization on the
+    # exon level (not recommended for Gene arrays), use "probeset".
+    expression_set = rma(affyRaw, target = "core")
+  } else {
+    expression_set = rma(affyRaw)
+  }
   
   if (remove.controls) {
     log_info("Removing control probes...")
     # Remove Affymetrix control probes
     probes.before = dim(expression_set)[1]
-    # ^ anchor to match the start of string (see regular expressions)
-    expression_set = getMainProbes(expression_set, level = "core")
+    if (exon.probes) {
+      expression_set = getMainProbes(expression_set, level = "core")
+    } else {
+      # ^ anchor to match the start of string (see regular expressions)
+      ctrl.index = grep("^AFFX", rownames(expression_set))
+      # To prevent an integer(0) from deleting all probes
+      if (length(ctrl.index) > 0) {
+        expression_set = expression_set[-ctrl.index,]
+      }
+    }
     probes.after = dim(expression_set)[1]
     discarded = probes.before - probes.after
     discarded.percent = round(discarded / probes.before * 100, 4)
@@ -92,20 +119,19 @@ affy2expression <- function(
     }
   }
   
-  print(str(expression_set))
+  # Transposing this object is a pain. But `write.exprs` actually does what we
+  # need. So I do this badness.
+  log_info("Transposing and extracting probe ids...")
+  temp <- tempfile()
+  on.exit(unlink(temp)) # This assures that the tempfile is deleted no matter what
+  write.exprs(expression_set, file = temp)
+
+  transposed <- read.table(file = temp, row.names = 1)
   
-  # I make ids into an explicit column now that filtering is done.
-  # Explicit is betters than implicit
-  log_info("Making probe ids explicit...")
-  expression_set <- t(as.matrix(expression_set))
-  expression_set$probe_id <- row.names(expression_set)
+  transposed$probe_id <- row.names(transposed)
+  row.names(transposed) <- NULL
   
-  if (annotate) {
-    print(str(expression_set))
-    print(expression_set$probe_id)
-  }
   log_info("Saving Expression Matrix to file...")
-  write.exprs(eset, file = output.file)
+  write.csv(transposed, file = output.file, row.names = FALSE)
   log_info("affy2expression finished")
 }
-

@@ -30,9 +30,10 @@
 printPlots = function(
   plotfun,
   figureName,
-  folderPrefix = getOption("scriptName"),
-  PNG = getOption("save.PNG.plot"), PDF = getOption("save.PDF.plot"),
-  plot.width = getOption("plot.width"), plot.height = getOption("plot.height")
+  folderPrefix = getOption("scriptName", ""),
+  PNG = getOption("save.PNG.plot", TRUE), PDF = getOption("save.PDF.plot", TRUE),
+  plot.width = getOption("plot.width", 16), plot.height = getOption("plot.height", 9),
+  png_ppi = getOption("png_ppi")
   ) {
   library(logger)
 
@@ -50,20 +51,10 @@ printPlots = function(
     PDF = TRUE
     log_warn("save.PDF.plot option defaulted to TRUE")
   }
-  if (is.null(folderPrefix)) {
-    figSubFolder = "Figures"
-  } else {
-    figSubFolder = paste(folderPrefix, "Figures", sep = " ")
-  }
+
+  figSubFolder = paste(folderPrefix, "Figures", sep = " ")
   
-  if (is.null(plot.width)) { 
-    plot.width = 820
-  }
-  if (is.null(plot.height)) { 
-    plot.height = 600
-  }
-  
-  fullName = file.path(figSubFolder, figureName, fsep = .Platform$file.sep) # OS-independent path separator
+  fullName = file.path(figSubFolder, figureName)
   
   if (!file.exists(figSubFolder) && (PNG || PDF)) {
     dir.create(figSubFolder)
@@ -73,7 +64,7 @@ printPlots = function(
     log_info(paste0("Saving ", figureName, ".png ..."))
     png(
       file = paste(fullName, ".png", sep = ""),
-      width = plot.width, height = plot.height
+      width = plot.width*png_ppi, height = plot.height*png_ppi
     )
     plotfun()
     dev.off()
@@ -276,11 +267,9 @@ pitstop.maker <- function(check) {
 #'   
 #' @author MrHedmad
 topleft.head <- function(data) {
-  y <- dim(data)[2]
-  floored.y <- floor(y * 0.25)
-  if (floored.y == 1 & y >= 2) {floored.y <- 2}
-  
-  return(head(data[, c(1:min(5, floored.y))]))
+  y <- ncol(data)
+
+  return(head(data[, c(1:min(5, max(2, y)))]))
 }
 
 
@@ -543,5 +532,46 @@ design_parser <- function(rawstr) {
   result <- gsub('.{1}$', '', result)
   result <- gsub(",", ", ", result) # Some extra space to be easy on the eyes
   
+  # The new design just needs to be splitted again...
+  result <- strsplit(result, ", ")[[1]]
+  return(result)
+}
+
+
+#' Split a parsed design into the groups and the pairings vectors.
+#' 
+#' Essentially, the character (a-z) portion of each entry will be included in the 
+#' groups vector, while the numerical portion the same for the pairings vector.
+#' 
+#' @param experimental_design An experimental design vector (such as one parsed
+#'   by `design_parser`).
+#' @returns A list with the groups vector of str in slot $groups and the pairings
+#'   vector of ints in the $pairings vector.
+#'   
+#' @author MrHedmad
+split_design <- function(experimental_design) {
+  library(purrr)
+
+  get_group <- function(x) {
+    # Get rid of any numbers
+    x <- gsub("[0-9]+", "", x, perl = TRUE)
+    return(x)
+  }
+
+  get_pairings <- function(x) {
+    # Get rid of any letters
+    x <- gsub("[a-zA-Z]+", "", x, perl = TRUE)
+    if (x == "") {
+      return(NA)
+    }
+    return(as.integer(x))
+  }
+  # This complains about some comparison, but it seems to be a false positive.
+  result <- suppressWarnings(
+      list(
+      groups = unlist(map(experimental_design, get_group)),
+      pairings = unlist(map(experimental_design, get_pairings))
+    )
+  )
   return(result)
 }

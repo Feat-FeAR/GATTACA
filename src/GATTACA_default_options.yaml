@@ -15,11 +15,21 @@ general:
   # Save PNG and/or PDF plots?
   save_pdf: true # bool
   save_png: false # bool
-  # Plot width and height in pixels
+  # Plot width and height in inches.
   plot_width: 16 # int
   plot_height: 9 # int
-  # ??????
-  append_annotation: true # bool
+  # PPI (pixel per inch) value for PNG plots
+  png_resolution: 300 # int
+  # If annotation are added, some plots (like volcano plots) are more legible
+  # as they use HUGO symbols instead of probe IDs. Specify here one available
+  # annotation ID based on your chip. Leave to `null` to not annotate.
+  # Available annotations (chip_name -> id):
+  # Affymetrix Human Genome U133 Set (A) -> hgu133a
+  # Affymetrix Human Genome U133 Set (B) -> hgu133b
+  # Affymetrix Human Genome HG-U133 Plus 2.0 Array -> hgu133plus2
+  # Agilent-026652 Whole Human Genome Microarray 4x44K v2 -> HsAgilentDesign026652
+  # Affymetrix Human Gene 1.0-ST Array -> hugene10st
+  annotation_chip_id: null # null OR str
 
 
 ## SWITCHES - Various switches to turn parts of the analysis on or off
@@ -27,64 +37,33 @@ switches:
   # Run the analysis, but don't save any output file. Useful to test the
   # analysis before committing.
   dryrun: false # bool
-  # Log2 transform the input intensities before running the analysis?
-  log2_transform: false # bool
   # Should re-run normalization after performing RMA?
   renormalize: true # bool
-  # Options related to the `limma` package
-  limma:
-    # Run Differential gene expression detection with `limma`
-    # This uses parametric tests to find DEGs.
-    run_DEA: true # bool
-    # The package can run both paired and unpaired differential expression
-    # analises. If `true`, run the paired analysis. If `false`, run the unpaired
-    # analysis. Note:: Paired analysis can only be run when only one contrast is
-    # selected. Check the README if you intend to use this option.
-    run_paired_DEA: false # bool
-  # Options related to the `rankproduct` package
-  rankproduct:
-    # Run Differential gene expression detection with `rankproduct`
-    # This uses non-parametric tests to find DEGs.
-    run_DEA: true # bool
-    # The package can run both paired and unpaired differential expression
-    # analises. If `true`, run the paired analysis. If `false`, run the unpaired
-    # analysis. Note:: Paired analysis can only be run when only one contrast is
-    # selected. Check the README if you intend to use this option.
-    run_paired_DEA: false # bool
-
-
-## CHIP - Information about the chips.
-chip:
-  # Type of the chip. This is used to source annotation data
-  # Currently supported chips:
-  # -- Affymetrix Human Genome U133 Set (A)
-  # -- Affymetrix Human Genome U133 Set (B)
-  # -- Affymetrix Human Genome HG-U133 Plus 2.0 Array
-  # -- Affymetrix Human Gene 1.0-ST Array
-  # -- Agilent-026652 Whole Human Genome Microarray 4x44K v2
-  type: null # str
-  # Should the tool use remote or local databases?
-  # Note: setting this to false makes the `type` option obsolete.
-  use_remote: true # bool
-  # If a local database is used, where is it stored (absolute paths only)?
-  # Read the readme for more info on the expected format of the database file
-  local_database_path: null # str path like
+  # Run Differential gene expression detection with `limma`
+  # This uses parametric tests to find DEGs.
+  limma: true # bool
+  # Run Differential gene expression detection with `rankproduct`
+  # This uses non-parametric tests to find DEGs.
+  rankproduct: true # bool
 
 
 # DESIGN - Experimental design
 design:
-  # Define any experimental groups here.
-  # NOTE!! : The FIRST group MUST be the control/background/wild-type!
-  experimental_groups: ["Control", "Treated"] # list of str
-  # Define the experimental matrix.
-  # The experimental matrix describes which samples are of which group, as
-  # defined above. Read the README for a guide on how to define this.
-  experimental_design: [1, 1, 2, 2] # list of int
+  # Define the experimental desing.
+  # The experimental matrix describes which samples are of which group, and if
+  # any samples are paired (such as being from the same patient).
+  # NOTE :: The groups must NOT contain numbers. Sorry!
+  # Read the README for a guide on how to define this.
+  experimental_design: "(treated):2, (control):2" # str
+  # Select which experimental group pairs should be analised. Pass strings of the
+  # type "<group1>-<group2>" to see group1 vs group2 (group1 will be the 
+  # "control" condition).
+  contrasts: ["control-treated"] # list of str
   # Specify the colours that represent the groups above. Must cover all groups (or more)
-  group_colors: ["cornflowerblue","firebrick3","olivedrab3","darkgoldenrod1","purple","magenta3"] # list of str
-  # Select which experimental group pairs should be analised. Group pairs are
-  # generated from the group names defined above. Use slowmode if uncertain.
-  contrasts: [1] # list of int
+  group_colors: [
+    "cornflowerblue", "firebrick3", "olivedrab3",
+    "darkgoldenrod1", "purple", "magenta3"
+    ] # list of str
   # Filters:
   filters:
     # Filter out (mark as non-differentially-expressed) any genes that have lower
