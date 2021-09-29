@@ -16,10 +16,10 @@ general:
   save_pdf: true # bool
   save_png: false # bool
   # Plot width and height in inches.
-  plot_width: 16 # int
-  plot_height: 9 # int
+  plot_width: 6 # int
+  plot_height: 3 # int
   # PPI (pixel per inch) value for PNG plots
-  png_resolution: 300 # int
+  png_resolution: 250 # int
   # If annotation are added, some plots (like volcano plots) are more legible
   # as they use HUGO symbols instead of probe IDs. Specify here one available
   # annotation ID based on your chip. Leave to `null` to not annotate.
@@ -38,7 +38,7 @@ switches:
   # analysis before committing.
   dryrun: false # bool
   # Should re-run normalization after performing RMA?
-  renormalize: true # bool
+  renormalize: false # bool
   # Run Differential gene expression detection with `limma`
   # This uses parametric tests to find DEGs.
   limma: true # bool

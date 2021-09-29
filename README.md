@@ -3,7 +3,7 @@
 [![License](https://img.shields.io/github/license/Feat-FeAR/GATTACA)](https://choosealicense.com/licenses/mit/)
 [![Issues](https://img.shields.io/github/issues/Feat-FeAR/GATTACA)](https://github.com/Feat-FeAR/GATTACA/issues)
 [![R Version](https://img.shields.io/badge/R%20version-4.1.1-informational)](https://www.r-project.org/)
-[![Latest docker image size](https://img.shields.io/docker/image-size/mrhedmad/gattaca/latest?label=Docker%20image%20size)](https://hub.docker.com/repository/docker/mrhedmad/gattaca#)
+[![Latest docker image size](https://img.shields.io/docker/image-size/mrhedmad/gattaca/v0.0.0-beta.2?label=Docker%20image%20size)](https://hub.docker.com/repository/docker/mrhedmad/gattaca#)
 
 
 <b>GATTACA</b> is a short for <b>General Algorithm for The Transcriptional Analysis by one-Channel Arrays</b>.
@@ -13,7 +13,7 @@ As the name suggests, GATTACA was originally written with (one-color/high-densit
 GATTACA assumes data to be already background-subtracted, log2-transformed, and interarray-normalized.
 To this purpose, use the platform-specific <i>*_to_Expression.R</i> script.
 
-The available docker containers live [here on Docker Hub](https://hub.docker.com/repository/docker/mrhedmad/gattaca#).
+The available docker containers live [on Docker Hub](https://hub.docker.com/repository/docker/mrhedmad/gattaca#).
 
 > **Disclaimer**: These instructions are given with a unix-like environment in mind. The program was developed and tested in an Ubuntu installation. See issue #3.
 
@@ -39,15 +39,17 @@ For more help, [open an issue](https://github.com/Feat-FeAR/GATTACA/issues/new).
 Using the scripts is as simple as starting the `GATTACA` bash script. The various help messages (accessed using `-h`) detail the usage of each subcommand.
 
 These are the currently available subcommands:
-- `GATTACA init`: Used to make configuration files for `GATTACA run`.
-- `GATTACA run`: Runs the `GATTACA.R` script. 
+- `GATTACA init`: Used to create configuration files for `GATTACA run`.
+- `GATTACA run`: Runs differential expression analysis on expression data.
+- `GATTACA annotate`: Annotates expression data created by other commands with annotations from a variety of bioconductor packages.
+- `GATTACA prepaffy`: Generates expression matrices from a collection of affymetrix .CEL files.
 
-### Script: GATTACA.R
-The `GATTACA.R` script is the main program of this collection. It performs differential gene expression analysis from single-channel microarray data.
+### Command: `GATTACA run`
+The `GATTACA run` command performs differential gene expression analysis from single-channel microarray data.
 
-To access the script, use the `GATTACA/GATTACA run` function. Append `-h` for usage information and available runtime options (not listed here).
+Append `-h` for usage information and available runtime options (not listed here).
 
-#### Options
+#### YAML Options
 To run GATTACA, you must provide an options file encoded in [yaml](https://yaml.org/). You can create a default version of the options by running `GATTACA init <path>`. Here are the supported options:
 
 - General options:
@@ -65,21 +67,21 @@ To run GATTACA, you must provide an options file encoded in [yaml](https://yaml.
         - Agilent-026652 Whole Human Genome Microarray 4x44K v2 -> `HsAgilentDesign026652`
         - Affymetrix Human Gene 1.0-ST Array -> `hugene10st`
 - Switches:
-    - `dryrun` (bool): Run the analysis, but don't save any output file. Useful to test the analysis before committing to it. Currently not implemented. See issue #4.
+    - `dryrun` (bool): Run the analysis, but don't save any output file. Useful to test the analysis before committing to it.
     - `log2_transform` (bool): If the input isn't log-transformed, setting this to true will perform log2 transformation for you.
     - `renormalize` (bool): If set to true, runs quantile normalization after performing Robust Multichip Average (RMA) normalization.
     - `limma` (bool): If true, detects Differentially Expressed Genes (DEGs) using the `limma` package (Performs Differential Expression Analysis). This performs better than `rankProd` for well-behaved data.
     - `rankproduct` options: If true, detects Differentially Expressed Genes (DEGs) using the `rankproduct` package (Performs Differential Expression Analysis). This performs better than `rankProd` for well-behaved data.
 - Design options:
-    - `experimental_design` (str): A string representing the experimental desing. See the special section at the end of this list.
+    - `experimental_design` (str): A string representing the experimental design. See the special section at the end of this list.
     - `group_colors` (list of str): A list of strings representing names of colors to be used in some plots. The list must be as long or longer than the number of `experimental_groups`.
     - `contrasts` (list of int): This list defines which group pairs are tested against each other to find differentially expressed genes. The pairs are generated from the experimental groups as non-palindrome ordered combinations. If the `experimental_groups` are `["control", "treat1", "treat2"]` then the generated pairs are `["treat1-control", "treat2-control", "treat2-treat1"]` A `slowmode` `dryrun` is especially useful to check if this option was set correctly.
     - Filters applied to the dataset:
         - `log2_expression` (num): Filter out (mark as non-differentally-expressed) any genes that have lower log2 expression than this value. This gets rid of genes that might be detected as differentially expressed just because their low expression fluctuates a lot between samples. This value depends a lot on the experiment design. For Agilent, check the un-hybridized `(-)3xSLv1 NegativeControl` probe as a plausible value (a way to check this will be implemented in the future (maybe)). For  Affymetrix, 4 is a good baseline.
         - `fold_change` (num): Fold Change Threshold. Usually, `|log2FC| > 0.5` or `|log2FC| > 1`. The reasoning behind this filter is the same as `log2_expression`.
-        - `min_groupwise_presence` (num): The percentage (rouded up) of samples in each group that a gene has to have over `fold_change` expression to have the possibility to be included as as differentially expressed gene. This is done to be sure that the differentially expressed genes are represented in most analysed samples and therefore robust from the biological point of view.
+        - `min_groupwise_presence` (num): The percentage (rounded up) of samples in each group that a gene has to have over `fold_change` expression to have the possibility to be included as as differentially expressed gene. This is done to be sure that the differentially expressed genes are represented in most analysed samples and therefore robust from the biological point of view.
         
-##### Setting the experimental desing string
+##### Setting the experimental design string
 Each sample is marked with a letter (or series of letters) representing conditions. They can also be marked with arbitrary numbers representing sample pairs for paired designs. The letter and optional numbers are known as labels, and are separated by commas (all spaces are ignored).
 
 The parser respects already expanded labels and will retain them as-is:
@@ -125,13 +127,17 @@ The various patterns can be mixed and matched:
 Note: Both types of expansion work identically if only one label is specified in the brackets.
 
 
-### Script: Affy2Expression
-This script converts a collection of `.CEL` files from Affymetrix chips to an expression matrix.
-It uses the `oligo` package that can automatically detect and download a wide variety of annotation databases for chips.
+### Command: `prepaffy`
+Convert a collection of `.CEL` files from Affymetrix chips to an expression matrix. The command uses the `oligo` package that can automatically detect and download a wide variety of annotation databases for chips.
 
-The script is called with `GATTACA prepaffy` command. The options are straightforward to understand (use `GATTACA prepaffy -h` to see them).
+The options are straightforward to understand (use `GATTACA prepaffy -h` to see them).
 
 The `.CEL` files in the input folder are found by looking at their file extension, and are not found recursively.
+
+### Command: `annotate`
+Annotate data created by these commands with annotations from a variety of databases present in bioconductor. The databases are downloaded at runtime to have the latest annotations.
+
+The options are straightforward to understand (use `GATTACA annotate -h` to see them).
 
 ## Building the image
 If you wish to rebuild the Docker container, simply clone the repo, and run `docker build .`. More information on the [docker build documentation page](https://docs.docker.com/engine/reference/commandline/build/).
