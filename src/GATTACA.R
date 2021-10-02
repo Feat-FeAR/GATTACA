@@ -417,13 +417,12 @@ GATTACA <- function(options.path, input.file, output.dir) {
   }
   printPlots(p, "SD_vs_Mean Plot") # Save just the 'Global' one
   
-
   # ---- Filtering ----
   # Eliminate Low-Intensity Probes
   log_info("Startig filtering steps...")
   # Minimum gene presence per group - Default=0.80
-  ..min_groupwise_presence = opts$design$filters$min_groupwise_presence 
-  ..group_sizes <- table(unique_simple_groups)
+  ..min_groupwise_presence = opts$design$filters$min_groupwise_presence
+  ..group_sizes <- table(experimental_design$groups)
   
   # 'ceiling' to be more stringent than 'round'
   ..min_presences = ceiling(..group_sizes * ..min_groupwise_presence) 
