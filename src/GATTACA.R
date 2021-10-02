@@ -437,7 +437,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   # Cast to matrix
   ..filtering_table_report = cbind(
     ..group_sizes, ..group_sizes * ..min_groupwise_presence,
-    ..min_presences, round(100*(..min_groupwise_presence/..group_sizes), 2)
+    ..min_presences, round(100*(..min_presences/..group_sizes), 2)
   )
   colnames(..filtering_table_report) = c("Group_Size", "Min_Presence", "Rounded", "Actual %")
   rownames(..filtering_table_report) = unique_simple_groups
