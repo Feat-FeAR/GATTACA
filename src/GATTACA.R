@@ -537,7 +537,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
     # Differential Expression Assessment and Figure Production
     log_info("Running differential expression analysis in paired mode.")
 
-    log_info("Making limma desing matrix...")
+    log_info("Making limma design matrix...")
     
     if (paired_mode) {
       ..factor_pairings <- as.factor(experimental_design$pairings)
