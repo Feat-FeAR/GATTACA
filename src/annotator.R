@@ -85,7 +85,7 @@ merge_annotations <- function(gene.stat, annotation, sort.by = 1) {
 get_db_names <- function(db_namespace) {
   suppressWarnings({
     if (!require(db_namespace, character.only = TRUE)) {
-      install.packages(paste0("bioc::", db_namespace))
+      BiocManager::install(db_namespace)
       suppressPackageStartupMessages(library(db_namespace, character.only = TRUE))
     }
   })
@@ -263,7 +263,7 @@ annotate_data <- function(expression_set, chip_id, selections) {
 #' @param chip_id A str representing the chip used by the experiment.
 #' @param selections A vector of str with valid annotation names to use to
 #'   annotate the data.
-#' @param log_nale Name of the logfile written in the same directory as the 
+#' @param log_name Name of the logfile written in the same directory as the 
 #'   output file.
 annotate_to_file <- function(
   expression_data_path, output_path,
@@ -283,8 +283,12 @@ annotate_to_file <- function(
   
   library(logger)
   
+  # I don't know if log_name was passed as a string or NULL, so in the call
+  # made by entry I have to wrap the input in "" to make it a valid string.
+  # This causes NULL to become "NULL", and therefore I have to do this badness
+  log_name <- if (log_name == "NULL") {NULL} else {log_name}
   log.target <- if (is.null(log_name)) {
-    file.path(output.dir, paste0("GATTACA_annotator_", start.timedate, ".log"))
+    file.path(output.dir, paste0("affy2expression_", start.timedate, ".log"))
   } else {
     file.path(output.dir, log_name)
   }

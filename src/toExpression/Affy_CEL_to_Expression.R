@@ -28,7 +28,6 @@ affy2expression <- function(
   # ---- Loading packages ----
   library(oligo)
   library(limma)          # For plotMD() function
-  library(openxlsx)       # Read, Write, and Edit .xlsx (Excel) Files
   library(logger)
   library(affycoretools)
 

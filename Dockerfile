@@ -1,4 +1,4 @@
-FROM rocker/r-ver:4.1.0 AS dependabox
+FROM rocker/r-ver:4.1.1
 
 # Install necessary libs to compile R packages
 RUN apt update && \ 
@@ -12,12 +12,11 @@ WORKDIR /GATTACA
 
 # Copy just the installation scripts 
 COPY ./dock_install.R ./
-COPY ./renv.lock ./
+COPY ./r_requirements.txt ./
 
 # Install the dependencies of the R scripts...
 RUN Rscript --vanilla \
-  -e "source('./dock_install.R')" \
-  -e "renv::isolate()"
+  -e "source('./dock_install.R')"
 
 # Copy the rest of the files
 COPY ./ ./ 

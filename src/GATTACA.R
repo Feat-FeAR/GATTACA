@@ -48,7 +48,6 @@ library(genefilter)       # Expression Gene Filtering
 library(limma)            # Empirical Bayes Method for Differential Expression
 library(RankProd)         # Rank Product Method for Differential Expression
 library(VennDiagram)      # Venn Diagrams
-library(openxlsx)         # Reading, Writing, and Editing of .xlsx (Excel) Files
 library(EnhancedVolcano)  # Volcano Plots
 library(gplots)           # Heatmap with extensions - heatmap.2() 
 library(ggplot2)          # Box Plot and Bar Chart with Jitter (already loaded by PCAtools)
@@ -159,7 +158,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   if (length(experimental_design$groups) != ncol(expression_set)) {
     stop(paste0(
       "The number of patients (", ncol(expression_set),
-      ") does not match the number of design groups (", length(experimental_design), ")"
+      ") does not match the number of design groups (", length(experimental_design$groups), ")"
     ))
   }
   

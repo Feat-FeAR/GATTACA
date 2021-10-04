@@ -2,354 +2,340 @@
 
 HERE="`pwd`"
 
-SOURCE="${BASH_SOURCE[0]}"
-while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
-  DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
-  SOURCE="$(readlink "$SOURCE")"
-  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
-done
-DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+echo # This random echo is to give a bit more space to the help commands.
+
+function _gattaca_print_general_help {
+    echo "Usage: GATTACA [-h | --help] [-v | --version <version>] <command> [<args>]"
+    echo
+    echo "Options:"
+    echo "    -v | --version <version>      Specify the version of the docker to run <command> in."
+    echo
+    echo "Available commands:"
+    echo "    init              Create a configuration file for 'GATTACA run'."
+    echo "    run               Perform a differential expression analysis."
+    echo "    prepaffy          Create an expression matrix from Affymetrix .CEL files."
+    echo "    annotate          Annotate an expression file with remote annotations."
+    echo
+    echo "Use '-h' or '--help' in any subcommand to get additional help and possible options"
+}
 
 
-# Based on this article: https://sookocheff.com/post/bash/parsing-bash-script-arguments-with-shopts/
+function _gattaca_help_init {
+    echo "Usage: GATTACA init [-h | --help] <file_path>"
+    echo
+    echo "Create a configuration file for 'GATTACA run' at <file_path>."
+}
 
-target="."  # Default to current location
+
+function _gattaca_help_run {
+    echo "Usage: GATTACA run [-h | --help] <output_dir> <input_file> <options_file>"
+    echo
+    echo "Perform differential gene analysis on an expression dataset '<input_file>', saving"
+    echo "the output plots and files in '<output_dir>'. The runtime options for this command are"
+    echo "specified in the <options_file>, encoded in yaml. See the 'init' command and the"
+    echo "GATTACA repository README for more information about a specific container version."
+    echo
+    echo "NOTE: The options file will be copied in the same folder as the input file, due"
+    echo "to (self-imposed) limitations in the docker engine."
+}
+
+
+function _gattaca_help_prepaffy {
+    echo "Usage: GATTACA prepaffy [-h | --help] [-l | --log-name <name>] [-r | --remove-controls]"
+    echo "       <input_dir> <output_file>"
+    echo
+    echo "Run preprocessing on all .CEL files present in <input_dir> to get an expression matrix,"
+    echo "saved as <output_file>."
+    echo
+    echo "Options:"
+    echo "  -l | --log-name <log filename>   Specify the filename of the log that will be alongside"
+    echo "                                   the output file. Defaults to the time of the start of"
+    echo "                                   the command."
+    echo "  -r | --remove-controls           If set, will remove control probes from the final"
+    echo "                                   expression set."
+}
+
+
+function _gattaca_help_annotate {
+    echo "Usage: GATTACA annotate [-h | --help] [-l | --log-name <name>] [-s | --select <selections>]"
+    echo "       <input_file> <output_file> <chip_id>"
+    echo
+    echo "Annotate an expression dataset '<input_file>' with annotations for the chip <chip_id>."
+    echo "Save the output in <output_file>."
+    echo "Read the README for a list of the supported chips for each container version."
+    echo 
+    echo "Options:"
+    echo "  -s | --select <selections>         Comma delimited list of selections. Defaults to"
+    echo "                                     'SYMBOL,GENENAME', annotating HUGO symbols and long"
+    echo "                                     gene names."
+    echo "  -l <log filename>                  Specify the filename of the log that will be alongside"
+    echo "                                     the output file. Defaults to the time of the start of"
+    echo "                                     the command."
+}
+
+
+function _gattaca_assert_is_file {
+    # Assert if a certain path is pointing to a file that exists
+    if test ! -f "$1"; then
+        >&2 echo "Error: '$1' is not a file."
+        exit 1
+    fi
+}
+
+
+function _gattaca_assert_is_directory {
+    # Assert if a certain path is pointing to a directory that exists
+    if test ! -d "$1"; then
+        >&2 echo "Error: '$1' is not a directory."
+        exit 1
+    fi
+}
+
+
+function _gattaca_run_init {
+    target_path="."
+
+    while test $# -gt 0; do
+        case "$1" in
+            -h | --help)
+                _gattaca_help_init
+                exit 0
+            ;;
+            * )
+                break
+            ;;
+        esac
+    done
+
+    if test $# -eq 1; then
+        target_path=$1
+    elif test $# -eq 0; then
+        >&2 echo "Missing required argument '<file_path>'"
+        exit 1
+    else
+        >&2 echo "Wrong number of arguments: ${#} (expected 1)"
+        exit 1
+    fi
+
+    target_mountpoint="$(dirname "$target_path")"
+    target_name=$(basename -- "$target_path")
+
+    mkdir -p "$target_mountpoint"
+
+    echo "Spooling up docker instance..."
+
+    docker run \
+        --rm \
+        --mount type=bind,source=$target_mountpoint,target=/GATTACA/target \
+        mrhedmad/gattaca:$version \
+        "$(id -u)" "$(id -g)" \
+        "init" "$target_name"
+
+    echo "Created options file in '$target_path'"
+}
+
+function _gattaca_run_run {
+    while test $# -gt 0; do
+        case "$1" in
+            -h | --help)
+                _gattaca_help_run
+                exit 0
+            ;;
+            * )
+                break
+            ;;
+        esac
+    done
+
+    # <output_dir> <input_file> <options_file>
+    if test $# -eq 3; then
+        target_mountpoint=$(realpath $1)
+        input_path=$(realpath $2)
+        options_path=$(realpath $3)
+    else
+        >&2 echo "Wrong number of arguments: ${#} (expected 3)"
+        exit 1
+    fi
+
+    _gattaca_assert_is_file "$input_path"
+    _gattaca_assert_is_file "$options_path"
+
+    mkdir -p "$target_mountpoint"
+
+    input_filename=$(basename -- "$input_path")
+    input_mountpoint="$(dirname "$input_path")"
+    options_filename=$(basename -- "$options_path")
+    options_mountpoint="$(dirname "$options_path")"
+
+    if [ "${input_filename}" = "${options_filename}" ]; then
+        >&2 echo "Input and option files cannot have the same name. Sorry!"
+        exit 1
+    fi
+
+    if [ ! "$input_mountpoint" = "$options_mountpoint" ]; then
+        cp "$options_path" "$input_mountpoint"
+    fi
+
+    echo "Spooling up docker instance..."
+
+    docker run \
+        -it --rm \
+        --mount type=bind,source=$target_mountpoint,target=/GATTACA/target \
+        --mount type=bind,source=$input_mountpoint,target=/GATTACA/input,readonly \
+        mrhedmad/gattaca:$version \
+        "$(id -u)" "$(id -g)" \
+        "gattaca" $input_filename $options_filename
+}
+
+function _gattaca_run_prepaffy {
+    log_filename="NULL"
+    remove_controls="FALSE"
+
+    while test $# -gt 0; do
+        case "$1" in
+            -h | --help)
+                _gattaca_help_prepaffy
+                exit 0
+            ;;
+            -l | --log-name)
+                shift
+                log_filename="$1"
+                shift
+            ;;
+            -r | --remove-controls)
+                shift
+                remove_controls="TRUE"
+            ;;
+            * )
+                break
+            ;;
+        esac
+    done
+
+    # <input_dir> <output_file>
+
+    if test $# -eq 2; then
+        input_mountpoint=$(realpath "$1")
+        output_path=$(realpath "$2")
+    else
+        >&2 echo "Wrong number of arguments: ${#} (expected 2)"
+        exit 1
+    fi
+
+    output_mountpoint=$(dirname "$output_path")
+    output_filename=$(basename -- "$output_path")
+
+    mkdir -p "$output_mountpoint"
+
+    _gattaca_assert_is_directory "$input_mountpoint"
+
+    echo "Spooling up docker instance..."
+    docker run \
+        -it --rm \
+        --mount type=bind,source=$output_mountpoint,target=/GATTACA/target \
+        --mount type=bind,source=$input_mountpoint,target=/GATTACA/input,readonly \
+        mrhedmad/gattaca:$version \
+        "$(id -u)" "$(id -g)" \
+        "prepaffy" $output_filename $log_filename $remove_controls
+}
+
+function _gattaca_run_annotate {
+    log_filename="NULL"
+    selections="SYMBOL,GENENAME"
+
+    while test $# -gt 0; do
+        case "$1" in
+            -h | --help)
+                _gattaca_help_annotate
+                exit 0
+            ;;
+            -l | --log-name)
+                shift
+                log_filename="$1"
+                shift
+            ;;
+            -s | --select)
+                shift
+                selections="$1"
+                shift
+            ;;
+            * )
+                break
+            ;;
+        esac
+    done
+
+    # <input_file> <output_file> <chip_id>
+
+    if test $# -eq 3; then
+        input_path=$(realpath $1)
+        target_path=$(realpath $2)
+        chip_id=$3
+    else
+        >&2 echo "Wrong number of arguments: ${#} (expected 3)"
+        exit 1
+    fi
+
+    input_mountpoint="$(dirname "$input_path")"
+    target_mountpoint="$(dirname "$target_path")"
+
+    output_filename=$(basename -- "$target_path")
+    input_filename=$(basename -- "$input_path")
+
+    _gattaca_assert_is_file $input_path
+    _gattaca_assert_is_file $target_path
+
+    docker run \
+        -it --rm \
+        --mount type=bind,source=$target_mountpoint,target=/GATTACA/target \
+        --mount type=bind,source=$input_mountpoint,target=/GATTACA/input,readonly \
+        mrhedmad/gattaca:$version \
+        "$(id -u)" "$(id -g)" \
+        "annotate" $input_filename $output_filename $chip_id $selections $log_filename
+}
 
 if [ $# == 0 ]; then
-    echo "Error: No parameters passed. Try -h"
+    _gattaca_print_general_help
 fi
 
-while getopts ":h" opt; do
-    case ${opt} in
-        h )
-            echo "Usage:"
-            echo "    GATTACA -h             Display this help message."
-            echo "    GATTACA init           Spawn a default configuration file."
-            echo "    GATTACA run            Run GATTACA."
-            echo "    GATTACA prepaffy       Run the preprocessing scripts for Affymetrix .CEL files"
-            echo "    GATTACA prepagil       Run the preprocessing scripts for Agilent .txt and target files."
-            echo ""
-            echo "Use -h in any subcommand to get more help and possible options"
+version="latest"
+
+while test $# -gt 0; do
+    case "$1" in
+        -h | --help)
+            _gattaca_print_general_help
             exit 0
-            ;;
-        \? )
-            echo "Invalid Option: -$OPTARG" 1>&2
-            exit 1
-            ;;
+        ;;
+        -v | --version)
+            shift # Get rid of `-v`
+            version=$1
+            ## TODO: Print out warnings for very old docker images that do 
+            # not support some commands.
+            shift
+        ;;
+        init)
+            shift
+            _gattaca_run_init "$@"
+            exit 0
+        ;;
+        run)
+            shift
+            _gattaca_run_run "$@"
+            exit 0
+        ;;
+        prepaffy)
+            shift
+            _gattaca_run_prepaffy "$@"
+            exit 0
+        ;;
+        annotate)
+            shift
+            _gattaca_run_annotate "$@"
+            exit 0
+        ;;
+        *)
+            echo "Invalid parameter '{$1}'."
+            _gattaca_print_general_help
+            exit 0
     esac
 done
-shift $((OPTIND -1))
-
-subcommand=$1; shift  # Remove 'subcommand` from the argument list
-case "$subcommand" in
-    init)
-        # Process init options
-        while getopts ":t:h" opt; do
-            case ${opt} in
-                t )
-                    target=$OPTARG
-                    target=$(realpath $target)
-                    if [ -f $target ]; then
-                        # The target is a file. Copy it there
-                        cp "${DIR}/GATTACA_default_options.yaml" ${target}
-                        echo "Spawned config file: ${target}"
-                        exit 0
-                    elif [ -d $target ]; then
-                        # The target is a directory. Copy it there
-                        cp "${DIR}/src/GATTACA_default_options.yaml" "${target}/GATTACA_config.yaml"
-                        echo "Spawned config file: ${target}/GATTACA_config.yaml"
-                    else
-                        # The path is invalid.
-                        echo "Invalid path: ${target}"
-                        exit 1
-                    fi
-                    exit 0
-                    ;;
-                h )
-                    echo "Create a default configuration file for GATTACA in the current working directory."
-                    echo ""
-                    echo "If unspecified, the default name is GATTACA_config.yaml"
-                    echo "Usage:"
-                    echo "    GATTACA init                  Create the configuration file in the current working dir."
-                    echo "    GATTACA init -h               Display this help message."
-                    echo "    GATTACA init -t <path>        Create the configuration file in the target folder"
-                    echo "                                  or as the target file."
-                    exit 0
-                    ;;
-                \? )
-                    echo "Invalid Option: -$OPTARG" 1>&2
-                    exit 1
-                    ;;
-                : )
-                    # The target is the current working directory. Copy it there
-                    cp "${DIR}/GATTACA_default_options.yaml" "${target}/GATTACA_config.yaml"
-                    echo "Spawned config file: ${target}/GATTACA_config.yaml"
-                    exit 0
-                    ;;
-            esac
-        done
-        shift $((OPTIND -1))
-        ;;
-    run)
-        # Default options
-        version="latest"
-        target=$(realpath "./GATTACA_output")
-        optfile=$(realpath "./GATTACA_config.yaml")
-        inputfile=$(realpath "./inputfile")
-        while getopts ":hi:t:o:v:" opt; do
-            case ${opt} in
-                t ) target=$(realpath $OPTARG);;
-                i ) inputfile=$(realpath $OPTARG);;
-                o ) optfile=$(realpath $OPTARG);;
-                v ) version=$OPTARG ;;
-                h )
-                    echo "Download and run the GATTACA docker container."
-                    echo ""
-                    echo "Options:"
-                    echo "    -h                            Display this help message."
-                    echo "    -t <target_folder>            Set the output folder. Defaults to ./GATTACA_output/"
-                    echo "    -i <input_file>               Specify the input file path with the microarray intensities."
-                    echo "    -o <options_file>             Set the options file. Defaults to ./GATTACA_config.yaml"
-                    echo "                                  NOTE: Due to docker limitations, the options file will be"
-                    echo "                                  copied to the input folder, and it must not have the same" echo "                                  name as the input file."
-                    echo "    -v <docker version>           Set the version of the docker to use. Defaults to latest."
-                    exit 0
-                    ;;
-                \? )
-                    echo "Invalid Option: -$OPTARG" 1>&2
-                    exit 1
-                    ;;
-                : ) : ;;
-            esac
-        done
-        shift $((OPTIND -1))
-        # Test if the options are valid
-        ## Target folder
-        if [ -f $target ]; then
-            # The target is a file. Error
-            echo "Error: Output folder (${target}) cannot be a file."
-            exit 1
-        elif [ ! -d $target ]; then
-            # The target is a directory that doesn't exist. Make it.
-            mkdir -p $target
-            echo "Made output folder: ${target}"
-        elif [ -d $target ]; then
-            # The target is a real folder, wow
-            echo "Using output folder: ${target}"
-        else
-            # The path is invalid.
-            echo "Error: invalid output path: ${target}"
-            exit 1
-        fi
-        ## Input file
-        if [ -d $inputfile ]; then
-            # The input is a folder. Error
-            echo "Error: Input file (${inputfile}) cannot be a folder."
-            exit 1
-        elif [ -f $inputfile ]; then
-            # The input is a file. OK
-            echo "Using input file: ${inputfile}"
-        else
-            # The path is invalid.
-            echo "Error: invalid input path: ${inputfile}"
-            exit 1
-        fi
-        ## Options file
-        if [ -d $optfile ]; then
-            # The options is a folder. Error
-            echo "Error: Options file (${optfile}) cannot be a folder."
-            exit 1
-        elif [ -f $optfile ]; then
-            # The options is a file. OK
-            echo "Using options file: ${optfile}"
-        else
-            # The path is invalid.
-            echo "Error: invalid options path: ${optfile}"
-            exit 1
-        fi
-        echo "Using version ${version}"
-        shift $((OPTIND -1))
-
-        # Now that we have the options we can fetch the container, mount the
-        # exit directory, and run the container.
-
-        input_mountpoint="$(dirname "$inputfile")"
-        input_file_clean=$(basename -- "$inputfile")
-        option_file_clean=$(basename -- "$optfile")
-
-        if [ "${input_file_clean}" = "${option_file_clean}" ]; then
-            echo "Input and option files cannot have the same name. Sorry!"
-            exit 1
-        fi
-
-        echo "Mounting folders:"
-        echo "      Inputs:  ${input_mountpoint}"
-        echo "      Outputs: ${target}"
-
-        # To avoid mountig the same folder multiple times, I copy the options 
-        # file to the input folder just to be safe.
-        if [ ! $optfile = "${input_mountpoint}/${option_file_clean}" ]; then
-            cp $optfile "${input_mountpoint}/${option_file_clean}"
-        fi
-
-        docker run \
-            -it --rm \
-            --mount type=bind,source=$target,target=/GATTACA/target \
-            --mount type=bind,source=$input_mountpoint,target=/GATTACA/input,readonly \
-            mrhedmad/gattaca:$version \
-            "gattaca" $input_file_clean $option_file_clean
-
-        ;;
-    prepaffy)
-        # Default options
-        inputFolder="."
-        outputFile="./AffyExpression.txt"
-        logName="NULL"
-        removeControls="FALSE"
-        version="latest"
-        
-        while getopts ":i:o:l:v:arh" opt; do
-            case ${opt} in
-                i) inputFolder=$(realpath $OPTARG);;
-                o) outputFile=$OPTARG;;
-                l) logName=$OPTARG;;
-                r) removeControls="TRUE";;
-                v) version=$OPTARG ;;
-                h)
-                    echo "Run preprocessing on .CEL files to get an expression matrix."
-                    echo ""
-                    echo "Options:"
-                    echo "  -h                      Print this message and exit."
-                    echo "  -i <input folder>       Specify the input folder with a collection of .CEL files"
-                    echo "                          Defaults to the current working directory."
-                    echo "  -o <output file>        Specify the output file that will contain the expression matrix"
-                    echo "                          Defaults to '${outputfile}'"
-                    echo "  -l <log filename>       Specify the filename of the log that will be alongside the output file."
-                    echo "  -v <docker version>     Set the version of the docker to use. Defaults to latest."
-                    echo ""
-                    echo "Flags:"
-                    echo "  -r        If set, will remove control probes from the final set."
-                    exit 0
-                ;;
-                \?)
-                    echo "Invalid Option: -$OPTARG" 1>&2
-                    exit 1
-                ;;
-                :) : ;;
-            esac
-        done
-        shift $((OPTIND -1))
-        # Test if the options are valid
-        ## Input folder
-        if [ -f $inputFolder ]; then
-            # The target is a file. Error
-            echo "Error: Input folder (${inputFolder}) cannot be a file."
-            exit 1
-        elif [ ! -d $inputFolder ]; then
-            # The target is a directory that doesn't exist. Error.
-            echo "Error: Input folder (${inputFolder}) doesn't exist."
-            exit 1
-        elif [ -d $inputFolder ]; then
-            # The target is a real folder, wow
-            echo "Using input folder: ${inputFolder}"
-        else
-            # The path is invalid.
-            echo "Error: invalid input path: ${inputFolder}"
-            exit 1
-        fi
-        ## Check if the output folder exists.
-        outputFolder="$(dirname "$outputFile")"
-        if [ ! -d $outputFolder ]; then
-            # The foldes doesn't exist. Make it.
-            mkdir -p $outputFolder
-            echo "Made output folder: ${outputFolder}"
-        elif [ -d $outputFolder ]; then
-            # The outputFolder is a real folder, wow
-            echo "Using output file: ${outputFile}"
-        else
-            # The path is invalid.
-            echo "Error: invalid output path: ${outputFile}"
-            exit 1
-        fi
-        echo "Using version: ${version}"
-        echo "Using logname: ${logName}"
-        echo "Remove control probes? ${removeControls}"
-
-        output_file_clean=$(basename -- "$outputFile")
-
-        # Now that we have the options, we can start the docker container.
-        docker run \
-            -it --rm \
-            --mount type=bind,source=$outputFolder,target=/GATTACA/target \
-            --mount type=bind,source=$inputFolder,target=/GATTACA/input,readonly \
-            mrhedmad/gattaca:$version \
-            "prepaffy" $output_file_clean $logName $removeControls
-        exit 0
-        ;;
-    annotate)
-        # Default options
-        # "$input_file_clean $output_file_clean $chip_id $selections $logname"
-        inputFile=""
-        outputFile="./annotated_expressions.csv"
-        chipID=""
-        logName="NULL"
-        selections=""
-        version="latest"
-        
-        while getopts ":i:o:c:l:v:s:h" opt; do
-            case ${opt} in
-                i) inputFile=$(realpath $OPTARG);;
-                o) outputFile=$(realpath $OPTARG);;
-                l) logName=$OPTARG;;
-                c) chipID=$OPTARG;;
-                s) selections=$OPTARG ;;
-                v) version=$OPTARG ;;
-                h)
-                    echo "Annotate an expression dataset."
-                    echo ""
-                    echo "Options:"
-                    echo "  -h                      Print this message and exit."
-                    echo "  -i <input file>         Specify the input file to annotate."
-                    echo "  -o <output file>        Specify the output file path."
-                    echo "  -c <chip id>            Specify the chip id. See the readme for a list of supported chips."
-                    echo "  -s <selections>         Comma delimited list of selections. See the readme for a list of supported selections."
-                    echo "  -l <log filename>       Specify the filename of the log that will be alongside the output file."
-                    echo "  -v <docker version>     Set the version of the docker to use. Defaults to latest."
-                    echo ""
-                    echo "Flags:"
-                    echo "  -r        If set, will remove control probes from the final set."
-                    exit 0
-                ;;
-                \?)
-                    echo "Invalid Option: -$OPTARG" 1>&2
-                    exit 1
-                ;;
-                :) : ;;
-            esac
-        done
-        
-
-        echo "Using logname: ${logName}"
-        echo "Using chip id: ${chipID}"
-        
-        output_file_clean=$(basename -- "$outputFile")
-        outputFolder="$(dirname "$outputFile")"
-        input_file_clean=$(basename -- "$inputFile")
-        inputFolder="$(dirname "$inputFile")"
-        
-        # Now that we have the options, we can start the docker container.
-        # "$input_file_clean $output_file_clean $chip_id $selections $logname"
-        docker run \
-            -it --rm \
-            --mount type=bind,source=$outputFolder,target=/GATTACA/target \
-            --mount type=bind,source=$inputFolder,target=/GATTACA/input,readonly \
-            mrhedmad/gattaca:$version \
-            "annotate" $input_file_clean $output_file_clean $chipID $selections $logName
-        
-        exit 0
-        ;;
-    prepagil)
-        echo "This is not yet implemented. Sorry!"
-        exit 0
-        ;;
-esac

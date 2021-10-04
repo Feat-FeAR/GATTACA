@@ -1,30 +1,32 @@
-# Running in vanilla mode can cause the CRAN mirrors not to be set.
-# This fixes it.
-
-if (interactive()) {
-  stop("I think you are sourcing this file manually. This isn't supposed to be done.")
-}
 
 options(
-  repos = list(CRAN="http://cran.rstudio.com/"),
+  repos = c("http://cran.us.r-project.org"),
   configure.args = list(
     preprocessCore = "--disable-threading"
   )
 )
 
-if (!requireNamespace("renv")) {
-  print("Installing `renv` package...")
-  if (!requireNamespace("remotes")) {
-    print("Installing `remotes` package...")
-    install.packages("remotes")
-    print("...OK")
-  }
-  remotes::install_github("rstudio/renv")
-  print("...OK")
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+  print("Installing Bioconductor")
+  install.packages("BiocManager")
 }
 
-print("Making new renv...")
-renv::init(bare = TRUE)
-print("Restoring from renv.lock file... [[THIS COULD TAKE A VERY LONG TIME!!]]")
-renv::restore()
-print("Restore complete.")
+packages <- read.table("/GATTACA/r_requirements.txt")[, 1]
+
+tot_packages <- length(packages)
+current_package <- 1
+
+print(paste(
+  "Installing", tot_packages, "packages:", paste(packages, collapse = ", ")
+))
+for (package in packages) {
+  print(paste("Installing package", current_package, "of", tot_packages, ":", package))
+  
+  if (startsWith(package, "bioc::")) {
+    package <- gsub("^bioc::", "", package)
+    BiocManager::install(package)
+  } else {
+    install.packages(package)
+  }
+  current_package <- current_package + 1
+}

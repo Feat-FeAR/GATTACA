@@ -139,6 +139,13 @@ Annotate data created by these commands with annotations from a variety of datab
 
 The options are straightforward to understand (use `GATTACA annotate -h` to see them).
 
+Available annotations (chip_name -> `id`):
+  - Affymetrix Human Genome U133 Set (A) -> `hgu133a`
+  - Affymetrix Human Genome U133 Set (B) -> `hgu133b`
+  - Affymetrix Human Genome HG-U133 Plus 2.0 Array -> `hgu133plus2`
+  - Agilent-026652 Whole Human Genome Microarray 4x44K v2 -> `HsAgilentDesign026652`
+  - Affymetrix Human Gene 1.0-ST Array -> `hugene10st`
+
 ## Building the image
 If you wish to rebuild the Docker container, simply clone the repo, and run `docker build .`. More information on the [docker build documentation page](https://docs.docker.com/engine/reference/commandline/build/).
 Note that rebuilding the image can take a long, long time due to the need to install required packages (that need to be compiled).

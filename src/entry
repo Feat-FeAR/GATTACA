@@ -1,9 +1,16 @@
 #!/bin/bash
 
+host_uid=$1
+host_gid=$2
+shift 2
+
 # Take out the order from the GATTACA script, defining what we have to do.
 order=$1; shift # This gets rid of $1 containig the order.
 
 case "$order" in
+    init)
+        cp "/GATTACA/src/GATTACA_default_options.yaml" "/GATTACA/target/$1"
+    ;;
     gattaca)
         ## As this should only be run from the main GATTACA file, we can be sure that
         # $1 is input_file_clean and $2 is option_file_clean, both in /GATTACA/input
@@ -44,3 +51,5 @@ case "$order" in
         exit 1
         ;;
 esac
+
+chown -R $host_uid:$host_gid /GATTACA/target
