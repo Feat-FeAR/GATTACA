@@ -600,9 +600,12 @@ GATTACA <- function(options.path, input.file, output.dir) {
     if (write_data_to_disk) {
       log_info("Saving Differential expression tables...")
       progress <- txtProgressBar(min = 0, max = length(raw_contrasts))
+      ..limma_output_expression <- DEGs.limma[[i]]
+      ..limma_output_expression$probe_id <- rownames(..limma_output_expression)
+      rownames(..limma_output_expression) <- NULL
       for (i in seq_along(raw_contrasts)) {
         degTabName = paste("Limma - DEG Table ", raw_contrasts[i], ".csv", sep = "")
-        write.csv(DEGs.limma[[i]], degTabName, row.names = TRUE, quote = FALSE)
+        write.csv(..limma_output_expression, degTabName, row.names = FALSE, quote = FALSE)
         setTxtProgressBar(progress, i)
       }
       close(progress)
@@ -912,8 +915,14 @@ GATTACA <- function(options.path, input.file, output.dir) {
         log_info("Saving full DEG tables...")
         upDegTabName = paste0("RP_Up - DEG Table ", raw_contrasts[i], ".csv")
         dwnDegTabName = paste0("RP_Down - DEG Table ", raw_contrasts[i], ".csv")
-        write.csv(DEGs.RP[[1]], upDegTabName, row.names = TRUE, quote = FALSE)
-        write.csv(DEGs.RP[[2]], dwnDegTabName, row.names = TRUE, quote = FALSE)
+        ..rpd_DEGs_up <- DEGs.RP[[1]]
+        ..rpd_DEGs_up$probe_id <- rownames(..rpd_DEGs_up)
+        rownames(..rpd_DEGs_up) <- NULL
+        write.csv(..rpd_DEGs_up, upDegTabName, row.names = FALSE, quote = FALSE)
+        ..rpd_DEGs_down <- DEGs.RP[[2]]
+        ..rpd_DEGs_down$probe_id <- rownames(..rpd_DEGs_down)
+        rownames(..rpd_DEGs_down) <- NULL
+        write.csv(..rpd_DEGs_down, dwnDegTabName, row.names = FALSE, quote = FALSE)
         log_info(paste0(
           upDegTabName, "' and '", dwnDegTabName,
           "' have been saved in ", output.dir
