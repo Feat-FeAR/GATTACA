@@ -1,10 +1,45 @@
+#!/usr/bin/env Rscript
+
+# License ----------------------------------------------------------------------
+# MIT License
+#
+# Copyright (c) 2021 Feat-FeAR
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+# ------------------------------------------------------------------------------
+
 # Header Info ------------------------------------------------------------------
 #
-# Affymetrix CEL files -> Expression matrix
+# From CEL file to Expression matrix
+# For Affymetrix 3'IVT OR Gene/Exon ST Arrays
 #
-# a FeAR R-script
-# based on: "Homer MiniTutorial - Processing Affymetrix Gene Expression Arrays"
-# see pdf for more info
+# a FeAR R-script - 14-Sep-2021
+#
+# NOTE:
+# On both Gene 1.0 ST and Exon 1.0 ST Arrays a probe set is more or less an exon.
+# Doing the analysis on probe set level means to analyze signals for each exon.
+# On the contrary, a 'transcript cluster' contains all the probe sets of a gene,
+# and therefore can be used to measure gene expressions. Accordingly, to perform
+# analyses on gene level, always use target="core" as summarization target in
+# the following functions from oligo package and "Transcript Cluster Annotations"
+# packages that contain all annotations of the gene each probe set belongs to.
 #
 # General Script for CEL-file normalization through RMA algorithm
 #
@@ -14,11 +49,13 @@
 #       2 - Normalizing
 #       3 - Calculating expression (ProbeSet Summarization)
 #   - Remove invalid probes
+#   - Add annotation
 #   - Save expression matrix
+#
 # ------------------------------------------------------------------------------
 
 # Load the helper functions.
-source(file.path(ROOT, "src", "STALKER_Functions.R"))   # Collection of custom functions
+source(file.path(ROOT, "src", "STALKER_Functions.R"))
 source(file.path(ROOT, "src", "annotator.R"))
 
 affy2expression <- function(
@@ -109,7 +146,7 @@ affy2expression <- function(
     discarded.percent = round(discarded / probes.before * 100, 4)
     paste0(
       discarded, " Affymetrix control probes have been discarded, ",
-      discarded.percent, "% of total."
+      discarded.percent, "% of the total."
     ) |>
       log_info()
     # Check for missing values (NA) and NaN entries
@@ -124,10 +161,10 @@ affy2expression <- function(
   temp <- tempfile()
   on.exit(unlink(temp)) # This assures that the tempfile is deleted no matter what
   write.exprs(expression_set, file = temp)
-
+  
   transposed <- read.table(file = temp, row.names = 1)
   
-  transposed$probe_id <- row.names(transposed)
+  transposed <- data.frame(probe_id = row.names(transposed), transposed)
   row.names(transposed) <- NULL
   
   log_info("Saving Expression Matrix to file...")

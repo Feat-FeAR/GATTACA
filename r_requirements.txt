@@ -1,0 +1,17 @@
+tidyverse
+logger
+bioc::preprocessCore
+rafalib
+bioc::PCAtools
+bioc::genefilter
+bioc::limma
+bioc::RankProd
+VennDiagram
+bioc::EnhancedVolcano
+gplots
+ggplot2
+RColorBrewer
+yaml
+stringr
+bioc::oligo
+bioc::affycoretools
