@@ -22,12 +22,11 @@ The available docker containers live [on Docker Hub](https://hub.docker.com/repo
 These scripts are bundled with their dependencies in a Docker container to make usage as painless and reproducible as possible. To install, follow these instructions:
 
 1. Install docker. A tutorial can be found [at the official docker website](https://docs.docker.com/get-docker/).
-2. Install [`git`](https://git-scm.com/).
-3. Get the GATTACA script. For example, you could run:
+2. Get the GATTACA script. For example, you could run:
     ```bash
     curl https://raw.githubusercontent.com/Feat-FeAR/GATTACA/main/GATTACA --create-dirs -o ~/bin/GATTACA && chmod +x ~/bin/GATTACA
     ```
-4. Run `GATTACA -h` to begin. The `GATTACA` script is the access point to all the other scripts in the repo. Read the usage section in this readme to learn more. The script takes care of downloading the containers and running them.
+3. Run `GATTACA -h` to begin. The `GATTACA` script is the access point to all the other scripts in the repo. Read the usage section in this readme to learn more. The script takes care of downloading the containers and running them.
 
 ### Troubleshooting
 If the `GATTACA` script cannot be run due to permissions faults, run `chmod +x GATTACA` to give it run permissions, or give it to bash directly using `/bin/bash GATTACA`.
