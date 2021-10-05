@@ -46,6 +46,16 @@ case "$order" in
             -e "selections <- strsplit('${4}', ',')[[1]]" \
             -e "annotate_to_file(expression_data_path = '/GATTACA/input/${1}', output_path = '${outputfile}', chip_id = '${3}', selections = selections, log_name = '${5}')"
         ;;
+    prepagil)
+        # "$output_filename" $analysis_program $grep_pattern $green_only $remove_controls $log_filename
+        outputfile="/GATTACA/target/$1"
+        
+        Rscript \
+            --vanilla \
+            -e "source('/GATTACA/src/__init__.R')" \
+            -e "source('/GATTACA/src/toExpression/Agilent_TXT_to_Expression.R')" \
+            -e "agil2expression('/GATTACA/input/', '${outputfile}', '${2}', grep_pattern='${3}', green_only=${4}, remove_controls=${5}, log_name='${6}')"
+        ;;
     *)
         echo "Unrecognized order: '${order}'"
         exit 1

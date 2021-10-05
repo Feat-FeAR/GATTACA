@@ -74,6 +74,24 @@ function _gattaca_help_annotate {
 }
 
 
+function _gattaca_help_prepagil {
+    echo "Usage: GATTACA prepagil [-h | --help] [-l | --log-name <name>] [-r | --remove-controls]"
+    echo "       [-p | --grep-pattern <pattern>] [-g | --green-only] <input_dir> <output_file>"
+    echo "       <analysis_program>"
+    echo
+    echo "This command prepares normalized, log2 transformed expression matrices from agilent files."
+    echo "Runs on all files in <input_dir> that end in a '.txt' (or <pattern>) to get an expression"
+    echo "matrix, saved as <output_file>."
+    echo
+    echo "The encoding of the input files cannot be known automatically, so the analysis program used"
+    echo "to prepare the input files has to be explicitly given as <analysis_program>."
+    echo "Possible values are: 'agilent', 'agilent.median', 'agilent.mean', 'arrayvision',"
+    echo "'arrayvision.ARM', 'arrayvision.MTM', 'bluefuse', 'genepix', 'genepix.custom',"
+    echo "'genepix.median', 'imagene', 'imagene9', 'quantarray', 'scanarrayexpress', 'smd.old', 'smd',"
+    echo "'spot', 'spot.close.open'."
+}
+
+
 function _gattaca_assert_is_file {
     # Assert if a certain path is pointing to a file that exists
     if test ! -f "$1"; then
@@ -294,6 +312,70 @@ function _gattaca_run_annotate {
         "annotate" $input_filename $output_filename $chip_id $selections $log_filename
 }
 
+function _gattaca_run_prepagil {
+    log_filename="NULL"
+    grep_pattern="*.txt"
+    green_only="FALSE"
+    remove_controls="FALSE"
+    
+     while test $# -gt 0; do
+        case "$1" in
+            -h | --help)
+                _gattaca_help_prepagil
+                exit 0
+            ;;
+            -l | --log-name)
+                shift
+                log_filename="$1"
+                shift
+            ;;
+            -r | --remove-controls)
+                shift
+                remove_controls="TRUE"
+            ;;
+            -p | --grep-pattern)
+                shift
+                grep_pattern="$1"
+                shift
+            ;;
+            -g | --green-only)
+                shift
+                green_only="TRUE"
+            ;;
+            * )
+                break
+            ;;
+        esac
+    done
+    
+    echo "$@"
+    
+    if test $# -eq 3; then
+        input_dir=$(realpath $1)
+        target_path=$(realpath $2)
+        analysis_program=$3
+    else
+        >&2 echo "Wrong number of arguments: ${#} (expected 3)"
+        exit 1
+    fi
+    
+    target_mountpoint="$(dirname "$target_path")"
+    output_filename=$(basename -- "$target_path")
+    echo $grep_pattern
+    _gattaca_assert_is_directory $input_dir
+    
+    mkdir -p "$target_mountpoint"
+    
+    echo "Spooling up docker instance..."
+    docker run \
+        -it --rm \
+        --mount type=bind,source=$target_mountpoint,target=/GATTACA/target \
+        --mount type=bind,source=$input_dir,target=/GATTACA/input,readonly \
+        mrhedmad/gattaca:$version \
+        "$(id -u)" "$(id -g)" \
+        "prepagil" "$output_filename" $analysis_program "$grep_pattern" $green_only $remove_controls $log_filename
+}
+
 if [ $# == 0 ]; then
     _gattaca_print_general_help
 fi
@@ -331,6 +413,11 @@ while test $# -gt 0; do
         annotate)
             shift
             _gattaca_run_annotate "$@"
+            exit 0
+        ;;
+        prepagil)
+            shift
+            _gattaca_run_prepagil "$@"
             exit 0
         ;;
         *)

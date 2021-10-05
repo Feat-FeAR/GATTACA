@@ -47,7 +47,7 @@ agil2expression <- function (
     log_name <- if (log_name == "NULL") {NULL} else {log_name}
   }
   log.target <- if (is.null(log_name)) {
-    file.path(output_dir, paste0("affy2expression_", start.timedate, ".log"))
+    file.path(output_dir, paste0("agil2expression_", start.timedate, ".log"))
   } else {
     file.path(output_dir, log_name)
   }
@@ -65,7 +65,7 @@ agil2expression <- function (
     paste("Found", length(raw_files), "input files:", paste(raw_files, collapse = ", "))
   )
   log_info("Reading in input files...")
-  raw_data <- read.maimages(
+  expression_data <- read.maimages(
     files = file.path(input_dir, raw_files),
     source = analysis_program,
     green.only = green_only
@@ -76,33 +76,33 @@ agil2expression <- function (
   # Normalization
   log_info("Running Normalization")
   log_info("Background correcting...")
-  raw_BGcorrected <- backgroundCorrect(raw_data, method = "normexp", offset = offset)
+  expression_data <- backgroundCorrect(expression_data, method = "normexp", offset = offset)
   
   log_info("Running interarray normalization...")
-  raw_BGandNormalized = normalizeBetweenArrays(raw_BGcorrected, method = "quantile")
+  expression_data = normalizeBetweenArrays(expression_data, method = "quantile")
   
-  expression_set <- raw_BGandNormalized$E
+  expression_set <- expression_data$E
   log_info(paste("Final dataset dimensions - Cols:", ncol(expression_set), "Rows:", nrow(expression_set)))
   
   if (remove_controls) {
     log_info("Filtering out control probes...")
-    control_probes <- abs(raw_BGandNormalized$genes$ControlType) == 1
+    control_probes <- abs(expression_data$genes$ControlType) == 1
     control_probes_percent <- round(sum(control_probes) / nrow(expression_set) * 100, 4)
     log_info(paste(
       "Found", sum(control_probes), "control probes,", control_probes_percent,
       "% of total probes. Removing them..."
     ))
     
-    filtered_data <- raw_BGandNormalized[!control_probes, ]
-    expression_set <- filtered_data$E
+    expression_data <- expression_data[!control_probes, ]
+    expression_set <- expression_data$E
     log_info(paste("Filtered dataset dimensions - Cols:", ncol(expression_set), "Rows:", nrow(expression_set)))
   }
   
   log_info("Finding replicate probes and collapsing them...")
   # Replace value of replicate probes with their mean - Probe_ID is used to identify the replicates
-  filtered_data = avereps(filtered_data,  ID = filtered_data$genes$ProbeName)
+  expression_data = avereps(expression_data,  ID = expression_data$genes$ProbeName)
   
-  expression_set <- filtered_data$E
+  expression_set <- expression_data$E
   log_info(paste("Final dataset dimensions - Cols:", ncol(expression_set), "Rows:", nrow(expression_set)))
   
   expression_set <- as.data.frame(expression_set)
