@@ -58,8 +58,7 @@ source(file.path(ROOT, "src", "STALKER_Functions.R"))
 source(file.path(ROOT, "src", "annotator.R"))
 
 affy2expression <- function(
-    input.folder, output.file, log_name = NULL,
-    use.affy = FALSE, remove.controls = TRUE
+    input.folder, output.file, log_name = NULL, remove.controls = TRUE
     ) {
   # ---- Loading packages ----
   library(oligo)
@@ -68,9 +67,8 @@ affy2expression <- function(
   library(affycoretools)
 
   print(paste0(
-    "Call: (in/out/log/affy/rm) ",
-    input.folder, output.file, log_name,
-    use.affy, remove.controls, sep = " :: "
+    "Call: (in/out/log/rm) ",
+    input.folder, output.file, log_name,remove.controls, sep = " :: "
   ))
   
   # Setup logging facilities
@@ -80,7 +78,9 @@ affy2expression <- function(
   # I don't know if log_name was passed as a string or NULL, so in the call
   # made by entry I have to wrap the input in "" to make it a valid string.
   # This causes NULL to become "NULL", and therefore I have to do this badness
-  log_name <- if (log_name == "NULL") {NULL} else {log_name}
+  if (!is.null(log_name)) {
+    log_name <- if (log_name == "NULL") {NULL} else {log_name}
+  }
   log.target <- if (is.null(log_name)) {
     file.path(output.dir, paste0("affy2expression_", start.timedate, ".log"))
   } else {

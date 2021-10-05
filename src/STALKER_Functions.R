@@ -305,7 +305,7 @@ get.print.str <- function(data) {
 }
 
 
-#' Finds all the chars in `possibilities` that are also in `input`,
+#' Finds all the chars in `str1` that are also in `str2`,
 #' returning a vector of unique chars.
 #' 
 #' @param str1 The first string
