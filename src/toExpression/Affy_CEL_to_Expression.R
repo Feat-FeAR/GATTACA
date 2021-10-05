@@ -49,7 +49,6 @@
 #       2 - Normalizing
 #       3 - Calculating expression (ProbeSet Summarization)
 #   - Remove invalid probes
-#   - Add annotation
 #   - Save expression matrix
 #
 # ------------------------------------------------------------------------------
@@ -96,7 +95,7 @@ affy2expression <- function(
   
   celFiles = list.celfiles()
   paste0(
-      "Found ", length(celFiles), " celfiles: ", paste0(celFiles, collapse = ", ")
+    "Found ", length(celFiles), " .CEL files: ", paste0(celFiles, collapse = ", ")
     ) |>
     log_info()
   
@@ -116,8 +115,8 @@ affy2expression <- function(
     stop("Invalid or unsupported platform")
   }
   
+  log_info("Running RMA normalization...")
   if (exon.probes) {
-    log_info("Running RMA normalization...")
     # The parameter 'target' (only for Gene ST and Exon ST) defines the degree
     # of summarization, "core" is the default option which use transcript
     # clusters containing "safely" annotated genes. For summarization on the
@@ -126,6 +125,9 @@ affy2expression <- function(
   } else {
     expression_set = rma(affyRaw)
   }
+  
+  log_info(paste0("Dataset dimensions: ", dim(expression_set)[1], " probe sets x ",
+                  dim(expression_set)[2], " samples"))
   
   if (remove.controls) {
     log_info("Removing control probes...")
@@ -149,6 +151,8 @@ affy2expression <- function(
       discarded.percent, "% of the total."
     ) |>
       log_info()
+    log_info(paste0("Dataset dimensions: ", probes.after, " probe sets x ",
+                    dim(expression_set)[2], " samples"))
     # Check for missing values (NA) and NaN entries
     if (any(is.na(exprs((expression_set)))) || any(is.nan(exprs((expression_set))))) {
       log_warn("Detected some missing values in the dataset. Has something gone terribly wrong?")
