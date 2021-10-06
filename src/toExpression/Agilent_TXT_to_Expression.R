@@ -78,6 +78,7 @@ agil2expression <- function (
   log_info("Background correcting...")
   expression_data <- backgroundCorrect(expression_data, method = "normexp", offset = offset)
   
+  # This step also log2s the data
   log_info("Running interarray normalization...")
   expression_data = normalizeBetweenArrays(expression_data, method = "quantile")
   
@@ -110,9 +111,6 @@ agil2expression <- function (
   
   log_info("Saving output file...")
   
-  expression_set$probe_id <- rownames(expression_set)
-  rownames(expression_set) <- NULL
-  
-  write.csv(expression_set, file = output_file, quote = FALSE, row.names = FALSE)
+  write_expression_data(expression_set, output_file)
   
 }

@@ -575,3 +575,53 @@ split_design <- function(experimental_design) {
   )
   return(result)
 }
+
+
+#' This function saves expression data in the correct format, handling 
+#' moving columns around and things.
+#' 
+#' @param expression_data The expression data to save. A data.frame with 
+#'   probe ids as rownames.
+#' @param target Path to where the file will be saved.
+#' @param verbose Should the function write to the log file?
+write_expression_data <- function (
+  expression_data, target = "expression_data.csv",
+  verbose = TRUE
+) {
+  library(logger)
+  expression_data$probe_id <- rownames(expression_data)
+  rownames(expression_data) <- NULL
+  
+  df %>% select("probe_id", everything()) -> expression_data
+  
+  if (verbose) {
+    log_info(paste(
+      "Saving a", ncol(expression_data) - 1, "cols by",
+      nrow(expression_data), "rows expression dataset to '",
+      target, "'"
+    ))
+  }
+  
+  write.csv(expression_data, target, row.names = FALSE, quote = FALSE)
+}
+
+#' Read and extract row names from a .csv containing expression data.
+#' 
+#' @param target Path to the file to read.
+#' 
+#' @returns A data.frame with  the loaded data, with probe ids as row names.
+read_expression_data <- function (target, verbose = TRUE) {
+  expression_data <- read.csv(target)
+  rownames(expression_data) <- expression_data$probe_id
+  expression_data$probe_id <- NULL
+  
+  if (verbose) {
+    log_info(paste(
+      "Loaded a", ncol(expression_data), "cols by",
+      nrow(expression_data), "rows expression dataset from '",
+      target, "'"
+    ))
+  }
+  
+  return(expression_data)
+}

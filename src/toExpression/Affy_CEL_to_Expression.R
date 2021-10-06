@@ -168,10 +168,7 @@ affy2expression <- function(
   
   transposed <- read.table(file = temp, row.names = 1)
   
-  transposed <- data.frame(probe_id = row.names(transposed), transposed)
-  row.names(transposed) <- NULL
-  
   log_info("Saving Expression Matrix to file...")
-  write.csv(transposed, file = output.file, row.names = FALSE)
+  write_expression_data(transposed, output.file)
   log_info("affy2expression finished")
 }
