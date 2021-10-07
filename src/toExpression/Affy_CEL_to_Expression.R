@@ -58,36 +58,17 @@ source(file.path(ROOT, "src", "STALKER_Functions.R"))
 source(file.path(ROOT, "src", "annotator.R"))
 
 affy2expression <- function(
-    input.folder, output.file, log_name = NULL, remove.controls = TRUE
+    input.folder, output.file, remove.controls = TRUE
     ) {
   # ---- Loading packages ----
   library(oligo)
   library(limma)          # For plotMD() function
-  library(logger)
   library(affycoretools)
 
   print(paste0(
-    "Call: (in/out/log/rm) ",
-    input.folder, output.file, log_name,remove.controls, sep = " :: "
+    "Call: (in/out/rm) ",
+    input.folder, output.file,remove.controls, sep = " :: "
   ))
-  
-  # Setup logging facilities
-  output.dir <- dirname(output.file)
-  start.timedate <- gsub(" ", "_", date())
-  
-  # I don't know if log_name was passed as a string or NULL, so in the call
-  # made by entry I have to wrap the input in "" to make it a valid string.
-  # This causes NULL to become "NULL", and therefore I have to do this badness
-  if (!is.null(log_name)) {
-    log_name <- if (log_name == "NULL") {NULL} else {log_name}
-  }
-  log.target <- if (is.null(log_name)) {
-    file.path(output.dir, paste0("affy2expression_", start.timedate, ".log"))
-  } else {
-    file.path(output.dir, log_name)
-  }
-  file.create(log.target)
-  log_appender(appender_tee(log.target))
   
   # ---- Load .CEL files ----
   log_info("Looking for .CEL files...")

@@ -263,37 +263,18 @@ annotate_data <- function(expression_set, chip_id, selections) {
 #' @param chip_id A str representing the chip used by the experiment.
 #' @param selections A vector of str with valid annotation names to use to
 #'   annotate the data.
-#' @param log_name Name of the logfile written in the same directory as the 
-#'   output file.
 annotate_to_file <- function(
   expression_data_path, output_path,
-  chip_id, selections,
-  log_name = NULL
+  chip_id, selections
 ) {
   paste0(
-    "Call: (exprpath/outputpath/chip/selections/logname):\n",
-    paste(expression_data_path, output_path, chip_id, paste(selections, collapse = ", "), log_name,
+    "Call: (exprpath/outputpath/chip/selections):\n",
+    paste(expression_data_path, output_path, chip_id, paste(selections, collapse = ", "),
     sep = " :: ")
   ) |>
     print()
   
-  # Setup logging facilities
-  output.dir <- dirname(output_path)
-  start.timedate <- gsub(" ", "_", date())
-  
-  library(logger)
-  
-  # I don't know if log_name was passed as a string or NULL, so in the call
-  # made by entry I have to wrap the input in "" to make it a valid string.
-  # This causes NULL to become "NULL", and therefore I have to do this badness
-  log_name <- if (log_name == "NULL") {NULL} else {log_name}
-  log.target <- if (is.null(log_name)) {
-    file.path(output.dir, paste0("affy2expression_", start.timedate, ".log"))
-  } else {
-    file.path(output.dir, log_name)
-  }
-  file.create(log.target)
-  log_appender(appender_tee(log.target))
+  source(file.path(ROOT, "src", "STALKER_Functions.R"))
   
   log_info("Loading input data...")
   expression_set <- read.csv(file = expression_data_path, row.names = "probe_id")
@@ -301,9 +282,6 @@ annotate_to_file <- function(
   log_info("Annotating data...")
   annotated_set <- annotate_data(expression_set, chip_id, selections)
   
-  log_info("Extracting probe ids...")
-  annotated_set$probe_id <- row.names(annotated_set)
-  
-  write.csv(annotated_set, file = output_path, row.names = FALSE)
+  write_expression_data(annotated_set, output_path)
   log_info("Written annotations.")
 }

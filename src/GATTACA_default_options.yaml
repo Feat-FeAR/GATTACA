@@ -10,8 +10,6 @@ general:
   slowmode: true # bool
   # Print out small snippets of data before every analysis step?
   show_data_snippets: true # bool
-  # Define logfile name. Leave null to use default of `gattaca_(time).log`.
-  log_name: null # null OR str
   # Save PNG and/or PDF plots?
   save_pdf: true # bool
   save_png: false # bool

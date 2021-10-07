@@ -133,6 +133,11 @@ The options are straightforward to understand (use `GATTACA prepaffy -h` to see 
 
 The `.CEL` files in the input folder are found by looking at their file extension, and are not found recursively.
 
+
+### Command: `prepagil`
+Convert a collection of files from a variety of scanners for Agilent microarrays to an expression matrix. The command uses `limma` to parse the input files. As the format of these files is varied, they are found by `grep`-ping files in the target folder. See `./GATTACA prepaffy --help` for more information.
+
+
 ### Command: `annotate`
 Annotate data created by these commands with annotations from a variety of databases present in bioconductor. The databases are downloaded at runtime to have the latest annotations.
 

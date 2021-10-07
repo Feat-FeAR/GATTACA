@@ -33,28 +33,8 @@ agil2expression <- function (
   input_dir, output_file, analysis_program,
   grep_pattern="*.txt", green_only = FALSE,
   offset = 0,
-  remove_controls = TRUE,
-  log_name = NULL
+  remove_controls = TRUE
 ) {
-  # Setup logging facilities
-  output_dir <- dirname(output_file)
-  start.timedate <- gsub(" ", "_", date())
-  
-  # I don't know if log_name was passed as a string or NULL, so in the call
-  # made by entry I have to wrap the input in "" to make it a valid string.
-  # This causes NULL to become "NULL", and therefore I have to do this badness
-  if (!is.null(log_name)) {
-    log_name <- if (log_name == "NULL") {NULL} else {log_name}
-  }
-  log.target <- if (is.null(log_name)) {
-    file.path(output_dir, paste0("agil2expression_", start.timedate, ".log"))
-  } else {
-    file.path(output_dir, log_name)
-  }
-  file.create(log.target)
-  log_appender(appender_tee(log.target))
-  
-  
   # Inputting data
   output_dir <- dirname(output_file)
   

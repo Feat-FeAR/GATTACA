@@ -1,7 +1,15 @@
 #!/bin/bash
 
+# We need the host UID/GID to give permissions back when we're done.
+# This is a bit of a hack, and possibly a large security risk, but I
+# cannot find a better way to do it.
 host_uid=$1
 host_gid=$2
+shift 2
+
+# We take out the log name to setup logging.
+log_name=$1
+log_level=$2
 shift 2
 
 # Take out the order from the GATTACA script, defining what we have to do.
@@ -22,6 +30,8 @@ case "$order" in
             --vanilla \
             -e "source('/GATTACA/src/__init__.R')" \
             -e "source('/GATTACA/src/GATTACA.R')" \
+            -e "setup_file_logging('/GATTACA/target', '${log_name}')" \
+            -e "logger::log_threshold(${log_level})" \
             -e "GATTACA('${optionfile}', '${inputfile}', '/GATTACA/target')"
         ;;
     prepaffy)
@@ -33,7 +43,9 @@ case "$order" in
             --vanilla \
             -e "source('/GATTACA/src/__init__.R')" \
             -e "source('/GATTACA/src/toExpression/Affy_CEL_to_Expression.R')" \
-            -e "affy2expression('/GATTACA/input', '${outputfile}', log_name = '${2}', remove.controls = ${3})"
+            -e "setup_file_logging('/GATTACA/target', '${log_name}')" \
+            -e "logger::log_threshold(${log_level})" \
+            -e "affy2expression('/GATTACA/input', '${outputfile}', remove.controls = ${3})"
         ;;
     annotate)
         # "$input_file_clean $output_file_clean $chip_id $selections $logname"
@@ -43,8 +55,10 @@ case "$order" in
             --vanilla \
             -e "source('/GATTACA/src/__init__.R')" \
             -e "source('/GATTACA/src/annotator.R')" \
+            -e "setup_file_logging('/GATTACA/target', '${log_name}')" \
+            -e "logger::log_threshold(${log_level})" \
             -e "selections <- strsplit('${4}', ',')[[1]]" \
-            -e "annotate_to_file(expression_data_path = '/GATTACA/input/${1}', output_path = '${outputfile}', chip_id = '${3}', selections = selections, log_name = '${5}')"
+            -e "annotate_to_file(expression_data_path = '/GATTACA/input/${1}', output_path = '${outputfile}', chip_id = '${3}', selections = selections)"
         ;;
     prepagil)
         # "$output_filename" $analysis_program $grep_pattern $green_only $remove_controls $log_filename
@@ -54,7 +68,9 @@ case "$order" in
             --vanilla \
             -e "source('/GATTACA/src/__init__.R')" \
             -e "source('/GATTACA/src/toExpression/Agilent_TXT_to_Expression.R')" \
-            -e "agil2expression('/GATTACA/input/', '${outputfile}', '${2}', grep_pattern='${3}', green_only=${4}, remove_controls=${5}, log_name='${6}')"
+            -e "setup_file_logging('/GATTACA/target', '${log_name}')" \
+            -e "logger::log_threshold(${log_level})" \
+            -e "agil2expression('/GATTACA/input/', '${outputfile}', '${2}', grep_pattern='${3}', green_only=${4}, remove_controls=${5})"
         ;;
     *)
         echo "Unrecognized order: '${order}'"

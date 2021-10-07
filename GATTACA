@@ -1,19 +1,23 @@
 #!/usr/bin/env bash
 
-HERE="`pwd`"
-
 echo # This random echo is to give a bit more space to the help commands.
 
 function _gattaca_print_general_help {
-    echo "Usage: GATTACA [-h | --help] [-v | --version <version>] <command> [<args>]"
+    echo "Usage: GATTACA [-h | --help] [-v | --version <version>] [ -l | --log_name <name> ]"
+    echo "       <command> [<args>]"
     echo
     echo "Options:"
     echo "    -v | --version <version>      Specify the version of the docker to run <command> in."
+    echo "    -l | --log_name <name>        Specify the filename of the log, created alongside the"
+    echo "                                  output of many commands."
+    echo "    --verbose                     Passing this flag includes debug information in the"
+    echo "                                  logfiles."
     echo
     echo "Available commands:"
     echo "    init              Create a configuration file for 'GATTACA run'."
     echo "    run               Perform a differential expression analysis."
     echo "    prepaffy          Create an expression matrix from Affymetrix .CEL files."
+    echo "    prepagil          Create an expression matrix from Agilent .txt files."
     echo "    annotate          Annotate an expression file with remote annotations."
     echo
     echo "Use '-h' or '--help' in any subcommand to get additional help and possible options"
@@ -24,6 +28,7 @@ function _gattaca_help_init {
     echo "Usage: GATTACA init [-h | --help] <file_path>"
     echo
     echo "Create a configuration file for 'GATTACA run' at <file_path>."
+    echo "Note: This command does not produce a log file."
 }
 
 
@@ -41,24 +46,20 @@ function _gattaca_help_run {
 
 
 function _gattaca_help_prepaffy {
-    echo "Usage: GATTACA prepaffy [-h | --help] [-l | --log-name <name>] [-r | --remove-controls]"
-    echo "       <input_dir> <output_file>"
+    echo "Usage: GATTACA prepaffy [-h | --help] [-r | --remove-controls] <input_dir> <output_file>"
     echo
     echo "Run preprocessing on all .CEL files present in <input_dir> to get an expression matrix,"
     echo "saved as <output_file>."
     echo
     echo "Options:"
-    echo "  -l | --log-name <log filename>   Specify the filename of the log that will be alongside"
-    echo "                                   the output file. Defaults to the time of the start of"
-    echo "                                   the command."
-    echo "  -r | --remove-controls           If set, will remove control probes from the final"
-    echo "                                   expression set."
+    echo "  -r | --remove-controls      If set, will remove control probes from the final"
+    echo "                              expression set."
 }
 
 
 function _gattaca_help_annotate {
-    echo "Usage: GATTACA annotate [-h | --help] [-l | --log-name <name>] [-s | --select <selections>]"
-    echo "       <input_file> <output_file> <chip_id>"
+    echo "Usage: GATTACA annotate [-h | --help] [-s | --select <selections>] <input_file>"
+    echo "       <output_file> <chip_id>"
     echo
     echo "Annotate an expression dataset '<input_file>' with annotations for the chip <chip_id>."
     echo "Save the output in <output_file>."
@@ -68,16 +69,12 @@ function _gattaca_help_annotate {
     echo "  -s | --select <selections>         Comma delimited list of selections. Defaults to"
     echo "                                     'SYMBOL,GENENAME', annotating HUGO symbols and long"
     echo "                                     gene names."
-    echo "  -l <log filename>                  Specify the filename of the log that will be alongside"
-    echo "                                     the output file. Defaults to the time of the start of"
-    echo "                                     the command."
 }
 
 
 function _gattaca_help_prepagil {
-    echo "Usage: GATTACA prepagil [-h | --help] [-l | --log-name <name>] [-r | --remove-controls]"
-    echo "       [-p | --grep-pattern <pattern>] [-g | --green-only] <input_dir> <output_file>"
-    echo "       <analysis_program>"
+    echo "Usage: GATTACA prepagil [-h | --help] [-r | --remove-controls] [-p | --grep-pattern <pattern>]"
+    echo "       [-g | --green-only] <input_dir> <output_file> <analysis_program>"
     echo
     echo "This command prepares normalized, log2 transformed expression matrices from agilent files."
     echo "Runs on all files in <input_dir> that end in a '.txt' (or <pattern>) to get an expression"
@@ -89,6 +86,12 @@ function _gattaca_help_prepagil {
     echo "'arrayvision.ARM', 'arrayvision.MTM', 'bluefuse', 'genepix', 'genepix.custom',"
     echo "'genepix.median', 'imagene', 'imagene9', 'quantarray', 'scanarrayexpress', 'smd.old', 'smd',"
     echo "'spot', 'spot.close.open'."
+    echo
+    echo "Options:"
+    echo "  -r | --remove-controls            If set, removes control probes from the expression data."
+    echo "  -p | --grep-pattern <pattern>     The RegEx pattern to match input files with."
+    echo "  -g | --green-only                 If set, the input files are treated as having only the"
+    echo "                                    green channel."
 }
 
 
@@ -147,12 +150,14 @@ function _gattaca_run_init {
         --mount type=bind,source=$target_mountpoint,target=/GATTACA/target \
         mrhedmad/gattaca:$version \
         "$(id -u)" "$(id -g)" \
+        "unnamed", "INFO" \
         "init" "$target_name"
 
     echo "Created options file in '$target_path'"
 }
 
 function _gattaca_run_run {
+    
     while test $# -gt 0; do
         case "$1" in
             -h | --help)
@@ -202,11 +207,11 @@ function _gattaca_run_run {
         --mount type=bind,source=$input_mountpoint,target=/GATTACA/input,readonly \
         mrhedmad/gattaca:$version \
         "$(id -u)" "$(id -g)" \
+        "$log_name" $log_level \
         "gattaca" $input_filename $options_filename
 }
 
 function _gattaca_run_prepaffy {
-    log_filename="NULL"
     remove_controls="FALSE"
 
     while test $# -gt 0; do
@@ -214,11 +219,6 @@ function _gattaca_run_prepaffy {
             -h | --help)
                 _gattaca_help_prepaffy
                 exit 0
-            ;;
-            -l | --log-name)
-                shift
-                log_filename="$1"
-                shift
             ;;
             -r | --remove-controls)
                 shift
@@ -254,11 +254,11 @@ function _gattaca_run_prepaffy {
         --mount type=bind,source=$input_mountpoint,target=/GATTACA/input,readonly \
         mrhedmad/gattaca:$version \
         "$(id -u)" "$(id -g)" \
-        "prepaffy" $output_filename $log_filename $remove_controls
+        "$log_name" $log_level \
+        "prepaffy" $output_filename $remove_controls
 }
 
 function _gattaca_run_annotate {
-    log_filename="NULL"
     selections="SYMBOL,GENENAME"
 
     while test $# -gt 0; do
@@ -266,11 +266,6 @@ function _gattaca_run_annotate {
             -h | --help)
                 _gattaca_help_annotate
                 exit 0
-            ;;
-            -l | --log-name)
-                shift
-                log_filename="$1"
-                shift
             ;;
             -s | --select)
                 shift
@@ -287,7 +282,7 @@ function _gattaca_run_annotate {
 
     if test $# -eq 3; then
         input_path=$(realpath $1)
-        target_path=$(realpath $2)
+        target_path=$2
         chip_id=$3
     else
         >&2 echo "Wrong number of arguments: ${#} (expected 3)"
@@ -301,7 +296,8 @@ function _gattaca_run_annotate {
     input_filename=$(basename -- "$input_path")
 
     _gattaca_assert_is_file $input_path
-    _gattaca_assert_is_file $target_path
+    
+    mkdir -p $target_mountpoint
 
     docker run \
         -it --rm \
@@ -309,11 +305,11 @@ function _gattaca_run_annotate {
         --mount type=bind,source=$input_mountpoint,target=/GATTACA/input,readonly \
         mrhedmad/gattaca:$version \
         "$(id -u)" "$(id -g)" \
-        "annotate" $input_filename $output_filename $chip_id $selections $log_filename
+        "$log_name" $log_level \
+        "annotate" $input_filename $output_filename $chip_id $selections
 }
 
 function _gattaca_run_prepagil {
-    log_filename="NULL"
     grep_pattern="*.txt"
     green_only="FALSE"
     remove_controls="FALSE"
@@ -323,11 +319,6 @@ function _gattaca_run_prepagil {
             -h | --help)
                 _gattaca_help_prepagil
                 exit 0
-            ;;
-            -l | --log-name)
-                shift
-                log_filename="$1"
-                shift
             ;;
             -r | --remove-controls)
                 shift
@@ -348,8 +339,6 @@ function _gattaca_run_prepagil {
         esac
     done
     
-    echo "$@"
-    
     if test $# -eq 3; then
         input_dir=$(realpath $1)
         target_path=$(realpath $2)
@@ -361,7 +350,7 @@ function _gattaca_run_prepagil {
     
     target_mountpoint="$(dirname "$target_path")"
     output_filename=$(basename -- "$target_path")
-    echo $grep_pattern
+
     _gattaca_assert_is_directory $input_dir
     
     mkdir -p "$target_mountpoint"
@@ -373,7 +362,8 @@ function _gattaca_run_prepagil {
         --mount type=bind,source=$input_dir,target=/GATTACA/input,readonly \
         mrhedmad/gattaca:$version \
         "$(id -u)" "$(id -g)" \
-        "prepagil" "$output_filename" $analysis_program "$grep_pattern" $green_only $remove_controls $log_filename
+        "$log_name" $log_level \
+        "prepagil" "$output_filename" $analysis_program "$grep_pattern" $green_only $remove_controls
 }
 
 if [ $# == 0 ]; then
@@ -381,6 +371,7 @@ if [ $# == 0 ]; then
 fi
 
 version="latest"
+log_level="INFO"
 
 while test $# -gt 0; do
     case "$1" in
@@ -394,6 +385,15 @@ while test $# -gt 0; do
             ## TODO: Print out warnings for very old docker images that do 
             # not support some commands.
             shift
+        ;;
+        -l | --log-name)
+            shift
+            log_name=$1
+            shift
+        ;;
+        --verbose)
+            shift
+            log_level="DEBUG"
         ;;
         init)
             shift

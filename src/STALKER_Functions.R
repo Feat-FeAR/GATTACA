@@ -588,11 +588,10 @@ write_expression_data <- function (
   expression_data, target = "expression_data.csv",
   verbose = TRUE
 ) {
-  library(logger)
   expression_data$probe_id <- rownames(expression_data)
   rownames(expression_data) <- NULL
   
-  df %>% select("probe_id", everything()) -> expression_data
+  expression_data %>% dplyr::select("probe_id", everything()) -> expression_data
   
   if (verbose) {
     log_info(paste(
