@@ -35,7 +35,6 @@ printPlots = function(
   plot.width = getOption("plot.width", 16), plot.height = getOption("plot.height", 9),
   png_ppi = getOption("png_ppi")
   ) {
-  library(logger)
 
   # Check argument values
   # NOTE: considering that getOption("...") returns NULL for undefined arguments,
@@ -623,4 +622,21 @@ read_expression_data <- function (target, verbose = TRUE) {
   }
   
   return(expression_data)
+}
+
+#' Gracefully load a series of packages, as to not spam the console.
+graceful_load <- function(packages) {
+  log_info("Loading required packages...")
+  log_debug("Loading packages:", paste(packages, collapse = ", "))
+
+  progress <- txtProgressBar(min = 0, max = length(packages), initial = 0)
+  for (i in seq_along(packages)) {
+    package <- packages[i]
+    log_debug("Loading package: ", package)
+
+    suppressMessages(library(package, character.only = TRUE))
+    setTxtProgressBar(progress, i)
+  }
+  close(progress)
+  log_debug("Finished loading packages")
 }

@@ -61,9 +61,11 @@ affy2expression <- function(
     input.folder, output.file, remove.controls = TRUE
     ) {
   # ---- Loading packages ----
-  library(oligo)
-  library(limma)          # For plotMD() function
-  library(affycoretools)
+  graceful_load(c(
+    "oligo",
+    "limma",
+    "affycoretools"
+  ))
 
   print(paste0(
     "Call: (in/out/rm) ",

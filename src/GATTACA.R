@@ -41,21 +41,23 @@
 # ---- Package Loading ----
 # Load required packages and source external scripts
 
-library(preprocessCore)   # Interarray Normalization by Quantile-Quantile Algorithm
-library(rafalib)          # Bland Altman Plots (aka MA Plots)
-library(PCAtools)         # Principal Component Analysis
-library(genefilter)       # Expression Gene Filtering
-library(limma)            # Empirical Bayes Method for Differential Expression
-library(RankProd)         # Rank Product Method for Differential Expression
-library(VennDiagram)      # Venn Diagrams
-library(EnhancedVolcano)  # Volcano Plots
-library(gplots)           # Heatmap with extensions - heatmap.2() 
-library(ggplot2)          # Box Plot and Bar Chart with Jitter (already loaded by PCAtools)
-library(RColorBrewer)     # Color Palette for R - display.brewer.all()
-library(yaml)             # Yaml file parsing
-library(logger)           # Well, logging
-
 source(file.path(ROOT, "src", "STALKER_Functions.R"))   # Collection of custom functions
+
+graceful_load(c(
+  "preprocessCore",   # Interarray Normalization by Quantile-Quantile Algorithm
+  "rafalib",          # Bland Altman Plots (aka MA Plots)
+  "PCAtools",         # Principal Component Analysis
+  "genefilter",       # Expression Gene Filtering
+  "limma",            # Empirical Bayes Method for Differential Expression
+  "RankProd",         # Rank Product Method for Differential Expression
+  "VennDiagram",      # Venn Diagrams
+  "EnhancedVolcano",  # Volcano Plots
+  "gplots",           # Heatmap with extensions - heatmap.2() 
+  "ggplot2",          # Box Plot and Bar Chart with Jitter (already loaded by PCAtools)
+  "RColorBrewer",     # Color Palette for R - display.brewer.all()
+  "yaml",             # Yaml file parsing
+  "logger"           # Well, logging
+))
 
 # The annotation DB loads after dplyr so the `select` function gets overwritten.
 # Why does R allow this?

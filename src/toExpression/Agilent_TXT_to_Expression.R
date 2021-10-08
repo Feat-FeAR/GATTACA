@@ -23,11 +23,10 @@
 
 
 # ---- Load Required libraries ----
-library(logger)
-library(limma)
 
 source(file.path(ROOT, "src", "STALKER_Functions.R"))
 
+graceful_load(c("limma"))
 
 agil2expression <- function (
   input_dir, output_file, analysis_program,

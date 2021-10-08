@@ -130,7 +130,6 @@ get_db_names <- function(db_namespace) {
 get_remote_annotations <- function(
   db_name, selections = c("ACCNUM", "SYMBOL", "GENENAME")
 ) {
-  library(logger)
   library(purrr)
   # get_db_names also loads the db in memory, so I don't do it here.
   possible_selections <- get_db_names(db_name)
@@ -277,7 +276,7 @@ annotate_to_file <- function(
   source(file.path(ROOT, "src", "STALKER_Functions.R"))
   
   log_info("Loading input data...")
-  expression_set <- read.csv(file = expression_data_path, row.names = "probe_id")
+  expression_set <- read_expression_data(expression_data_path)
  
   log_info("Annotating data...")
   annotated_set <- annotate_data(expression_set, chip_id, selections)
