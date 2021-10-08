@@ -54,11 +54,11 @@ To run GATTACA, you must provide an options file encoded in [yaml](https://yaml.
 - General options:
     - `slowmode` (bool): If set to `true`, stops the execution of the script at various points of the analysis, allowing you to stop the analysis if you detect something has gone terribly wrong. If set to `false`, these checkpoints are silently ignored.
     - `show_data_snippets` (bool): If set to `true`, prints out small snippets of data at and around `slowmode` checkpoints. This is useful to check if something has gone terribly wrong. Pretty useless when `slowmode` is `false`, as these data snippets are not logged.
-    - `log_path` (str | `null`): If set to `null`, spawn a logfile in the output folder named `gattaca_(current time).log`. Otherwise, a string with the filename (that will be overwritten) of the log file, always created in the output folder.
     - `save_pdf` (bool): If `true`, saves plots to `pdf` files in a subfolder in the output directory. If neither `save_pdf` nor `save_png` are set to `true`, the script will not save any plots. Usually only one of the two are set.
     - `save_png` (bool): If `true`, saves plots to `png` files in a subfolder in the output directory. If neither `save_pdf` nor `save_png` are set to `true`, the script will not save any plots. Usually only one of the two are set.
     - `plot_width` (int) and `plot_height` (int): Plot sizes in inches.
     - `png_ppi` (int): The pixels per inch resolution for `png` plots.
+    - `enumerate_plots` (bool): If `true`, the plots created by GATTACA will be enumerated following the order by which they are created. This allows easier inspection of them.
     - `annotation_chip_id` (str or null): If annotation are added, some plots (like volcano plots) are more legible as they use HUGO symbols instead of probe IDs. Specify here one available annotation ID based on your chip. Leave to `null` to not annotate. Available annotations (chip_name -> `id`):
         - Affymetrix Human Genome U133 Set (A) -> `hgu133a`
         - Affymetrix Human Genome U133 Set (B) -> `hgu133b`

@@ -18,6 +18,8 @@ general:
   plot_height: 3 # int
   # PPI (pixel per inch) value for PNG plots
   png_resolution: 250 # int
+  # If true, plots will be enumerated in the order they are created
+  enumerate_plots: true # bool
   # If annotation are added, some plots (like volcano plots) are more legible
   # as they use HUGO symbols instead of probe IDs. Specify here one available
   # annotation ID based on your chip. Leave to `null` to not annotate.

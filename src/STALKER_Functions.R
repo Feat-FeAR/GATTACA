@@ -9,6 +9,8 @@
 #
 # ------------------------------------------------------------------------------
 
+..PRINTPLOT_COUNTER = 1
+
 #' Save a graphical output to '<folderPrefix> Figures' sub-directory.
 #' 
 #' Automatically makes the output folder if not there.
@@ -25,6 +27,9 @@
 #'   option or TRUE (if NULL).
 #' @param plot.width Width of the plot. Defaults to `plot.width` option or 820.
 #' @param plot.height Height of the plot. Defaults to `plot.height` option or 600.
+#' @param enumerate_plots If true, plots will be enumerated (a progressive 
+#'   number is inserted at the start of their filename). Defaults to the
+#'   `enumerate.plots` option or FALSE.
 #' 
 #' @author FeAR
 printPlots = function(
@@ -33,7 +38,8 @@ printPlots = function(
   folderPrefix = getOption("scriptName", ""),
   PNG = getOption("save.PNG.plot", TRUE), PDF = getOption("save.PDF.plot", TRUE),
   plot.width = getOption("plot.width", 16), plot.height = getOption("plot.height", 9),
-  png_ppi = getOption("png_ppi")
+  png_ppi = getOption("png_ppi"),
+  enumerate = getOption("enumerate.plots", FALSE)
   ) {
 
   # Check argument values
@@ -49,6 +55,12 @@ printPlots = function(
   if (is.null(PDF)) {
     PDF = TRUE
     log_warn("save.PDF.plot option defaulted to TRUE")
+  }
+
+  if (enumerate) {
+    figureName <- paste0(..PRINTPLOT_COUNTER, "_", figureName)
+    # The <<- is important
+    ..PRINTPLOT_COUNTER <<- ..PRINTPLOT_COUNTER + 1
   }
 
   figSubFolder = paste(folderPrefix, "Figures", sep = " ")

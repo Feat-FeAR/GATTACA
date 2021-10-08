@@ -208,7 +208,8 @@ GATTACA <- function(options.path, input.file, output.dir) {
     use.annotations = !is.null(opts$general$annotation_chip_id),
     plot.width = opts$general$plot_width,
     plot.height = opts$general$plot_height,
-    png_ppi = opts$general$png_resolution
+    png_ppi = opts$general$png_resolution,
+    enumerate.plots = opts$general$enumerate_plots
   )
   
   if (getOption("use.annotations")) {
