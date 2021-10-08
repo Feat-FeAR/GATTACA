@@ -575,3 +575,29 @@ split_design <- function(experimental_design) {
   )
   return(result)
 }
+
+
+#' Makes the elements of a character vector unique by appending sequence numbers
+#' to duplicates. Just like make.unique {base}, but starting from 1.
+#' 
+#' @param exp_design The input character vector
+#' @param sep The name-number separator to be used
+#' 
+#' @returns A list with the groups vector of str in slot $groups and the pairings
+#'   vector of ints in the $pairings vector.
+#'   
+#' @author FeAR
+make.unique_from1 <- function(exp_design, sep = ".") {
+  result <- vector(mode = "character", length = length(exp_design))
+  unique_labels <- unique(exp_design)
+  
+  for (grp in unique_labels) {
+    index = which(exp_design == grp)
+    new.names = paste0(grp, sep, c(1:length(index)))
+    result[index] = new.names
+  }
+  return(result)
+}
+  
+  
+  

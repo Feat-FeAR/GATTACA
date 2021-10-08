@@ -64,7 +64,7 @@ dp_select <- dplyr::select
 GATTACA <- function(options.path, input.file, output.dir) {
   # This function is so long, a description wouldn't fit here.
   # Refer to the project's README.
-
+  
   # ---- Option parsing ----
   opts <- yaml.load_file(options.path)
   
@@ -73,7 +73,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   printdata <- printif.maker(opts$general$show_data_snippets, topleft.head)
   
   # Setup logging facilities
-  start.timedate <- gsub(" ", "_", date())
+  start.timedate <- gsub(":","-",gsub(" ", "_", date()))
   log.target <- if (is.null(opts$general$log_name)) {
     file.path(output.dir, paste0("GATTACA_", start.timedate, ".log"))
   } else {
@@ -82,7 +82,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   file.create(log.target)
   log_appender(appender_tee(log.target))
   
-  log_info("Parsed options.")
+  log_info("Options Parsed.")
   
   # ---- Move to output.dir ----
   setwd(output.dir)
@@ -92,7 +92,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   # TODO : Improvement - These should be checked here for basic validity, so
   #        we crash sooner rather than later. 
   log_info("Inputting variables...")
-
+  
   user_colours <- opts$design$group_colors
   
   # Log2 expression threshold
@@ -129,9 +129,9 @@ GATTACA <- function(options.path, input.file, output.dir) {
     annotation_data <- get_remote_annotations(
       CHIP_TO_DB[[opts$general$annotation_chip_id]], "SYMBOL"
     )
-    log_info("Loaded annotations")
+    log_info("Annotations loaded.")
   } else {
-    log_info("No annotations loaded")
+    log_info("No annotations loaded.")
   }
 
   # ---- Data Loading ----
@@ -140,7 +140,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
   expression_set <- read.csv(input.file, header = TRUE, row.names = "probe_id")
   log_info(paste(
-    "Loaded expression_set dimensions:", paste0(dim(expression_set), collapse = ", ")
+    "Loaded expression_set dimensions:", paste0(dim(expression_set), collapse = " x ")
   ))
   printdata(expression_set)
 
@@ -150,8 +150,8 @@ GATTACA <- function(options.path, input.file, output.dir) {
   log_info("Loading experimental design...")
   experimental_design <- design_parser(opts$design$experimental_design)
   
-  # This is a list with as `groups` the groups and as `pairings` the 
-  # ID for pairing
+  # This is a list containing the group sequence in `$groups` and the IDs for
+  # pairing in '$pairing'
   experimental_design <- split_design(experimental_design)
   
   # Check the design
@@ -179,17 +179,19 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
   # Tidy Sample Names According to the Experimental Design
   # Create a new vector containing tidy group names
-  log_info("Making tidy group names using the experimental design...")
   unique_simple_groups <- unique(experimental_design$groups)
-  unique_groups <- make.unique(experimental_design$groups, sep = "_")
+  log_info(paste(length(unique_simple_groups), "groups detected:",
+                 paste0(unique_simple_groups, collapse = ", ")))
+  log_info("Making group names tidy using the experimental design...")
+  unique_groups <- make.unique_from1(experimental_design$groups, sep = "_")
   ..old_colnames <- colnames(expression_set)
   colnames(expression_set) <- unique_groups
   
   if (length(user_colours) < length(unique_simple_groups)) {
     stop("Too few colors in \'user_colours\' vector!")
   }
-  # Bind colours to groups
-  names(user_colours[1:length(unique_simple_groups)]) <- unique_simple_groups
+  # Bind colors to groups
+  names(user_colours) <- unique_simple_groups
   
   # Save Correspondences Table so we can check it later
   ..corrTable = cbind(..old_colnames, colnames(expression_set)) # Cast to matrix
@@ -219,7 +221,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   
   # Check if the contrasts groups are actually in the data
   ..check <- unlist(group_contrasts) %in% unique_simple_groups
-  if (! all(..check)) {
+  if (!all(..check)) {
     stop(paste0(
       "Some groups defined in the contrasts are not present in the data. ",
       "Conflicting groups: ", paste0(group_contrasts[!..check])
@@ -228,14 +230,8 @@ GATTACA <- function(options.path, input.file, output.dir) {
   
   log_info("Design loaded and approved.")
   pitstop("")
-
-
-  # ---- Preliminary Boxplots ----
-  # Distribution Inspection to Spot Non-Logarithmic Data
-  printPlots(\() {boxplot(expression_set, las = 2)}, "Raw boxpot")
-  printPlots(\() {plotDensities(expression_set, legend = FALSE)}, "Raw density")
   
-
+  
   # ---- Normalization ----
   # After-RMA 2nd Quantile Normalization
   if (opts$switches$renormalize) {
@@ -251,13 +247,13 @@ GATTACA <- function(options.path, input.file, output.dir) {
     log_info("Renormalization complete.")
   }
   
-
+  
   # ---- MA-Plot & Box-Plot ----
   # Normalization Final Check with Figure Production
   printPlots(function() {
     boxplot(
       expression_set,
-      las = 2, col = user_colours,
+      las = 2, col = user_colours[experimental_design$groups],
       main = "Expression values per sample", ylab = "log2 (intesity)"
       )
     },
@@ -269,46 +265,41 @@ GATTACA <- function(options.path, input.file, output.dir) {
   
   pitstop("Maybe check the plots and come back?")
   
-  # MA-Plot for bias detection
-  # From limma package: array 'column' vs the average of all the arrays other than that
-  printPlots(function(){plotMD(expression_set, column = 1)}, "Mean-Difference Plot")
-  
+  # MA-Plot for bias detection - Make all the possible group pairs
   for (combo in combn(unique_simple_groups, 2, simplify = FALSE)) {
-    expression_set |> group_by(across(starts_with(combo[[1]]))) |>
-      rowMeans() -> group1
-    expression_set |> group_by(across(starts_with(combo[[2]]))) |>
-      rowMeans() -> group2
+    expression_set |> dp_select(starts_with(combo[1])) |> rowMeans() -> group1
+    expression_set |> dp_select(starts_with(combo[2])) |> rowMeans() -> group2
 
     p <- function() {
       maplot(
-        group1, group2, 
+        group2, group1, 
         xlab = "A (Average log-expression)", ylab = "M (Expression log-ratio)",
         n = 5e4,
-        curve.add = TRUE, curve.col = user_colours[2], curve.lwd = 1.5, curve.n = 1e4,
-        pch = 20, cex = 0.1
+        curve.add = TRUE, curve.col = user_colours[2], curve.lwd = 1.5,
+        curve.n = 1e4, pch = 20, cex = 0.1
       )
-      title(main = paste(combo[[1]], "vs", combo[[2]]))
+      title(main = paste(combo[1], "vs", combo[2]))
       abline(h = 0, col = user_colours[1], lty = 2) # lty = line type
       abline(h = c(1,-1), col = user_colours[1])
       abline(v = min_log2_expression, col = user_colours[1]) # Platform-specific log2-expression threshold
     }
-    printPlots(p, paste0("MA-Plot", combo[[1]], "_vs_", combo[[2]]))
+    printPlots(p, paste0("MA-Plot", combo[1], "_vs_", combo[2]))
   }
-
-
+  
+  
   # ---- Clustering ----
   log_info("Starting sample-wise hierarchical clustering for batch-effect detection...")
   # Matrix Transpose t() is used because dist() computes the distances between
   # the ROWS of a matrix
   # Distance matrix (NOTE: t(expression_set) is coerced to matrix)
-  expression_set |> t() |> dist() |> hclust(method = "ward.D2") ->
+  expression_set |> t() |> dist() |> hclust(method = "ward.D") ->
     hierarchical_clusters
 
   printPlots(\(){plot(hierarchical_clusters)}, "Dendrogram")
   # Desired number of clusters
   # TODO : Should this be an option?
   nr_shown_clusters = 6
-
+  
   p <- function() {
     plot(hierarchical_clusters)
     # Red borders around the kNum clusters 
@@ -321,7 +312,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   log_info("Finished with hierarchical clustering.")
   pitstop("Maybe check the plots and come back?")
   
-
+  
   # ---- PCA ----
   # Performed on Samples for Batch-Effect Detection
   log_info("Performing PCA to detect batch sampling...")
@@ -353,7 +344,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   
   # ---- SD vs Mean Plot ----
   # Poisson Hypothesis Check
-  log_info("Using Poisson to produce a SD vs Mean plot...")
+  log_info("Building SD_vs_Mean plot...")
   
   # Un-log intensity values
   log_info("Returning to linear intensities...")
@@ -403,7 +394,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
     par(mfrow = c(1, length(unique_simple_groups)+1))
     X.max = max(..means_frame, na.rm = TRUE)
     Y.max = max(..sd_matrix, na.rm = TRUE)
-    for (group in unique_simple_groups) {
+    for (group in c(unique_simple_groups, "Global")) {
       
       plot(..means_frame[[group]], ..sd_matrix[[group]],
            xlab = "Mean", ylab = "SD",
@@ -414,7 +405,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
     }
     par(mfrow = c(1, 1))
   }
-  printPlots(p, "SD_vs_Mean Plot") # Save just the 'Global' one
+  printPlots(p, "SD_vs_Mean Plot")
   
   # ---- Filtering ----
   # Eliminate Low-Intensity Probes
@@ -424,12 +415,11 @@ GATTACA <- function(options.path, input.file, output.dir) {
   ..group_sizes <- table(experimental_design$groups)
   
   # 'ceiling' to be more stringent than 'round'
-  ..min_presences = ceiling(..group_sizes * ..min_groupwise_presence) 
-  ## NOTE :: I have NO idea why it doesn't work without the ending [1]...
+  ..min_presences = ceiling(..group_sizes * ..min_groupwise_presence)
   log_info(paste0(
     "Filtering with a minimum groupwise presence of ", ..min_groupwise_presence,
-    " and groupwise sizes of ", paste(..group_sizes, collapse = ", ") 
-  )[1])
+    " and groupwise sizes of ", paste(..group_sizes, collapse = ", ")
+    ))
   
   # Filtering Table
   log_info("Making filtering report ...")
@@ -439,7 +429,6 @@ GATTACA <- function(options.path, input.file, output.dir) {
     ..min_presences, round(100*(..min_presences/..group_sizes), 2)
   )
   colnames(..filtering_table_report) = c("Group_Size", "Min_Presence", "Rounded", "Actual %")
-  rownames(..filtering_table_report) = unique_simple_groups
   ..min_presence_msg = paste0(
     "Minimum gene presence per group = ", ..min_groupwise_presence*100,
     "% of the samples."
@@ -501,9 +490,9 @@ GATTACA <- function(options.path, input.file, output.dir) {
     "Filtering Report:", "=================", "Surviving Genes:",
     paste0(capture.output(print(..nr_kept_genes)), collapse = "\n"),
     "Percentage:",
-    paste0(capture.output(print(..nr_kept_genes / nrow(expression_set) * 100)), collapse = "\n"),
-    sep = "\n"
-  )
+    paste0(capture.output(print(..nr_kept_genes / nrow(expression_set) * 100)),
+           collapse = "\n"), sep = "\n"
+    )
 
   # We keep all rows where the gene passed the test in at least one group
   ..truth_dataframe |> apply(1, any) -> ..truth_key
@@ -514,9 +503,9 @@ GATTACA <- function(options.path, input.file, output.dir) {
   report <- paste(
     report, "\nOriginal size (row, col):",
     paste(..old_dims, collapse = ", "),
-    "Final size (row, col):", 
+    "\nFinal size (row, col):", 
     paste(dim(expression_set), collapse = ", "),
-    "% obs retained: ",
+    "\n% obs retained: ",
     round(nrow(expression_set) / ..old_dims[1] * 100, 3), "%"
     )
   
@@ -534,7 +523,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
     pitstop("")
 
     # Differential Expression Assessment and Figure Production
-    log_info("Running differential expression analysis in paired mode.")
+    log_info("Running differential expression analysis by limma.")
 
     log_info("Making limma design matrix...")
     
@@ -550,9 +539,10 @@ GATTACA <- function(options.path, input.file, output.dir) {
       colnames(..limma_design) <- c(..groups_levels, ..pairings_levels)
     } else {
       ..limma_design <- model.matrix(~ 0 + experimental_design$groups)
-      colnames(..limma_design) <- unique_simple_groups
+      ..limma_design[,order(colnames(..limma_design))]
+      colnames(..limma_design) <- unique_simple_groups[order(unique_simple_groups)]
     }
-
+    
     log_info(paste0("Design matrix:\n", paste(
       capture.output(print(..limma_design)), collapse = "\n"
     )))
@@ -680,13 +670,13 @@ GATTACA <- function(options.path, input.file, output.dir) {
     }
     
     # MA-Plot with DEGs
-    log_info("Making Limma MA plots...")
+    log_info("Making Limma MA-Plots...")
     # I cannot place a progress bar here as `printPlots` logs to stdout.
     for (i in seq_along(raw_contrasts)) {
       # Mark in red/blue all the up-/down- regulated genes (+1/-1 in 'results.limma' matrix)
       p <- function() {
         plotMD(
-          expression_set, status = results.limma[,i],
+          ..limma_Bayes, status = results.limma[,i],
           values = c(1,-1), hl.col = user_colours[c(2,1)],
           xlab = "A (Average log-expression)",
           ylab = "M (log2-Fold-Change)"
