@@ -63,6 +63,102 @@ graceful_load(c(
 # Why does R allow this?
 dp_select <- dplyr::select
 
+#' Run groupwise filtering on expression data.
+#' 
+#' The expression data *must* be named with colnames starting with the same
+#' groups `groups`, for example by using `make.names(groups)`.
+#' 
+#' The data is filtered by keeping genes that are expressed more than
+#' `expression_threshold` in at least `min_groupwise_presence` samples in
+#' at least one group.
+#' 
+#' @param expression_set A data.frame with the data to be filtered.
+#' @param groups A vector with the group names that correspond to the columns
+#'   in the `expression_set`.
+#' @param min_groupwise_presence The minimum groupwise presence used to filter.
+#' @param expression_threshold The log2 expression treshold to use to consider
+#'   a gene to be sufficiently expressed in a sample.
+#'
+#' @returns A data.frame with the filtered data.
+filter_expression_data <- function(
+  expression_set, groups, min_groupwise_presence, expression_threshold
+) {
+  log_info(
+    "Filtering a ", ncol(expression_set), " cols by ", nrow(expression_set),
+    " rows expression set."
+  )
+
+  original_dims <- dim(expression_set)
+
+  report <- paste(
+    "Initial dims: ", ncol(expression_set), " cols by ", original_dims[1], " rows",
+    "\nMin presence per group: ", min_groupwise_presence,
+    "\nExpression threshold (log2): ", expression_threshold
+    )
+
+  log_debug(
+    "Raw colnames:", paste(colnames(expression_set), collapse = ", "),
+    "\nGroups:", paste(groups, collapse = ", ")
+  )
+
+  group_sizes <- table(groups)
+  min_presences <- ceiling(group_sizes * min_groupwise_presence)
+
+  table_report <- data.frame(
+    groups = names(group_sizes),
+    sizes = as.vector(group_sizes),
+    min_presence = as.vector(round(group_sizes * min_groupwise_presence, 2)),
+    actual_min_presence = as.vector(min_presences)
+  )
+
+  report <- paste(report, get.print.str(table_report), sep = "\n")
+
+  # To filter, we do three things. First, we look at the data and split it
+  # groupwise. Secondly, we apply to each split, row-wise, a function that
+  # gives us TRUE if at least `min_presence` columns have expression over
+  # `expression_treshold` expression. We save these vectors into a data frame,
+  # the `truth_dataframe`, with a col for each group. Finally, we collapse
+  # this dataframe to a single truth key, with one entry per row, by applying
+  # `any` row-wise, thus keeping an entry if the function described above is
+  # true in at least one group.
+  truth_dataframe <- data.frame(row.names = rownames(expression_set))
+
+  for (group in unique(groups)) {
+    # I cannot use "filter" as we first need to compare all cols to see if
+    # the rowwise test passes, and only then we can filter.
+    filter_fun <- function(frame) {
+      kOverA_filter <- kOverA(min_presences[[group]], expression_threshold)
+      frame |> apply(MARGIN = 1, FUN = kOverA_filter) ->
+        filter_key
+      return(filter_key)
+    }
+    
+    expression_set |> dp_select(starts_with(group)) |> filter_fun() ->
+      truth_dataframe[[group]]
+  }
+
+  truth_dataframe |> apply(2, sum) -> nr_kept_genes
+  report <- paste(
+    report, "--------------\nRetained genes:", get.print.str(nr_kept_genes),
+    "Percentage:", get.print.str(nr_kept_genes / original_dims[1] * 100),
+    sep = "\n"
+  )
+
+  truth_dataframe |> apply(1, any) -> truth_key
+  expression_set <- expression_set[truth_key, ]
+
+  report <- paste(
+    report,
+    paste("-----------\nFiltered dims:", ncol(expression_set), "cols by ", nrow(expression_set), "rows"),
+    paste("Percentage retained genes:", nrow(expression_set) / original_dims[1] * 100),
+    sep = "\n"
+    )
+  
+  log_info(report)
+  return(expression_set)
+}
+
+
 GATTACA <- function(options.path, input.file, output.dir) {
   # This function is so long, a description wouldn't fit here.
   # Refer to the project's README.
@@ -419,113 +515,12 @@ GATTACA <- function(options.path, input.file, output.dir) {
   printPlots(p, "SD_vs_Mean Plot") # Save just the 'Global' one
   
   # ---- Filtering ----
-  # Eliminate Low-Intensity Probes
-  log_info("Startig filtering steps...")
-  # Minimum gene presence per group - Default=0.80
-  ..min_groupwise_presence = opts$design$filters$min_groupwise_presence
-  ..group_sizes <- table(experimental_design$groups)
-  
-  # 'ceiling' to be more stringent than 'round'
-  ..min_presences = ceiling(..group_sizes * ..min_groupwise_presence) 
-  ## NOTE :: I have NO idea why it doesn't work without the ending [1]...
-  log_info(paste0(
-    "Filtering with a minimum groupwise presence of ", ..min_groupwise_presence,
-    " and groupwise sizes of ", paste(..group_sizes, collapse = ", ") 
-  )[1])
-  
-  # Filtering Table
-  log_info("Making filtering report ...")
-  # Cast to matrix
-  ..filtering_table_report = cbind(
-    ..group_sizes, ..group_sizes * ..min_groupwise_presence,
-    ..min_presences, round(100*(..min_presences/..group_sizes), 2)
+
+  expression_set <- filter_expression_data(
+    expression_set, groups = experimental_design$groups,
+    min_groupwise_presence = opts$design$filters$min_groupwise_presence,
+    expression_threshold = min_log2_expression
   )
-  colnames(..filtering_table_report) = c("Group_Size", "Min_Presence", "Rounded", "Actual %")
-  rownames(..filtering_table_report) = unique_simple_groups
-  ..min_presence_msg = paste0(
-    "Minimum gene presence per group = ", ..min_groupwise_presence*100,
-    "% of the samples."
-    )
-  log_info(..min_presence_msg)
-  printdata(..filtering_table_report)
-
-  if (write_data_to_disk) {
-    log_info("Saving filtering report...")
-    filtering_report_name <- "filtering_report.txt"
-    
-    .write_to_report <- function(string, append = TRUE) {
-      write(string, append = append, filtering_report_name)
-    }
-    
-    "Filtering Summary File\n======================\n" |> .write_to_report(append = FALSE)
-    paste0("Presence threshold min_log2_expression = ", min_log2_expression) |>
-      .write_to_report()
-    ..min_presence_msg |> .write_to_report()
-
-    suppressWarnings(
-      write.table(
-        ..filtering_table_report, filtering_report_name,
-        sep = "\t", append = TRUE,
-        col.names = TRUE, row.names = TRUE,
-        quote = FALSE
-      )
-    )
-  
-    log_info(paste0("'Filtering Report.txt' has been saved in", output.dir))
-  }
-  pitstop("Does the filtering report look ok? If so, continue.")
-
-  log_info("Running Filtering...")
-  # Above min_log2_expression value in at least kSize samples out of grSize (kFac*100 % - Default=80%)...
-  # Store values using matrices
-
-  ..truth_dataframe <- data.frame(row.names = rownames(expression_set))
-  for (group in unique_simple_groups) {
-    # I cannot use "filter" as we first need to compare all cols to see if
-    # the rowwise test passes, and only then we can filter.
-    filter_fun <- function(frame) {
-      kOverA_filter <- kOverA(..min_presences[[group]], min_log2_expression)
-      frame |> apply(MARGIN = 1, FUN = kOverA_filter) ->
-        filter_key
-      return(filter_key)
-    }
-    
-    expression_set |> dp_select(starts_with(group)) |> filter_fun() ->
-      ..truth_dataframe[[group]]
-  }
-  
-  # truth_dataframe has FALSE where the genes need to be dropped,
-  # so we need to use `complete_cases` later.
-  
-  ..truth_dataframe |> apply(2, sum) -> ..nr_kept_genes
-
-  report = paste(
-    "Filtering Report:", "=================", "Surviving Genes:",
-    paste0(capture.output(print(..nr_kept_genes)), collapse = "\n"),
-    "Percentage:",
-    paste0(capture.output(print(..nr_kept_genes / nrow(expression_set) * 100)), collapse = "\n"),
-    sep = "\n"
-  )
-
-  # We keep all rows where the gene passed the test in at least one group
-  ..truth_dataframe |> apply(1, any) -> ..truth_key
-  
-  ..old_dims <- dim(expression_set)
-  expression_set <- expression_set[..truth_key, ]
-  
-  report <- paste(
-    report, "\nOriginal size (row, col):",
-    paste(..old_dims, collapse = ", "),
-    "Final size (row, col):", 
-    paste(dim(expression_set), collapse = ", "),
-    "% obs retained: ",
-    round(nrow(expression_set) / ..old_dims[1] * 100, 3), "%"
-    )
-  
-  log_info(report)
-  if (write_data_to_disk) {
-    paste("\n", report, sep = "") |> .write_to_report()
-  }
 
   log_info("Done filtering.")
 
