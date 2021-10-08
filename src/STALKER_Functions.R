@@ -22,16 +22,16 @@
 #' @param folderPrefixprefix for naming the saving subfolder
 #'   (defaults to `scriptName` option)
 #' @param PNG If true, print the plot to PNG format. Defaults to `save.PNG.plot`
-#'   option or TRUE (if NULL).
+#'   option or TRUE.
 #' @param PDF If true, print the plot to PDF format. Defaults to `save.PDF.plot`
-#'   option or TRUE (if NULL).
+#'   option or TRUE.
 #' @param plot.width Width of the plot. Defaults to `plot.width` option or 820.
 #' @param plot.height Height of the plot. Defaults to `plot.height` option or 600.
 #' @param enumerate_plots If true, plots will be enumerated (a progressive 
 #'   number is inserted at the start of their filename). Defaults to the
 #'   `enumerate.plots` option or FALSE.
 #' 
-#' @author FeAR
+#' @author FeAR, mrhedmad
 printPlots = function(
   plotfun,
   figureName,
@@ -41,22 +41,6 @@ printPlots = function(
   png_ppi = getOption("png_ppi"),
   enumerate = getOption("enumerate.plots", FALSE)
   ) {
-
-  # Check argument values
-  # NOTE: considering that getOption("...") returns NULL for undefined arguments,
-  #       IFs are evaluated only when:
-  #           the corresponding global option is not defined
-  #             AND
-  #           no argument is passed runtime
-  if (is.null(PNG)) { 
-    PNG = TRUE
-    log_warn("save.PNG.plot option defaulted to TRUE")
-  }
-  if (is.null(PDF)) {
-    PDF = TRUE
-    log_warn("save.PDF.plot option defaulted to TRUE")
-  }
-
   if (enumerate) {
     figureName <- paste0(..PRINTPLOT_COUNTER, "_", figureName)
     # The <<- is important

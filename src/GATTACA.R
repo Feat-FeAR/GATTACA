@@ -319,15 +319,21 @@ GATTACA <- function(options.path, input.file, output.dir) {
   pitstop("")
 
 
-  # ---- Preliminary Boxplots ----
-  # Distribution Inspection to Spot Non-Logarithmic Data
-  printPlots(\() {boxplot(expression_set, las = 2)}, "Raw boxpot")
-  printPlots(\() {plotDensities(expression_set, legend = FALSE)}, "Raw density")
-  
-
   # ---- Normalization ----
   # After-RMA 2nd Quantile Normalization
   if (opts$switches$renormalize) {
+    # Print boxplot before normalixation
+    printPlots(\() {
+      boxplot(
+        expression_set, las = 2, col = user_colours,
+        main = "Expression values per sample", ylab = "log2 (intesity)"
+      )
+    }, "Pre-normalization boxpot")
+    printPlots(\() {
+      plotDensities(
+        expression_set, legend = FALSE, main = "Expression values per sample"
+      )
+    }, "Pre-normalization density")
     expression_set <- qq_normalize(expression_set)
   }
 
@@ -354,10 +360,13 @@ GATTACA <- function(options.path, input.file, output.dir) {
   printPlots(function(){plotMD(expression_set, column = 1)}, "Mean-Difference Plot")
   
   for (combo in combn(unique_simple_groups, 2, simplify = FALSE)) {
-    expression_set |> group_by(across(starts_with(combo[[1]]))) |>
+    print(combo)
+    expression_set |> dp_select(starts_with(combo[[1]])) |>
       rowMeans() -> group1
-    expression_set |> group_by(across(starts_with(combo[[2]]))) |>
+    expression_set |> dp_select(starts_with(combo[[2]])) |>
       rowMeans() -> group2
+
+    print(head(group1)) ; print(head(group2))
 
     p <- function() {
       maplot(
@@ -372,7 +381,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
       abline(h = c(1,-1), col = user_colours[1])
       abline(v = min_log2_expression, col = user_colours[1]) # Platform-specific log2-expression threshold
     }
-    printPlots(p, paste0("MA-Plot", combo[[1]], "_vs_", combo[[2]]))
+    printPlots(p, paste0("MA_Plot_", combo[[1]], "_vs_", combo[[2]]))
   }
 
 
@@ -419,11 +428,21 @@ GATTACA <- function(options.path, input.file, output.dir) {
   printPlots(\(){print(screeplot(PCA_object))}, "Scree Plot")
 
   p <- function() {
-    suppressMessages(print(biplot(PCA_object, colby = "groups", colkey = user_colours)))
+    suppressMessages(print(
+      biplot(
+        PCA_object, colby = "groups", colkey = user_colours,
+        title = "Principal Component Analysis"
+      )
+    ))
   }
   printPlots(p, "PCA")
   p <- function() {
-    suppressMessages(print(pairsplot(PCA_object, colby = "groups", colkey = user_colours)))
+    suppressMessages(print(
+      pairsplot(
+        PCA_object, colby = "groups", colkey = user_colours,
+        title = "Paired PCA Plots"
+      )
+    ))
   }
   printPlots(p, "PCA Pairs")
   pitstop(paste0(
@@ -483,14 +502,13 @@ GATTACA <- function(options.path, input.file, output.dir) {
     par(mfrow = c(1, length(unique_simple_groups)+1))
     X.max = max(..means_frame, na.rm = TRUE)
     Y.max = max(..sd_matrix, na.rm = TRUE)
-    for (group in unique_simple_groups) {
-      
+    for (group in c(unique_simple_groups, "Global")) {
       plot(..means_frame[[group]], ..sd_matrix[[group]],
            xlab = "Mean", ylab = "SD",
            xlim = c(0, X.max), ylim = c(0, Y.max),
-           pch = 20, cex = 0.1)
+           pch = 20, cex = 0.5)
       title(main = group)
-      mtext(side = 3, paste("Corr =", toString(round(..sd_matrix[[group]], digits = 5))))
+      mtext(side = 3, paste("Corr =", toString(round(..correlation_vector[[group]], digits = 5))))
     }
     par(mfrow = c(1, 1))
   }
