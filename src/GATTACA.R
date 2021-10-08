@@ -329,7 +329,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   if (opts$switches$renormalize) {
     expression_set <- qq_normalize(expression_set)
   }
-  
+
 
   # ---- MA-Plot & Box-Plot ----
   # Normalization Final Check with Figure Production
@@ -531,9 +531,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
       colnames(..limma_design) <- unique_simple_groups
     }
 
-    log_info(paste0("Design matrix:\n", paste(
-      capture.output(print(..limma_design)), collapse = "\n"
-    )))
+    log_info("Design matrix:\n", get.print.str(..limma_design))
 
     log_info("Making contrasts matrix...")
     makeContrasts(
@@ -541,9 +539,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
       levels = ..limma_design
     ) -> ..contrast_matrix
 
-    log_info(paste0("Contrasts matrix:\n", paste(
-      capture.output(print(..contrast_matrix)), collapse = "\n"
-    )))
+    log_info("Contrasts matrix:\n", get.print.str(..contrast_matrix))
 
     log_info("Computing contrasts...")
     lmFit(expression_set, ..limma_design) -> ..limma_fit
@@ -664,7 +660,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
       # Mark in red/blue all the up-/down- regulated genes (+1/-1 in 'results.limma' matrix)
       p <- function() {
         plotMD(
-          expression_set, status = results.limma[,i],
+          ..limma_Bayes, status = results.limma[,i],
           values = c(1,-1), hl.col = user_colours[c(2,1)],
           xlab = "A (Average log-expression)",
           ylab = "M (log2-Fold-Change)"
