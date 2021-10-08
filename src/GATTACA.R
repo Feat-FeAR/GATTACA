@@ -170,16 +170,6 @@ GATTACA <- function(options.path, input.file, output.dir) {
   pitstop <- pitstop.maker(opts$general$slowmode)
   printdata <- printif.maker(opts$general$show_data_snippets, topleft.head)
   
-  # Setup logging facilities
-  start.timedate <- gsub(" ", "_", date())
-  log.target <- if (is.null(opts$general$log_name)) {
-    file.path(output.dir, paste0("GATTACA_", start.timedate, ".log"))
-  } else {
-    file.path(output.dir, opts$general$log_name)
-  }
-  file.create(log.target)
-  log_appender(appender_tee(log.target))
-  
   log_info("Parsed options.")
   
   # ---- Move to output.dir ----
@@ -337,16 +327,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   # ---- Normalization ----
   # After-RMA 2nd Quantile Normalization
   if (opts$switches$renormalize) {
-    log_info("Renormalizing data...")
-    ..renormalized_data = normalize.quantiles(as.matrix(expression_set))
-    ..renormalized_data = as.data.frame(..renormalized_data)
-    # We need to restore the labels as before
-    rownames(..renormalized_data) = rownames(expression_set)
-    colnames(..renormalized_data) = colnames(expression_set)
-
-    expression_set <- ..renormalized_data
-    rm(..renormalized_data)
-    log_info("Renormalization complete.")
+    expression_set <- qq_normalize(expression_set)
   }
   
 
@@ -612,7 +593,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
     # Summary of DEGs (you can change the Log2-Fold-Change Threshold lfc...)
     results.limma = decideTests(
       ..limma_Bayes, adjust.method = "BH", p.value = 0.05,
-      lfc = opts$design$filters$fold_change
+      lfc = thrFC
     )
     p <- function() {
       vennDiagram(results.limma)

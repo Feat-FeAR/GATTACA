@@ -640,3 +640,19 @@ graceful_load <- function(packages) {
   close(progress)
   log_debug("Finished loading packages")
 }
+
+#' Run quantile-quantile normalization on an expression dataset.
+#' 
+#' The qq normalization is really powerful, but may distort results.
+#' 
+#' @param expression_set The set to normalize.
+qq_normalize <- function(expression_set) {
+  log_info("Running quantile-quantile normalization...")
+  expression_set |> as.matrix() |> normalize.quantiles() |> as.data.frame() ->
+    normalized_data
+  
+  rownames(normalized_data) <- rownames(expression_set)
+  colnames(normalized_data) <- colnames(expression_set)
+
+  return(normalized_data)
+}
