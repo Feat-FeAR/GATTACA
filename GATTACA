@@ -129,7 +129,7 @@ function _gattaca_run_init {
     done
 
     if test $# -eq 1; then
-        target_path=$1
+        target_path="$1"
     elif test $# -eq 0; then
         >&2 echo "Missing required argument '<file_path>'"
         exit 1
@@ -147,8 +147,8 @@ function _gattaca_run_init {
 
     docker run \
         --rm \
-        --mount type=bind,source=$target_mountpoint,target=/GATTACA/target \
-        mrhedmad/gattaca:$version \
+        --mount type=bind,source="$target_mountpoint",target=/GATTACA/target \
+        mrhedmad/gattaca:"$version" \
         "$(id -u)" "$(id -g)" \
         "unnamed", "INFO" \
         "init" "$target_name"
@@ -172,9 +172,9 @@ function _gattaca_run_run {
 
     # <output_dir> <input_file> <options_file>
     if test $# -eq 3; then
-        target_mountpoint=$(realpath $1)
-        input_path=$(realpath $2)
-        options_path=$(realpath $3)
+        target_mountpoint=$(realpath "$1")
+        input_path=$(realpath "$2")
+        options_path=$(realpath "$3")
     else
         >&2 echo "Wrong number of arguments: ${#} (expected 3)"
         exit 1
@@ -203,12 +203,12 @@ function _gattaca_run_run {
 
     docker run \
         -it --rm \
-        --mount type=bind,source=$target_mountpoint,target=/GATTACA/target \
-        --mount type=bind,source=$input_mountpoint,target=/GATTACA/input,readonly \
-        mrhedmad/gattaca:$version \
+        --mount type=bind,source="$target_mountpoint",target=/GATTACA/target \
+        --mount type=bind,source="$input_mountpoint",target=/GATTACA/input,readonly \
+        mrhedmad/gattaca:"$version" \
         "$(id -u)" "$(id -g)" \
-        "$log_name" $log_level \
-        "gattaca" $input_filename $options_filename
+        "$log_name" "$log_level" \
+        "gattaca" "$input_filename" "$options_filename"
 }
 
 function _gattaca_run_prepaffy {
@@ -250,12 +250,12 @@ function _gattaca_run_prepaffy {
     echo "Spooling up docker instance..."
     docker run \
         -it --rm \
-        --mount type=bind,source=$output_mountpoint,target=/GATTACA/target \
-        --mount type=bind,source=$input_mountpoint,target=/GATTACA/input,readonly \
-        mrhedmad/gattaca:$version \
+        --mount type=bind,source="$output_mountpoint",target=/GATTACA/target \
+        --mount type=bind,source="$input_mountpoint",target=/GATTACA/input,readonly \
+        mrhedmad/gattaca:"$version" \
         "$(id -u)" "$(id -g)" \
-        "$log_name" $log_level \
-        "prepaffy" $output_filename $remove_controls
+        "$log_name" "$log_level" \
+        "prepaffy" "$output_filename" "$remove_controls"
 }
 
 function _gattaca_run_annotate {
@@ -281,9 +281,9 @@ function _gattaca_run_annotate {
     # <input_file> <output_file> <chip_id>
 
     if test $# -eq 3; then
-        input_path=$(realpath $1)
-        target_path=$2
-        chip_id=$3
+        input_path=$(realpath "$1")
+        target_path="$2"
+        chip_id="$3"
     else
         >&2 echo "Wrong number of arguments: ${#} (expected 3)"
         exit 1
@@ -295,18 +295,18 @@ function _gattaca_run_annotate {
     output_filename=$(basename -- "$target_path")
     input_filename=$(basename -- "$input_path")
 
-    _gattaca_assert_is_file $input_path
+    _gattaca_assert_is_file "$input_path"
     
-    mkdir -p $target_mountpoint
+    mkdir -p "$target_mountpoint"
 
     docker run \
         -it --rm \
-        --mount type=bind,source=$target_mountpoint,target=/GATTACA/target \
-        --mount type=bind,source=$input_mountpoint,target=/GATTACA/input,readonly \
-        mrhedmad/gattaca:$version \
+        --mount type=bind,source="$target_mountpoint",target=/GATTACA/target \
+        --mount type=bind,source="$input_mountpoint",target=/GATTACA/input,readonly \
+        mrhedmad/gattaca:"$version" \
         "$(id -u)" "$(id -g)" \
-        "$log_name" $log_level \
-        "annotate" $input_filename $output_filename $chip_id $selections
+        "$log_name" "$log_level" \
+        "annotate" "$input_filename" "$output_filename" "$chip_id" "$selections"
 }
 
 function _gattaca_run_prepagil {
@@ -340,9 +340,9 @@ function _gattaca_run_prepagil {
     done
     
     if test $# -eq 3; then
-        input_dir=$(realpath $1)
-        target_path=$(realpath $2)
-        analysis_program=$3
+        input_dir=$(realpath "$1")
+        target_path=$(realpath "$2")
+        analysis_program="$3"
     else
         >&2 echo "Wrong number of arguments: ${#} (expected 3)"
         exit 1
@@ -351,19 +351,19 @@ function _gattaca_run_prepagil {
     target_mountpoint="$(dirname "$target_path")"
     output_filename=$(basename -- "$target_path")
 
-    _gattaca_assert_is_directory $input_dir
+    _gattaca_assert_is_directory "$input_dir"
     
     mkdir -p "$target_mountpoint"
     
     echo "Spooling up docker instance..."
     docker run \
         -it --rm \
-        --mount type=bind,source=$target_mountpoint,target=/GATTACA/target \
-        --mount type=bind,source=$input_dir,target=/GATTACA/input,readonly \
-        mrhedmad/gattaca:$version \
+        --mount type=bind,source="$target_mountpoint",target=/GATTACA/target \
+        --mount type=bind,source="$input_dir",target=/GATTACA/input,readonly \
+        mrhedmad/gattaca:"$version" \
         "$(id -u)" "$(id -g)" \
-        "$log_name" $log_level \
-        "prepagil" "$output_filename" $analysis_program "$grep_pattern" $green_only $remove_controls
+        "$log_name" "$log_level" \
+        "prepagil" "$output_filename" "$analysis_program" "$grep_pattern" "$green_only" "$remove_controls"
 }
 
 if [ $# == 0 ]; then
@@ -381,14 +381,14 @@ while test $# -gt 0; do
         ;;
         -v | --version)
             shift # Get rid of `-v`
-            version=$1
+            version="$1"
             ## TODO: Print out warnings for very old docker images that do 
             # not support some commands.
             shift
         ;;
         -l | --log-name)
             shift
-            log_name=$1
+            log_name="$1"
             shift
         ;;
         --verbose)
