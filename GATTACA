@@ -149,7 +149,6 @@ function _gattaca_run_init {
         --rm \
         --mount type=bind,source="$target_mountpoint",target=/GATTACA/target \
         mrhedmad/gattaca:"$version" \
-        "$(id -u)" "$(id -g)" \
         "unnamed", "INFO" \
         "init" "$target_name"
 
@@ -206,7 +205,6 @@ function _gattaca_run_run {
         --mount type=bind,source="$target_mountpoint",target=/GATTACA/target \
         --mount type=bind,source="$input_mountpoint",target=/GATTACA/input,readonly \
         mrhedmad/gattaca:"$version" \
-        "$(id -u)" "$(id -g)" \
         "$log_name" "$log_level" \
         "gattaca" "$input_filename" "$options_filename"
 }
@@ -253,7 +251,6 @@ function _gattaca_run_prepaffy {
         --mount type=bind,source="$output_mountpoint",target=/GATTACA/target \
         --mount type=bind,source="$input_mountpoint",target=/GATTACA/input,readonly \
         mrhedmad/gattaca:"$version" \
-        "$(id -u)" "$(id -g)" \
         "$log_name" "$log_level" \
         "prepaffy" "$output_filename" "$remove_controls"
 }
@@ -299,12 +296,12 @@ function _gattaca_run_annotate {
     
     mkdir -p "$target_mountpoint"
 
+    echo "Spooling up docker instance..."
     docker run \
         -it --rm \
         --mount type=bind,source="$target_mountpoint",target=/GATTACA/target \
         --mount type=bind,source="$input_mountpoint",target=/GATTACA/input,readonly \
         mrhedmad/gattaca:"$version" \
-        "$(id -u)" "$(id -g)" \
         "$log_name" "$log_level" \
         "annotate" "$input_filename" "$output_filename" "$chip_id" "$selections"
 }
@@ -361,7 +358,6 @@ function _gattaca_run_prepagil {
         --mount type=bind,source="$target_mountpoint",target=/GATTACA/target \
         --mount type=bind,source="$input_dir",target=/GATTACA/input,readonly \
         mrhedmad/gattaca:"$version" \
-        "$(id -u)" "$(id -g)" \
         "$log_name" "$log_level" \
         "prepagil" "$output_filename" "$analysis_program" "$grep_pattern" "$green_only" "$remove_controls"
 }

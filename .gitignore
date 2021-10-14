@@ -3,6 +3,7 @@ notes.txt
 
 # VsCode junk
 .vscode
+*.code-workspace
 
 # Accidental test files
 tests.*

@@ -138,7 +138,7 @@ get_remote_annotations <- function(
     stop(
       paste0(
         "Invalid selection(s): ",
-        paste(selection[!selections %in% possible_selections], collapse = ", "),
+        paste(selections[!selections %in% possible_selections], collapse = ", "),
         ". Possible selections: ",
         paste(possible_selections, collapse = ", "),
         "."
