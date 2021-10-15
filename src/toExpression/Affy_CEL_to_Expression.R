@@ -60,6 +60,12 @@ source(file.path(ROOT, "src", "annotator.R"))
 affy2expression <- function(
     input.folder, output.file, remove.controls = TRUE
     ) {
+  
+  paste0(
+    "Call (input.folder, output.file, remove.controls): ",
+    paste(input.folder, output.file, remove.controls, sep = " :: ")
+  ) |>
+    log_debug()
   # ---- Loading packages ----
   graceful_load(c(
     "oligo",
@@ -67,11 +73,6 @@ affy2expression <- function(
     "affycoretools"
   ))
 
-  print(paste0(
-    "Call: (in/out/rm) ",
-    input.folder, output.file,remove.controls, sep = " :: "
-  ))
-  
   # ---- Load .CEL files ----
   log_info("Looking for .CEL files...")
   setwd(input.folder)

@@ -34,6 +34,12 @@ agil2expression <- function (
   offset = 0,
   remove_controls = TRUE
 ) {
+  paste0(
+    "Call (input_dir, output_file, analysis_program, grep_pattern, offset, remove_controls): ",
+    paste(input_dir, output_file, analysis_program, grep_pattern, offset, remove_controls, sep = " :: ")
+  ) |>
+    log_debug()
+
   # Inputting data
   output_dir <- dirname(output_file)
   

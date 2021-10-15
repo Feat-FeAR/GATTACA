@@ -267,12 +267,11 @@ annotate_to_file <- function(
   chip_id, selections
 ) {
   paste0(
-    "Call: (exprpath/outputpath/chip/selections):\n",
-    paste(expression_data_path, output_path, chip_id, paste(selections, collapse = ", "),
-    sep = " :: ")
+    "Call (expression_data_path, output_path, chip_id, selections): ",
+    paste(expression_data_path, output_path, chip_id, paste(selections, sep = ", "), sep = " :: ")
   ) |>
-    print()
-  
+    log_debug()
+
   source(file.path(ROOT, "src", "STALKER_Functions.R"))
   
   log_info("Loading input data...")
