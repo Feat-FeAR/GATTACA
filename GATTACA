@@ -90,8 +90,6 @@ function _gattaca_help_prepagil {
     echo "Options:"
     echo "  -r | --remove-controls            If set, removes control probes from the expression data."
     echo "  -p | --grep-pattern <pattern>     The RegEx pattern to match input files with."
-    echo "  -g | --green-only                 If set, the input files are treated as having only the"
-    echo "                                    green channel."
 }
 
 
@@ -308,7 +306,6 @@ function _gattaca_run_annotate {
 
 function _gattaca_run_prepagil {
     grep_pattern="*.txt"
-    green_only="FALSE"
     remove_controls="FALSE"
     
      while test $# -gt 0; do
@@ -325,10 +322,6 @@ function _gattaca_run_prepagil {
                 shift
                 grep_pattern="$1"
                 shift
-            ;;
-            -g | --green-only)
-                shift
-                green_only="TRUE"
             ;;
             * )
                 break
@@ -359,7 +352,7 @@ function _gattaca_run_prepagil {
         --mount type=bind,source="$input_dir",target=/GATTACA/input,readonly \
         mrhedmad/gattaca:"$version" \
         "$log_name" "$log_level" \
-        "prepagil" "$output_filename" "$analysis_program" "$grep_pattern" "$green_only" "$remove_controls"
+        "prepagil" "$output_filename" "$analysis_program" "$grep_pattern" "$remove_controls"
 }
 
 if [ $# == 0 ]; then

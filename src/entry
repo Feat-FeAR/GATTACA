@@ -68,7 +68,7 @@ case "$order" in
             -e "source('/GATTACA/src/toExpression/Agilent_TXT_to_Expression.R')" \
             -e "setup_file_logging('/GATTACA/target', '${log_name}')" \
             -e "logger::log_threshold(${log_level})" \
-            -e "agil2expression('/GATTACA/input/', '${outputfile}', '${2}', grep_pattern='${3}', green_only=${4}, remove_controls=${5})"
+            -e "agil2expression('/GATTACA/input/', '${outputfile}', '${2}', grep_pattern='${3}', remove_controls=${4})"
         ;;
     *)
         echo "Unrecognized order: '${order}'"

@@ -138,7 +138,7 @@ Convert a collection of files from a variety of scanners for Agilent microarrays
 
 
 ### Command: `annotate`
-Annotate data created by these commands with annotations from a variety of databases present in bioconductor. The databases are downloaded at runtime to have the latest annotations.
+Annotate data created by these commands with annotations from a variety of databases present in bioconductor. The databases are downloaded at runtime to have the latest annotations. All bioconductor databases support the following fields: `ACCNUM`, `CHR`, `CHRLOC`, `CHRLOCEND`, `ENSEMBL`, `ENTREZID`, `ENZYME`, `GENENAME`, `GO`, `MAP`, `OMIM`, `PATH`, `PMID`, `REFSEQ`, `SYMBOL` and `UNIPROT`.
 
 The options are straightforward to understand (use `GATTACA annotate -h` to see them).
 

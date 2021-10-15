@@ -104,9 +104,9 @@ affy2expression <- function(
     # of summarization, "core" is the default option which use transcript
     # clusters containing "safely" annotated genes. For summarization on the
     # exon level (not recommended for Gene arrays), use "probeset".
-    expression_set = rma(affyRaw, target = "core")
+    expression_set = oligo::rma(affyRaw, target = "core")
   } else {
-    expression_set = rma(affyRaw)
+    expression_set = oligo::rma(affyRaw)
   }
   
   log_info(paste0("Dataset dimensions: ", dim(expression_set)[1], " probe sets x ",

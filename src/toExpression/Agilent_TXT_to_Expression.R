@@ -30,7 +30,7 @@ graceful_load(c("limma"))
 
 agil2expression <- function (
   input_dir, output_file, analysis_program,
-  grep_pattern="*.txt", green_only = FALSE,
+  grep_pattern="*.txt",
   offset = 0,
   remove_controls = TRUE
 ) {
@@ -47,7 +47,7 @@ agil2expression <- function (
   expression_data <- read.maimages(
     files = file.path(input_dir, raw_files),
     source = analysis_program,
-    green.only = green_only
+    green.only = TRUE
   )
   
   log_info("Finished inputting data.")
