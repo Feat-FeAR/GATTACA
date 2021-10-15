@@ -770,8 +770,8 @@ GATTACA <- function(options.path, input.file, output.dir) {
       log_info("Finding control and case groups...")
       ..unpacked_groups = strsplit(raw_contrasts[i], split = "-", fixed = TRUE)[[1]]
       
-      ..control_group <- ..unpacked_groups[1]
-      ..treated_group <- ..unpacked_groups[2]
+      ..control_group <- ..unpacked_groups[2]
+      ..treated_group <- ..unpacked_groups[1]
       
       expression_set |> dp_select(
         starts_with(..control_group) | starts_with(..treated_group)

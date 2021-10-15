@@ -49,16 +49,16 @@ switches:
 
 # DESIGN - Experimental design
 design:
-  # Define the experimental desing.
+  # Define the experimental design.
   # The experimental matrix describes which samples are of which group, and if
   # any samples are paired (such as being from the same patient).
   # NOTE :: The groups must NOT contain numbers. Sorry!
   # Read the README for a guide on how to define this.
   experimental_design: "(treated):2, (control):2" # str
-  # Select which experimental group pairs should be analised. Pass strings of the
-  # type "<group1>-<group2>" to see group1 vs group2 (group1 will be the 
-  # "control" condition).
-  contrasts: ["control-treated"] # list of str
+  # Select which experimental group pairs should be analysed. Pass strings of the
+  # type "<group1>-<group2>" to see group1 vs group2 (group2 will be the 
+  # reference).
+  contrasts: ["treated-control"] # list of str
   # Specify the colours that represent the groups above. Must cover all groups (or more)
   group_colors: [
     "cornflowerblue", "firebrick3", "olivedrab3",
