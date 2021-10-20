@@ -21,7 +21,7 @@ print(paste(
 ))
 for (package in packages) {
   print(paste("Installing package", current_package, "of", tot_packages, ":", package))
-  
+
   if (startsWith(package, "bioc::")) {
     package <- gsub("^bioc::", "", package)
     BiocManager::install(package)
