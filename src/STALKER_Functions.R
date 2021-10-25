@@ -817,7 +817,7 @@ mamaplot <- function(
 #' @author Hedmad
 get_better_mas <- function(
   x, y = NULL,
-  xlab = "M", ylab = "A",
+  xlab = "A", ylab = "M",
   title = "MA plot - {x} vs {y}",
   show_trend = TRUE,
   show_density = TRUE,
@@ -933,7 +933,7 @@ path_sanitize <- function(filename, replacement = "") {
 
 
 
-#' Sample data with the reservoir sampling algorythm
+#' Sample data with the reservoir sampling algorithm
 #'
 #' See https://en.wikipedia.org/wiki/Reservoir_sampling
 #' This is an <O(n) way to sample a dataset while keeping the same probability
