@@ -56,7 +56,8 @@ graceful_load(c(
   "ggplot2",          # Box Plot and Bar Chart with Jitter (already loaded by PCAtools)
   "RColorBrewer",     # Color Palette for R - display.brewer.all()
   "yaml",             # Yaml file parsing
-  "logger"           # Well, logging
+  "logger",           # Well, logging
+  "progress"          # Progress bars
 ))
 
 # The annotation DB loads after dplyr so the `select` function gets overwritten.
@@ -575,30 +576,34 @@ GATTACA <- function(options.path, input.file, output.dir) {
     pitstop("Next: Save all DEGs.")
 
     log_info("Getting Differential expressions...")
-    progress <- txtProgressBar(min = 0, max = length(raw_contrasts))
+    pb <- progress_bar$new(
+      format = "Generating... [:bar] :percent (:eta)",
+      total = length(raw_contrasts), clear = FALSE, width= 80)
+    pb$tick(0)
     DEGs.limma = list() # Create an empty list
     for (i in seq_along(raw_contrasts)) {
       DEGs.limma[[i]] = topTable(
         ..limma_Bayes, coef = i, number = Inf,
         adjust.method = "BH", sort.by = "B"
       ) # this is a list of Data Frames
-      setTxtProgressBar(progress, i)
+      pb$tick()
     }
-    close(progress)
 
     # Save full DEG Tables
     if (write_data_to_disk) {
       log_info("Saving Differential expression tables...")
-      progress <- txtProgressBar(min = 0, max = length(raw_contrasts))
+      pb <- progress_bar$new(
+        format = "Generating... [:bar] :percent (:eta)",
+        total = length(raw_contrasts), clear = FALSE, width= 80)
+      pb$tick(0)
       ..limma_output_expression <- DEGs.limma[[i]]
       ..limma_output_expression$probe_id <- rownames(..limma_output_expression)
       rownames(..limma_output_expression) <- NULL
       for (i in seq_along(raw_contrasts)) {
         degTabName = paste("Limma - DEG Table ", raw_contrasts[i], ".csv", sep = "")
         write.csv(..limma_output_expression, degTabName, row.names = FALSE, quote = FALSE)
-        setTxtProgressBar(progress, i)
+        pb$tick()
       }
-      close(progress)
       log_info(paste0("Saved tables in ", output.dir))
     }
     

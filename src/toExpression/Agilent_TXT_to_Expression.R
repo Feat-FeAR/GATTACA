@@ -26,26 +26,43 @@
 
 source(file.path(ROOT, "src", "STALKER_Functions.R"))
 
-graceful_load(c("limma"))
+graceful_load(c("limma", "progress"))
+
+set.seed(1) # This module uses random sampling
 
 agil2expression <- function (
   input_dir, output_file, analysis_program,
   grep_pattern="*.txt",
   offset = 0,
-  remove_controls = TRUE
+  remove_controls = TRUE,
+  plot.width = 16,
+  plot.heigth = 9,
+  use.pdf = TRUE
 ) {
   paste0(
-    "Call (input_dir, output_file, analysis_program, grep_pattern, offset, remove_controls): ",
-    paste(input_dir, output_file, analysis_program, grep_pattern, offset, remove_controls, sep = " :: ")
+    "Call (input_dir, output_file, analysis_program, grep_pattern, offset, remove_controls, plot.width, plot.heigth, use.pdf): ",
+    paste(input_dir, output_file, analysis_program, grep_pattern, offset, remove_controls, plot.width, plot.heigth, use.pdf, sep = " :: ")
   ) |>
     log_debug()
 
+  # Options for printPlots
+  # Set options for printPlots
+  options(
+    "scriptName" = "prepagil",
+    "save.PNG.plot" = !use.pdf,
+    "save.PDF.plot" = use.pdf,
+    "plot.width" = plot.width,
+    "plot.heigth" = plot.heigth
+  )
+
   # Inputting data
   output_dir <- dirname(output_file)
-  
+  setwd(output_dir)
+
   log_info("Finding input files matching pattern...")
   raw_files <- list.files(path = input_dir, pattern = grep_pattern)
-  
+  print(raw_files)
+
   log_info(
     paste("Found", length(raw_files), "input files:", paste(raw_files, collapse = ", "))
   )
@@ -55,21 +72,41 @@ agil2expression <- function (
     source = analysis_program,
     green.only = TRUE
   )
-  
+
+  # Print MA plots to diagnose the data.
+  print_data <- as.data.frame(expression_data$E)
+  colnames(print_data) <- raw_files
+  print_data <- log(print_data, 2)
+  if (nrow(print_data) > 100000) {
+    log_info("Reducing raw dataset...")
+    print_data <- reservoir_sample(print_data, 100000)
+  }
+  ma.plots <- get_better_mas(as.data.frame(print_data), title = "Raw probes MA plot - {x} vs Median of other samples")
+  for (plot in ma.plots) {
+    printPlots(\() { suppressMessages(print(plot)) }, plot$labels$title)
+  }
+  rm(print_data)
+
   log_info("Finished inputting data.")
-  
+
   # Normalization
   log_info("Running Normalization")
   log_info("Background correcting...")
   expression_data <- backgroundCorrect(expression_data, method = "normexp", offset = offset)
-  
+
   # This step also log2s the data
   log_info("Running interarray normalization...")
   expression_data = normalizeBetweenArrays(expression_data, method = "quantile")
-  
+
   expression_set <- expression_data$E
   log_info(paste("Final dataset dimensions - Cols:", ncol(expression_set), "Rows:", nrow(expression_set)))
-  
+
+  # Print MA plots to diagnose the data.
+  ma.plots <- get_better_mas(as.data.frame(expression_set), title = "Normalized MA plot - {x} vs Median of other samples")
+  for (plot in ma.plots) {
+    printPlots(\() { suppressMessages(print(plot)) }, plot$labels$title)
+  }
+
   if (remove_controls) {
     log_info("Filtering out control probes...")
     control_probes <- abs(expression_data$genes$ControlType) == 1
@@ -78,24 +115,24 @@ agil2expression <- function (
       "Found", sum(control_probes), "control probes,", control_probes_percent,
       "% of total probes. Removing them..."
     ))
-    
+
     expression_data <- expression_data[!control_probes, ]
     expression_set <- expression_data$E
     log_info(paste("Filtered dataset dimensions - Cols:", ncol(expression_set), "Rows:", nrow(expression_set)))
   }
-  
+
   log_info("Finding replicate probes and collapsing them...")
   # Replace value of replicate probes with their mean - Probe_ID is used to identify the replicates
   expression_data = avereps(expression_data,  ID = expression_data$genes$ProbeName)
-  
+
   expression_set <- expression_data$E
   log_info(paste("Final dataset dimensions - Cols:", ncol(expression_set), "Rows:", nrow(expression_set)))
-  
+
   expression_set <- as.data.frame(expression_set)
   colnames(expression_set) <- make.names(raw_files)
-  
+
   log_info("Saving output file...")
-  
+
   write_expression_data(expression_set, output_file)
-  
+
 }

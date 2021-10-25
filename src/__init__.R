@@ -38,3 +38,4 @@ if (!interactive()) {
 setwd(ROOT)
 
 suppressMessages(library(tidyverse))
+suppressMessages(library(progress))

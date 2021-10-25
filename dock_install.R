@@ -11,7 +11,19 @@ if (!requireNamespace("BiocManager", quietly = TRUE)) {
   install.packages("BiocManager")
 }
 
-packages <- read.table("/GATTACA/r_requirements.txt")[, 1]
+packages <- readLines("/GATTACA/r_requirements.txt")
+
+# Filter out comments and blank lines
+..is_valid_package <- function(x) {
+  if (x == "" | startsWith(x, "#")) {
+    return(FALSE)
+  } else {
+    return(TRUE)
+  }
+}
+
+packages <- trimws(packages, which = "both")
+packages <- packages[sapply(packages, ..is_valid_package)]
 
 tot_packages <- length(packages)
 current_package <- 1
@@ -24,7 +36,7 @@ for (package in packages) {
 
   if (startsWith(package, "bioc::")) {
     package <- gsub("^bioc::", "", package)
-    BiocManager::install(package)
+    BiocManager::install(package, update = FALSE)
   } else {
     install.packages(package)
   }

@@ -58,9 +58,10 @@ source(file.path(ROOT, "src", "STALKER_Functions.R"))
 source(file.path(ROOT, "src", "annotator.R"))
 
 affy2expression <- function(
-    input.folder, output.file, remove.controls = TRUE
+    input.folder, output.file, remove.controls = TRUE,
+    plot.width = 16, plot.heigth = 9, use.pdf = TRUE
     ) {
-  
+
   paste0(
     "Call (input.folder, output.file, remove.controls): ",
     paste(input.folder, output.file, remove.controls, sep = " :: ")
@@ -73,22 +74,40 @@ affy2expression <- function(
     "affycoretools"
   ))
 
+  # Set options for printPlots
+  options(
+    "scriptName" = "prepaffy",
+    "save.PNG.plot" = !use.pdf,
+    "save.PDF.plot" = use.pdf,
+    "plot.width" = plot.width,
+    "plot.heigth" = plot.heigth
+  )
+
   # ---- Load .CEL files ----
   log_info("Looking for .CEL files...")
+  output.folder <- dirname(output.file)
   setwd(input.folder)
-  
+
   celFiles = list.celfiles()
   paste0(
     "Found ", length(celFiles), " .CEL files: ", paste0(celFiles, collapse = ", ")
     ) |>
     log_info()
-  
+
   log_info("Parsing found files to raw data...")
   # This should also install-and-load the platform design package (e.g. pd.hg.u133a)
   affyRaw = read.celfiles(celFiles)
-  
+
+  # We can now move to where the plots will be saved.
+  setwd(output.folder)
+
   # Check Platform and set the exon.probes flag
   # This is done as newer platforms need different processing than old ones.
+  #
+  # The parameter 'target' (only for Gene ST and Exon ST) defines the degree
+  # of summarization, "core" is the default option which use transcript
+  # clusters containing "safely" annotated genes. For summarization on the
+  # exon level (not recommended for Gene arrays), use "probeset".
   platform <- affyRaw@annotation
   log_info(paste0("Detected platform: ", platform))
   if (platform %in% c("pd.hg.u133a", "pd.hg.u133b", "pd.hg.u133.plus.2")) {
@@ -98,21 +117,35 @@ affy2expression <- function(
   } else {
     stop("Invalid or unsupported platform")
   }
-  
+
+  log_info("Making MA plots before normalization...")
+  if (exon.probes) {
+    unnormalized_data <- oligo::rma(
+      affyRaw, target = "core", normalize = FALSE, background = FALSE
+    )
+  } else {
+    unnormalized_data <- oligo::rma(
+      affyRaw, normalize = FALSE, background = FALSE
+    )
+  }
+  # We need to transpose the data here
+  unnormalized_data |> exprs() |> as.data.frame() -> unnormalized_data
+  print(str(unnormalized_data))
+  ma.plots <- get_better_mas(unnormalized_data, title = "Unnormalized MA plot - {x} vs Median of other samples")
+  for (plot in ma.plots) {
+    printPlots(\() { suppressMessages(print(plot)) }, plot$labels$title)
+  }
+
   log_info("Running RMA normalization...")
   if (exon.probes) {
-    # The parameter 'target' (only for Gene ST and Exon ST) defines the degree
-    # of summarization, "core" is the default option which use transcript
-    # clusters containing "safely" annotated genes. For summarization on the
-    # exon level (not recommended for Gene arrays), use "probeset".
     expression_set = oligo::rma(affyRaw, target = "core")
   } else {
     expression_set = oligo::rma(affyRaw)
   }
-  
+
   log_info(paste0("Dataset dimensions: ", dim(expression_set)[1], " probe sets x ",
                   dim(expression_set)[2], " samples"))
-  
+
   if (remove.controls) {
     log_info("Removing control probes...")
     # Remove Affymetrix control probes
@@ -142,16 +175,16 @@ affy2expression <- function(
       log_warn("Detected some missing values in the dataset. Has something gone terribly wrong?")
     }
   }
-  
-  # Transposing this object is a pain. But `write.exprs` actually does what we
-  # need. So I do this badness.
+
   log_info("Transposing and extracting probe ids...")
-  temp <- tempfile()
-  on.exit(unlink(temp)) # This assures that the tempfile is deleted no matter what
-  write.exprs(expression_set, file = temp)
-  
-  transposed <- read.table(file = temp, row.names = 1)
-  
+  expression_set  |> exprs() |> as.data.frame() -> transposed
+
+  log_info("Making normalized MA plots...")
+  ma.plots <- get_better_mas(transposed, title = "Normalized MA plot - {x} vs Median of other samples")
+  for (plot in ma.plots) {
+    printPlots(\() { suppressMessages(print(plot)) }, plot$labels$title)
+  }
+
   log_info("Saving Expression Matrix to file...")
   write_expression_data(transposed, output.file)
   log_info("affy2expression finished")
