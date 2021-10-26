@@ -26,7 +26,7 @@
 
 source(file.path(ROOT, "src", "STALKER_Functions.R"))
 
-graceful_load(c("limma", "progress"))
+graceful_load(c("limma", "progress", "reshape2"))
 
 set.seed(1) # This module uses random sampling
 
@@ -101,6 +101,21 @@ agil2expression <- function (
     maplot <- ma.plots[[i]]
     printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
   }
+
+  log_info("Making overall boxplot")
+  p <- function(){
+    bplot <- ggplot(data = melt(print_data), aes(y = value, x = variable)) +
+      geom_boxplot(outlier.alpha = 0.5, outlier.size = 1) +
+      theme_bw() +
+      scale_x_discrete(
+        labels = 1:length(print_data)
+      ) +
+      ylab("Expression") + xlab("Sample") +
+      ggtitle("Unnormalized Boxplots")
+    print(bplot)
+  }
+  printPlots(suppressMessages(p), "Unnormalized Boxplots")
+
   rm(print_data)
 
   log_info("Finished inputting data.")
@@ -132,6 +147,20 @@ agil2expression <- function (
     maplot <- ma.plots[[i]]
     printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
   }
+
+  log_info("Making overall boxplot")
+  p <- function(){
+    bplot <- ggplot(data = melt(as.data.frame(expression_set)), aes(y = value, x = variable)) +
+      geom_boxplot(outlier.alpha = 0.5, outlier.size = 1) +
+      theme_bw() +
+      scale_x_discrete(
+        labels = 1:length(as.data.frame(expression_set))
+      ) +
+      ylab("Expression") + xlab("Sample") +
+      ggtitle("Normalized Boxplots")
+    print(bplot)
+  }
+  printPlots(suppressMessages(p), "Normalized Boxplots")
 
   if (remove_controls) {
     log_info("Filtering out control probes...")

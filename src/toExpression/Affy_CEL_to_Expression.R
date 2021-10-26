@@ -71,7 +71,8 @@ affy2expression <- function(
   graceful_load(c(
     "oligo",
     "limma",
-    "affycoretools"
+    "affycoretools",
+    "reshape2"
   ))
 
   # Set options for printPlots
@@ -118,6 +119,7 @@ affy2expression <- function(
     stop("Invalid or unsupported platform")
   }
 
+  # Making plots for quality control
   log_info("Making MA plots before normalization...")
   if (exon.probes) {
     unnormalized_data <- oligo::rma(
@@ -128,7 +130,7 @@ affy2expression <- function(
       affyRaw, normalize = FALSE, background = FALSE
     )
   }
-  # We need to transpose the data here
+
   unnormalized_data |> exprs() |> as.data.frame() -> unnormalized_data
   ma.plots <- get_better_mas(
     unnormalized_data,
@@ -151,7 +153,23 @@ affy2expression <- function(
     maplot <- ma.plots[[i]]
     printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
   }
+
+  log_info("Making overall boxplot")
+  p <- function(){
+    bplot <- ggplot(data = melt(unnormalized_data), aes(y = value, x = variable)) +
+      geom_boxplot(outlier.alpha = 0.5, outlier.size = 1) +
+      theme_bw() +
+      scale_x_discrete(
+        labels = 1:length(unnormalized_data)
+      ) +
+      ylab("Expression") + xlab("Sample") +
+      ggtitle("Unnormalized Boxplots")
+    print(bplot)
+  }
+  printPlots(suppressMessages(p), "Unnormalized Boxplots")
+
   rm(unnormalized_data)
+  # Done making plots
 
   log_info("Running RMA normalization...")
   if (exon.probes) {
@@ -193,7 +211,7 @@ affy2expression <- function(
     }
   }
 
-  expression_set  |> exprs() |> as.data.frame() -> transposed
+  expression_set |> exprs() |> as.data.frame() -> transposed
 
   ma.plots <- get_better_mas(transposed, title = "Normalized MA plot - {x} vs Median of other samples")
   log_info("Finding plot scores...")
@@ -208,6 +226,20 @@ affy2expression <- function(
     maplot <- ma.plots[[i]]
     printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
   }
+
+  log_info("Making overall boxplot")
+  p <- function(){
+    bplot <- ggplot(data = melt(transposed), aes(y = value, x = variable)) +
+      geom_boxplot(outlier.alpha = 0.5, outlier.size = 1) +
+      theme_bw() +
+      scale_x_discrete(
+        labels = 1:length(transposed)
+      ) +
+      ylab("Expression") + xlab("Sample") +
+      ggtitle("Normalized Boxplots")
+    print(bplot)
+  }
+  printPlots(suppressMessages(p), "Normalized Boxplots")
 
   log_info("Saving Expression Matrix to file...")
   write_expression_data(transposed, output.file)
