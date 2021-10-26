@@ -973,6 +973,22 @@ reservoir_sample <- function(data, k) {
 }
 
 
+#' Compute the binned mean of a vector.
+#'
+#' Bins the data in the vector into equally-sized bins following the order of
+#' bin_by. Then calculates the mean value in each bin, and returns the resulting
+#' vector. If `bin_by` is NULL, uses the data instead to calculate bins.
+#'
+#' May result in `NA`s if there are some bins with no numbers inside of them.
+#'
+#' @param x A numeric vector with the data to bin
+#' @param bin_by Either `NULL` or a numeric vector of the same size of `x` that
+#'   will be used to bin by.
+#' @param n_bins The number of bins to divide the data in.
+#'
+#' @returns A numeric vector of length `n_bins` with the binned means.
+#'
+#' @author Hedmad
 bin_mean <- function(x, bin_by = NULL, n_bins = 10) {
   if (is.null(bin_by)) {
     bin_by = x
@@ -991,6 +1007,19 @@ bin_mean <- function(x, bin_by = NULL, n_bins = 10) {
   return(data)
 }
 
+#' Computes the "badness" score of a mamaplot object
+#'
+#' The badness score is how non-linear the data is. It also takes into account
+#' the distance from zero. It is computed by fitting a GAM to the data,
+#' generating predictions from the function, and getting the mean of the
+#' predictions. The predictions are beforehand binned to prevent really dense
+#' regions of the prediction to affect the score.
+#'
+#' @param mamaplot_obj The mamaplot to compute the statistics for
+#'
+#' @returns A numeric value representing how bad the distribution is.
+#'
+#' @author Hedmad
 get_mamaplot_score <- function(mamaplot_obj) {
   plot_data <- suppressMessages(layer_data(mamaplot_obj)[, c("x", "y")])
   # The plot_data variable contains the a values in the x slot and the m
@@ -1007,6 +1036,8 @@ get_mamaplot_score <- function(mamaplot_obj) {
   return(score)
 }
 
+
+#' Test if the input is a whole number (see `?is.integer`)
 is.wholenumber <- function(x, tol = .Machine$double.eps^0.5) {
   return(abs(x - round(x)) < tol)
 }
