@@ -59,9 +59,9 @@ source(file.path(ROOT, "src", "annotator.R"))
 
 affy2expression <- function(
     input.folder, output.file, remove.controls = TRUE,
-    plot.width = 16, plot.heigth = 9, use.pdf = TRUE
+    plot.width = 16, plot.heigth = 9, use.pdf = TRUE,
+    n_plots = Inf
     ) {
-
   paste0(
     "Call (input.folder, output.file, remove.controls): ",
     paste(input.folder, output.file, remove.controls, sep = " :: ")
@@ -130,11 +130,28 @@ affy2expression <- function(
   }
   # We need to transpose the data here
   unnormalized_data |> exprs() |> as.data.frame() -> unnormalized_data
-  print(str(unnormalized_data))
-  ma.plots <- get_better_mas(unnormalized_data, title = "Unnormalized MA plot - {x} vs Median of other samples")
-  for (plot in ma.plots) {
-    printPlots(\() { suppressMessages(print(plot)) }, plot$labels$title)
+  ma.plots <- get_better_mas(
+    unnormalized_data,
+    title = "Unnormalized MA plot - {x} vs Median of other samples"
+  )
+
+  log_info("Finding plot scores to sort plots...")
+  ma.scores <- sapply(ma.plots, get_mamaplot_score)
+  ma.plots <- ma.plots[order(ma.scores, decreasing = TRUE)]
+
+  if (n_plots != Inf) {
+    stopifnot(
+      "Invalid amount of plots to display"={is.wholenumber(n_plots)},
+      "Number of plots to display is too high."={length(ma.plots) > n_plots}
+    )
+    ma.plots <- ma.plots[1:n_plots]
   }
+
+  for (i in seq_along(ma.plots)) {
+    maplot <- ma.plots[[i]]
+    printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
+  }
+  rm(unnormalized_data)
 
   log_info("Running RMA normalization...")
   if (exon.probes) {
@@ -176,13 +193,20 @@ affy2expression <- function(
     }
   }
 
-  log_info("Transposing and extracting probe ids...")
   expression_set  |> exprs() |> as.data.frame() -> transposed
 
-  log_info("Making normalized MA plots...")
   ma.plots <- get_better_mas(transposed, title = "Normalized MA plot - {x} vs Median of other samples")
-  for (plot in ma.plots) {
-    printPlots(\() { suppressMessages(print(plot)) }, plot$labels$title)
+  log_info("Finding plot scores...")
+  ma.scores <- sapply(ma.plots, get_mamaplot_score)
+  ma.plots <- ma.plots[order(ma.scores, decreasing = TRUE)]
+
+  if (n_plots != Inf) {
+    ma.plots <- ma.plots[1:n_plots]
+  }
+
+  for (i in seq_along(ma.plots)) {
+    maplot <- ma.plots[[i]]
+    printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
   }
 
   log_info("Saving Expression Matrix to file...")

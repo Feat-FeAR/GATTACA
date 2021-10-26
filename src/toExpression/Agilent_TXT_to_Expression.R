@@ -37,7 +37,8 @@ agil2expression <- function (
   remove_controls = TRUE,
   plot.width = 16,
   plot.heigth = 9,
-  use.pdf = TRUE
+  use.pdf = TRUE,
+  n_plots = Inf
 ) {
   paste0(
     "Call (input_dir, output_file, analysis_program, grep_pattern, offset, remove_controls, plot.width, plot.heigth, use.pdf): ",
@@ -80,10 +81,25 @@ agil2expression <- function (
   if (nrow(print_data) > 100000) {
     log_info("Reducing raw dataset...")
     print_data <- reservoir_sample(print_data, 100000)
+    print_data <- as.data.frame(print_data)
   }
-  ma.plots <- get_better_mas(as.data.frame(print_data), title = "Raw probes MA plot - {x} vs Median of other samples")
-  for (plot in ma.plots) {
-    printPlots(\() { suppressMessages(print(plot)) }, plot$labels$title)
+  ma.plots <- get_better_mas(print_data, title = "Raw probes MA plot - {x} vs Median of other samples")
+
+  log_info("Finding plot scores to sort plots...")
+  ma.scores <- sapply(ma.plots, get_mamaplot_score)
+  ma.plots <- ma.plots[order(ma.scores, decreasing = TRUE)]
+
+  if (n_plots != Inf) {
+    stopifnot(
+      "Invalid amount of plots to display"={is.wholenumber(n_plots)},
+      "Number of plots to display is too high."={length(ma.plots) > n_plots}
+    )
+    ma.plots <- ma.plots[1:n_plots]
+  }
+
+  for (i in seq_along(ma.plots)) {
+    maplot <- ma.plots[[i]]
+    printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
   }
   rm(print_data)
 
@@ -103,8 +119,18 @@ agil2expression <- function (
 
   # Print MA plots to diagnose the data.
   ma.plots <- get_better_mas(as.data.frame(expression_set), title = "Normalized MA plot - {x} vs Median of other samples")
-  for (plot in ma.plots) {
-    printPlots(\() { suppressMessages(print(plot)) }, plot$labels$title)
+
+  log_info("Finding plot scores...")
+  ma.scores <- sapply(ma.plots, get_mamaplot_score)
+  ma.plots <- ma.plots[order(ma.scores, decreasing = TRUE)]
+
+  if (n_plots != Inf) {
+    ma.plots <- ma.plots[1:n_plots]
+  }
+
+  for (i in seq_along(ma.plots)) {
+    maplot <- ma.plots[[i]]
+    printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
   }
 
   if (remove_controls) {

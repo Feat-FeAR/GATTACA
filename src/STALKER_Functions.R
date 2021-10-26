@@ -38,7 +38,7 @@ printPlots = function(
   folderPrefix = getOption("scriptName", ""),
   PNG = getOption("save.PNG.plot", TRUE), PDF = getOption("save.PDF.plot", TRUE),
   plot.width = getOption("plot.width", 16), plot.height = getOption("plot.height", 9),
-  png_ppi = getOption("png_ppi"),
+  png_ppi = getOption("png_ppi", 50),
   enumerate = getOption("enumerate.plots", FALSE)
   ) {
   if (enumerate) {
@@ -59,7 +59,7 @@ printPlots = function(
     log_info(paste0("Saving ", figureName, ".png ..."))
     png(
       file = paste(fullName, ".png", sep = ""),
-      width = plot.width*png_ppi, height = plot.height*png_ppi
+      width = (plot.width*png_ppi), height = (plot.height*png_ppi)
     )
     plotfun()
     dev.off()
@@ -970,4 +970,43 @@ reservoir_sample <- function(data, k) {
     return(data[reservoir,])
   }
   return(data[reservoir])
+}
+
+
+bin_mean <- function(x, bin_by = NULL, n_bins = 10) {
+  if (is.null(bin_by)) {
+    bin_by = x
+  }
+  bin_thresholds <- seq(from = range(bin_by)[1], to = range(bin_by)[2], length.out = n_bins)
+  last_thr <- bin_thresholds[1]
+  data <- rep(NULL, n_bins)
+  for (i in seq_along(bin_thresholds[-1])) {
+    current_thr <- bin_thresholds[-1][i]
+
+    target_vals <- which(bin_by >= last_thr & bin_by < current_thr)
+    data[i] <- mean(x[target_vals])
+    last_thr <- current_thr
+  }
+  data[is.nan(data)] <- NA
+  return(data)
+}
+
+get_mamaplot_score <- function(mamaplot_obj) {
+  plot_data <- suppressMessages(layer_data(mamaplot_obj)[, c("x", "y")])
+  # The plot_data variable contains the a values in the x slot and the m
+  # values in the y slot. We can therefore do whatever calculations we need.
+  m <- plot_data$x
+  a <- plot_data$y
+  ### ----------------
+
+  model <- mgcv::gam(y ~ s(x, bs = "cs"), data = plot_data)
+  model |> predict() -> predicted.vals
+  predicted.vals |> abs() |> bin_mean(bin_by = a, n_bins = 200) |> mean(na.rm = TRUE) -> score
+
+  ### ----------------
+  return(score)
+}
+
+is.wholenumber <- function(x, tol = .Machine$double.eps^0.5) {
+  return(abs(x - round(x)) < tol)
 }

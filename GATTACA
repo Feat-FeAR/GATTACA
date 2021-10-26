@@ -47,7 +47,7 @@ function _gattaca_help_run {
 
 function _gattaca_help_prepaffy {
     echo "Usage: GATTACA prepaffy [-h | --help] [-r | --remove-controls] [--plot-size <x,y>]"
-    echo "       [--png] <input_dir> <output_file>"
+    echo "       [--png] [--plot-number <int>] <input_dir> <output_file>"
     echo
     echo "Run preprocessing on all .CEL files present in <input_dir> to get an expression matrix,"
     echo "saved as <output_file>."
@@ -60,6 +60,7 @@ function _gattaca_help_prepaffy {
     echo "                              plots. Defaults to '12,5'. Note: Using the '--png'"
     echo "                              produces PNG files at a resolution of 300 ppi."
     echo "  --png                       Produce PNG files instead of PDF files."
+    echo "  --plot-number <int>         Print only top <int> plots, sorted by distortion."
 }
 
 
@@ -80,7 +81,7 @@ function _gattaca_help_annotate {
 
 function _gattaca_help_prepagil {
     echo "Usage: GATTACA prepagil [-h | --help] [-r | --remove-controls] [-p | --grep-pattern <pattern>]"
-    echo "       [-g | --green-only] <input_dir> <output_file> <analysis_program>"
+    echo "       [-g | --green-only] [--plot-number <int>] <input_dir> <output_file> <analysis_program>"
     echo
     echo "This command prepares normalized, log2 transformed expression matrices from agilent files."
     echo "Runs on all files in <input_dir> that end in a '.txt' (or <pattern>) to get an expression"
@@ -101,6 +102,7 @@ function _gattaca_help_prepagil {
     echo "                                    plots. Defaults to '12,5'. Note: Using the '--png'"
     echo "                                    flag produces PNG files at a resolution of 300 ppi."
     echo "  --png                             Produce PNG files instead of PDF files."
+    echo "  --plot-number <int>               Print only top <int> plots, sorted by distortion."
 }
 
 
@@ -222,6 +224,7 @@ function _gattaca_run_prepaffy {
     remove_controls="FALSE"
     plot_size="12,5"
     use_pdf="TRUE"
+    plot_number="Inf"
 
     while test $# -gt 0; do
         case "$1" in
@@ -232,6 +235,11 @@ function _gattaca_run_prepaffy {
             -r | --remove-controls)
                 shift
                 remove_controls="TRUE"
+            ;;
+            --plot-number)
+              shift
+              plot_number="$1"
+              shift
             ;;
             --plot-size)
               shift
@@ -272,7 +280,7 @@ function _gattaca_run_prepaffy {
         --mount type=bind,source="$input_mountpoint",target=/GATTACA/input,readonly \
         mrhedmad/gattaca:"$version" \
         "$log_name" "$log_level" \
-        "prepaffy" "$output_filename" "$remove_controls" "$plot_size" "$use_pdf"
+        "prepaffy" "$output_filename" "$remove_controls" "$plot_size" "$use_pdf" "$plot_number"
 }
 
 function _gattaca_run_annotate {
@@ -331,6 +339,7 @@ function _gattaca_run_prepagil {
     remove_controls="FALSE"
     plot_size="12,5"
     use_pdf="TRUE"
+    plot_number="Inf"
 
      while test $# -gt 0; do
         case "$1" in
@@ -346,6 +355,11 @@ function _gattaca_run_prepagil {
                 shift
                 grep_pattern="$1"
                 shift
+            ;;
+            --plot-number)
+              shift
+              plot_number="$1"
+              shift
             ;;
             --plot-size)
                 shift
@@ -385,7 +399,7 @@ function _gattaca_run_prepagil {
         --mount type=bind,source="$input_dir",target=/GATTACA/input,readonly \
         mrhedmad/gattaca:"$version" \
         "$log_name" "$log_level" \
-        "prepagil" "$output_filename" "$analysis_program" "$grep_pattern" "$remove_controls" "$plot_size" "$use_pdf"
+        "prepagil" "$output_filename" "$analysis_program" "$grep_pattern" "$remove_controls" "$plot_size" "$use_pdf"  "$plot_number"
 }
 
 if [ $# == 0 ]; then
