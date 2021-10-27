@@ -44,7 +44,7 @@ case "$order" in
             -e "setup_file_logging('/GATTACA/target', '${log_name}')" \
             -e "logger::log_threshold(${log_level})" \
             -e "strsplit('${3}', ',')[[1]] |> as.numeric() -> sizes" \
-            -e "affy2expression('/GATTACA/input', '${outputfile}', remove.controls = ${2}, plot.width = sizes[1], plot.heigth = sizes[2], use.pdf = ${4}, n_plots = ${5})"
+            -e "affy2expression('/GATTACA/input', '${outputfile}', remove.controls = ${2}, plot.width = sizes[1], plot.height = sizes[2], use.pdf = ${4}, n_plots = ${5})"
         ;;
     annotate)
         # "$input_file_clean $output_file_clean $chip_id $selections $logname"
@@ -70,7 +70,7 @@ case "$order" in
             -e "setup_file_logging('/GATTACA/target', '${log_name}')" \
             -e "logger::log_threshold(${log_level})" \
             -e "strsplit('${5}', ',')[[1]] |> as.numeric() -> sizes" \
-            -e "agil2expression('/GATTACA/input', '${outputfile}', '${2}', grep_pattern='${3}', remove_controls=${4}, plot.width = sizes[1], plot.heigth = sizes[2], use.pdf = ${6}, n_plots = ${7})"
+            -e "agil2expression('/GATTACA/input', '${outputfile}', '${2}', grep_pattern='${3}', remove_controls=${4}, plot.width = sizes[1], plot.height = sizes[2], use.pdf = ${6}, n_plots = ${7})"
         ;;
     *)
         echo "Unrecognized order: '${order}'"

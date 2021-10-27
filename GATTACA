@@ -81,7 +81,7 @@ function _gattaca_help_annotate {
 
 function _gattaca_help_prepagil {
     echo "Usage: GATTACA prepagil [-h | --help] [-r | --remove-controls] [-p | --grep-pattern <pattern>]"
-    echo "       [-g | --green-only] [--plot-number <int>] <input_dir> <output_file> <analysis_program>"
+    echo "       [--plot-number <int>] <input_dir> <output_file> <analysis_program>"
     echo
     echo "This command prepares normalized, log2 transformed expression matrices from agilent files."
     echo "Runs on all files in <input_dir> that end in a '.txt' (or <pattern>) to get an expression"
@@ -357,13 +357,13 @@ function _gattaca_run_prepagil {
                 shift
             ;;
             --plot-number)
-              shift
-              plot_number="$1"
-              shift
+                shift
+                plot_number="$1"
+                shift
             ;;
             --plot-size)
                 shift
-                plot_size=$1
+                plot_size="$1"
                 shift
             ;;
             --png)

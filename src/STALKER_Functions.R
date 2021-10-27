@@ -793,6 +793,8 @@ mamaplot <- function(
 #' The `enumerate` option from printPlots is always on. This prevents accidental
 #' name collisions.
 #'
+#' The plots are returned in order, from worst to best.
+#'
 #' The x and y input values can fall into one of three cases:
 #'   - if `x` is a vector and `y` is a vector, the MA plot of those two vectors
 #'     is generated.
@@ -833,6 +835,8 @@ get_better_mas <- function(
     return(result)
   }
 
+  if (is.data.frame(x)) {plot_order <- rep(NA, length(x))}
+
   if (is.data.frame(x) & ! is.null(y)) {
     log_info("Plotting cols of x vs vector y...")
     # We need to test all cols of x vs y.
@@ -846,20 +850,22 @@ get_better_mas <- function(
     for (i in seq_along(x)) {
       # There is code duplication here, but this title line here is different
       # so I don't clean it up to avoid adding useless boilerplate
+      # It doesn't work without `unlist`, even when using `[[1]]
       formatted_title <- format_title(title, colnames(x[i]), "Y")
-        results[[i]] <- mamaplot(
-          x = x[[i]], y = y,
-          .xlab = xlab, .ylab = ylab,
-          title = formatted_title,
-          show_trend = show_trend,
-          show_density = show_density,
-          density_palette = density_palette,
-          xrange = ranges$xrange,
-          yrange = ranges$yrange
-        )
+      results[[i]] <- mamaplot(
+        x = unlist(x[i]), y = y,
+        .xlab = xlab, .ylab = ylab,
+        title = formatted_title,
+        show_trend = show_trend,
+        show_density = show_density,
+        density_palette = density_palette,
+        xrange = ranges$xrange,
+        yrange = ranges$yrange
+      )
+      plot_order[i] <- get_mamaplot_score(m = (y - unlist(x[i])), a = ((unlist(x[i]) + y) / 2))
       pb$tick()
     }
-    return(results)
+    return(results[order(plot_order, decreasing = TRUE)])
   } else if (is.data.frame(x) & is.null(y)) {
     log_info("Plotting x with subsets of itself...")
     # We need to test all cols by the median of the remaining ones.
@@ -874,6 +880,7 @@ get_better_mas <- function(
       y <- get_median(x[-i])$Median
 
       formatted_title <- format_title(title, colnames(x[i]), "Median of Remaining cols")
+      # It doesn't work without `unlist`, even when using `[[1]]`
       results[[i]] <- mamaplot(
         x = unlist(x[i]), y = y,
         .xlab = xlab, .ylab = ylab,
@@ -884,9 +891,10 @@ get_better_mas <- function(
         xrange = ranges$xrange,
         yrange = ranges$yrange
       )
+      plot_order[i] <- get_mamaplot_score(m = (y - unlist(x[i])), a = ((unlist(x[i]) + y) / 2))
       pb$tick()
     }
-    return(results)
+    return(results[order(plot_order, decreasing = TRUE)])
   } else if (is.vector(x) & is.vector(y)) {
     log_info("Plotting simple x vs y...")
     # We make a MA plot with the two vectors as is.
@@ -1007,7 +1015,7 @@ bin_mean <- function(x, bin_by = NULL, n_bins = 10) {
   return(data)
 }
 
-#' Computes the "badness" score of a mamaplot object
+#' Computes the "badness" score of a set of m and a statistics
 #'
 #' The badness score is how non-linear the data is. It also takes into account
 #' the distance from zero. It is computed by fitting a GAM to the data,
@@ -1015,17 +1023,14 @@ bin_mean <- function(x, bin_by = NULL, n_bins = 10) {
 #' predictions. The predictions are beforehand binned to prevent really dense
 #' regions of the prediction to affect the score.
 #'
-#' @param mamaplot_obj The mamaplot to compute the statistics for
+#' @param m A numeric vector of m values
+#' @param a A numeric vector of a values
 #'
 #' @returns A numeric value representing how bad the distribution is.
 #'
 #' @author Hedmad
-get_mamaplot_score <- function(mamaplot_obj) {
-  plot_data <- suppressMessages(layer_data(mamaplot_obj)[, c("x", "y")])
-  # The plot_data variable contains the a values in the x slot and the m
-  # values in the y slot. We can therefore do whatever calculations we need.
-  m <- plot_data$x
-  a <- plot_data$y
+get_mamaplot_score <- function(m, a) {
+  plot_data <- data.frame("y" = m, "x" = a)
   ### ----------------
 
   model <- mgcv::gam(y ~ s(x, bs = "cs"), data = plot_data)

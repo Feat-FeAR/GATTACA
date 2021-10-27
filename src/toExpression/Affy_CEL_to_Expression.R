@@ -59,7 +59,7 @@ source(file.path(ROOT, "src", "annotator.R"))
 
 affy2expression <- function(
     input.folder, output.file, remove.controls = TRUE,
-    plot.width = 16, plot.heigth = 9, use.pdf = TRUE,
+    plot.width = 16, plot.height = 9, use.pdf = TRUE,
     n_plots = Inf
     ) {
   paste0(
@@ -81,7 +81,7 @@ affy2expression <- function(
     "save.PNG.plot" = !use.pdf,
     "save.PDF.plot" = use.pdf,
     "plot.width" = plot.width,
-    "plot.heigth" = plot.heigth
+    "plot.height" = plot.height
   )
 
   # ---- Load .CEL files ----
@@ -136,10 +136,6 @@ affy2expression <- function(
     unnormalized_data,
     title = "Unnormalized MA plot - {x} vs Median of other samples"
   )
-
-  log_info("Finding plot scores to sort plots...")
-  ma.scores <- sapply(ma.plots, get_mamaplot_score)
-  ma.plots <- ma.plots[order(ma.scores, decreasing = TRUE)]
 
   if (n_plots != Inf) {
     stopifnot(
@@ -214,9 +210,6 @@ affy2expression <- function(
   expression_set |> exprs() |> as.data.frame() -> transposed
 
   ma.plots <- get_better_mas(transposed, title = "Normalized MA plot - {x} vs Median of other samples")
-  log_info("Finding plot scores...")
-  ma.scores <- sapply(ma.plots, get_mamaplot_score)
-  ma.plots <- ma.plots[order(ma.scores, decreasing = TRUE)]
 
   if (n_plots != Inf) {
     ma.plots <- ma.plots[1:n_plots]

@@ -28,21 +28,22 @@ source(file.path(ROOT, "src", "STALKER_Functions.R"))
 
 graceful_load(c("limma", "progress", "reshape2"))
 
-set.seed(1) # This module uses random sampling
-
 agil2expression <- function (
   input_dir, output_file, analysis_program,
   grep_pattern="*.txt",
   offset = 0,
   remove_controls = TRUE,
   plot.width = 16,
-  plot.heigth = 9,
+  plot.height = 9,
   use.pdf = TRUE,
   n_plots = Inf
 ) {
+
+  set.seed(1) # This module uses random sampling
+
   paste0(
     "Call (input_dir, output_file, analysis_program, grep_pattern, offset, remove_controls, plot.width, plot.heigth, use.pdf): ",
-    paste(input_dir, output_file, analysis_program, grep_pattern, offset, remove_controls, plot.width, plot.heigth, use.pdf, sep = " :: ")
+    paste(input_dir, output_file, analysis_program, grep_pattern, offset, remove_controls, plot.width, plot.height, use.pdf, sep = " :: ")
   ) |>
     log_debug()
 
@@ -53,7 +54,7 @@ agil2expression <- function (
     "save.PNG.plot" = !use.pdf,
     "save.PDF.plot" = use.pdf,
     "plot.width" = plot.width,
-    "plot.heigth" = plot.heigth
+    "plot.height" = plot.height
   )
 
   # Inputting data
@@ -62,7 +63,6 @@ agil2expression <- function (
 
   log_info("Finding input files matching pattern...")
   raw_files <- list.files(path = input_dir, pattern = grep_pattern)
-  print(raw_files)
 
   log_info(
     paste("Found", length(raw_files), "input files:", paste(raw_files, collapse = ", "))
@@ -84,10 +84,6 @@ agil2expression <- function (
     print_data <- as.data.frame(print_data)
   }
   ma.plots <- get_better_mas(print_data, title = "Raw probes MA plot - {x} vs Median of other samples")
-
-  log_info("Finding plot scores to sort plots...")
-  ma.scores <- sapply(ma.plots, get_mamaplot_score)
-  ma.plots <- ma.plots[order(ma.scores, decreasing = TRUE)]
 
   if (n_plots != Inf) {
     stopifnot(
@@ -133,11 +129,8 @@ agil2expression <- function (
   log_info(paste("Final dataset dimensions - Cols:", ncol(expression_set), "Rows:", nrow(expression_set)))
 
   # Print MA plots to diagnose the data.
+  colnames(expression_set) <- make.names(raw_files)
   ma.plots <- get_better_mas(as.data.frame(expression_set), title = "Normalized MA plot - {x} vs Median of other samples")
-
-  log_info("Finding plot scores...")
-  ma.scores <- sapply(ma.plots, get_mamaplot_score)
-  ma.plots <- ma.plots[order(ma.scores, decreasing = TRUE)]
 
   if (n_plots != Inf) {
     ma.plots <- ma.plots[1:n_plots]
