@@ -206,6 +206,7 @@ function _gattaca_run_run {
     fi
 
     if [ ! "$input_mountpoint" = "$options_mountpoint" ]; then
+        echo "Copying options file to input dir..."
         cp "$options_path" "$input_mountpoint"
     fi
 
@@ -218,6 +219,11 @@ function _gattaca_run_run {
         mrhedmad/gattaca:"$version" \
         "$log_name" "$log_level" \
         "gattaca" "$input_filename" "$options_filename"
+
+    if [ ! "$input_mountpoint" = "$options_mountpoint" ]; then
+        echo "Removing copy of options file from input dir..."
+        rm "$input_mountpoint/$options_filename"
+    fi
 }
 
 function _gattaca_run_prepaffy {

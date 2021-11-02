@@ -52,7 +52,7 @@ graceful_load(c(
   "RankProd",         # Rank Product Method for Differential Expression
   "VennDiagram",      # Venn Diagrams
   "EnhancedVolcano",  # Volcano Plots
-  "gplots",           # Heatmap with extensions - heatmap.2() 
+  "gplots",           # Heatmap with extensions - heatmap.2()
   "ggplot2",          # Box Plot and Bar Chart with Jitter (already loaded by PCAtools)
   "RColorBrewer",     # Color Palette for R - display.brewer.all()
   "yaml",             # Yaml file parsing
@@ -65,14 +65,14 @@ graceful_load(c(
 dp_select <- dplyr::select
 
 #' Run groupwise filtering on expression data.
-#' 
+#'
 #' The expression data *must* be named with colnames starting with the same
 #' groups `groups`, for example by using `make.names(groups)`.
-#' 
+#'
 #' The data is filtered by keeping genes that are expressed more than
 #' `expression_threshold` in at least `min_groupwise_presence` samples in
 #' at least one group.
-#' 
+#'
 #' @param expression_set A data.frame with the data to be filtered.
 #' @param groups A vector with the group names that correspond to the columns
 #'   in the `expression_set`.
@@ -133,7 +133,7 @@ filter_expression_data <- function(
         filter_key
       return(filter_key)
     }
-    
+
     expression_set |> dp_select(starts_with(group)) |> filter_fun() ->
       truth_dataframe[[group]]
   }
@@ -154,7 +154,7 @@ filter_expression_data <- function(
     paste("Percentage retained genes:", nrow(expression_set) / original_dims[1] * 100),
     sep = "\n"
     )
-  
+
   log_info(report)
   return(expression_set)
 }
@@ -163,33 +163,35 @@ filter_expression_data <- function(
 GATTACA <- function(options.path, input.file, output.dir) {
   # This function is so long, a description wouldn't fit here.
   # Refer to the project's README.
-  
+
+  set.seed(1) # Rankprod needs randomness.
+
   # ---- Option parsing ----
   opts <- yaml.load_file(options.path)
-  
+
   # ---- Making static functions ----
   pitstop <- pitstop.maker(opts$general$slowmode)
   printdata <- printif.maker(opts$general$show_data_snippets, topleft.head)
-  
+
   log_info("Parsed options.")
-  
+
   # ---- Move to output.dir ----
   setwd(output.dir)
 
   # ---- Variable setup ----
   # To reuse as-is the script, I unpack the variables from the yaml file here
   # TODO : Improvement - These should be checked here for basic validity, so
-  #        we crash sooner rather than later. 
+  #        we crash sooner rather than later.
   log_info("Inputting variables...")
-  
+
   user_colours <- opts$design$group_colors
-  
+
   # Log2 expression threshold
   min_log2_expression = opts$design$filters$log2_expression
-  
+
   # Fold Change Threshold
   thrFC = opts$design$filters$fold_change
-  
+
   # Flags for script-wide IFs
   write_data_to_disk = !opts$switches$dryrun # The ! is important.
   if (opts$switches$dryrun & opts$general$save_png) {
@@ -200,7 +202,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
     log_warn("save_pdf forced to be FALSE as this is a dryrun")
     opts$general$save_pdf <- FALSE
   }
-  
+
   # Global options suitable for STALKER_Functions
   options(
     scriptName = "GATTACA",
@@ -212,7 +214,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
     png_ppi = opts$general$png_resolution,
     enumerate.plots = opts$general$enumerate_plots
   )
-  
+
   if (getOption("use.annotations")) {
     # If we need to use annotations, we need to load the annotation data
     source(file.path(ROOT, "src", "annotator.R"))
@@ -235,15 +237,15 @@ GATTACA <- function(options.path, input.file, output.dir) {
   printdata(expression_set)
 
   pitstop("Finished loading data.")
-  
+
   # ---- Load the experimental design ----
   log_info("Loading experimental design...")
   experimental_design <- design_parser(opts$design$experimental_design)
-  
+
   # This is a list containing the group sequence in `$groups` and the IDs for
   # pairing in '$pairing'
   experimental_design <- split_design(experimental_design)
-  
+
   # Check the design
   if (length(experimental_design$groups) != ncol(expression_set)) {
     stop(paste0(
@@ -251,7 +253,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
       ") does not match the number of design groups (", length(experimental_design$groups), ")"
     ))
   }
-  
+
   # Test if we are in paired or unpaired mode
   ..pairing_NAs <- is.na(experimental_design$pairings)
   # We need either ALL or NONE patient NAs
@@ -264,7 +266,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   } else {
     stop("Some samples have pairing data and some do not. Cannot proceed with pairing ambiguity.")
   }
-  
+
   log_info("Experimental desing loaded.")
 
   # Tidy Sample Names According to the Experimental Design
@@ -276,13 +278,13 @@ GATTACA <- function(options.path, input.file, output.dir) {
   unique_groups <- make.unique_from1(experimental_design$groups, sep = "_")
   ..old_colnames <- colnames(expression_set)
   colnames(expression_set) <- unique_groups
-  
+
   if (length(user_colours) < length(unique_simple_groups)) {
     stop("Too few colors in \'user_colours\' vector!")
   }
   # Bind colors to groups
   names(user_colours) <- unique_simple_groups
-  
+
   # Save Correspondences Table so we can check it later
   ..corrTable = cbind(..old_colnames, colnames(expression_set)) # Cast to matrix
   colnames(..corrTable) = c("Original_ID", "Group_Name")
@@ -296,19 +298,19 @@ GATTACA <- function(options.path, input.file, output.dir) {
     )
     log_info(paste("'correspondence_table.tsv' has been saved in", output.dir))
   }
-  
+
   # Check the contrasts
   raw_contrasts <- opts$design$contrasts
-  
+
   unpack_contrasts <- function(contrasts_list) {
-    lapply(contrasts_list, strsplit, split = "-") |> 
+    lapply(contrasts_list, strsplit, split = "-") |>
       lapply(unlist) ->
       unpacked
     return(unpacked)
   }
-  
+
   raw_contrasts |> unpack_contrasts() -> group_contrasts
-  
+
   # Check if the contrasts groups are actually in the data
   ..check <- unlist(group_contrasts) %in% unique_simple_groups
   if (!all(..check)) {
@@ -317,7 +319,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
       "Conflicting groups: ", paste0(group_contrasts[!..check])
     ))
   }
-  
+
   log_info("Design loaded and approved.")
   pitstop("")
 
@@ -355,9 +357,9 @@ GATTACA <- function(options.path, input.file, output.dir) {
   printPlots(function() {
     plotDensities(expression_set, legend = FALSE, main = "Expression values per sample")
   }, "Final Density")
-  
+
   pitstop("Maybe check the plots and come back?")
-  
+
   # MA-Plot for bias detection - Make all the possible group pairs
   for (combo in combn(unique_simple_groups, 2, simplify = FALSE)) {
     expression_set |> dp_select(starts_with(combo[1])) |> rowMeans() -> group1
@@ -367,7 +369,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
     p <- function() {
       maplot(
-        group2, group1, 
+        group2, group1,
         xlab = "A (Average log-expression)", ylab = "M (Expression log-ratio)",
         n = 5e4,
         curve.add = TRUE, curve.col = user_colours[2], curve.lwd = 1.5,
@@ -380,8 +382,8 @@ GATTACA <- function(options.path, input.file, output.dir) {
     }
     printPlots(p, paste0("MA_Plot_", combo[[1]], "_vs_", combo[[2]]))
   }
-  
-  
+
+
   # ---- Clustering ----
   log_info("Starting sample-wise hierarchical clustering for batch-effect detection...")
   # Matrix Transpose t() is used because dist() computes the distances between
@@ -393,21 +395,22 @@ GATTACA <- function(options.path, input.file, output.dir) {
   printPlots(\(){plot(hierarchical_clusters)}, "Dendrogram")
   # Desired number of clusters
   # TODO : Should this be an option?
-  nr_shown_clusters = 6
-  
+  nr_shown_clusters = min(6, length(expression_set) - 1) # The -1 is needed.
+  print(nr_shown_clusters)
+
   p <- function() {
     plot(hierarchical_clusters)
-    # Red borders around the kNum clusters 
+    # Red borders around the kNum clusters
     rect.hclust(
       hierarchical_clusters, k = nr_shown_clusters, border = user_colours[2]
     )
   }
   printPlots(p, "Dendrogram and Clusters")
-  
+
   log_info("Finished with hierarchical clustering.")
   pitstop("Maybe check the plots and come back?")
-  
-  
+
+
   # ---- PCA ----
   # Performed on Samples for Batch-Effect Detection
   log_info("Performing PCA to detect batch sampling...")
@@ -446,53 +449,53 @@ GATTACA <- function(options.path, input.file, output.dir) {
     "Take a look at the PCA results.",
     " If there are some batched samples, remove them and re-run GATTACA."
     ))
-  
+
   # ---- SD vs Mean Plot ----
   # Poisson Hypothesis Check
   log_info("Building SD_vs_Mean plot...")
-  
+
   # Un-log intensity values
   log_info("Returning to linear intensities...")
   unlogged_expression_set = 2 ^ expression_set
   printdata(unlogged_expression_set)
   pitstop("Did the 'unlogging' mess anything up?")
-  
+
   # Store values using matrices
   log_info("Making matrices...")
   ..nr_unique_simple_groups <- length(unique_simple_groups)
-  
+
   matrix(nrow = nrow(expression_set), ncol = ..nr_unique_simple_groups + 1) |>
     as.data.frame() -> ..means_frame
   colnames(..means_frame) <- c(unique_simple_groups, "Global")
-  
+
   # Make a copy in memory
-  ..sd_matrix <- data.frame(..means_frame) 
+  ..sd_matrix <- data.frame(..means_frame)
 
   ..correlation_vector <- as.vector(rep(NA, length(unique_simple_groups) + 1))
   names(..correlation_vector) <- c(unique_simple_groups, "Global")
-  
+
   # Statistics for each group...
   log_info("Calculating groupwise statistics...")
   for (group in unique_simple_groups) {
     unlogged_expression_set |> dp_select(starts_with(group)) |>
       rowMeans(na.rm = TRUE) ->
       ..means_frame[[group]]
-    
+
     unlogged_expression_set |> dp_select(starts_with(group)) |>
       apply(1, sd, na.rm = TRUE) ->
       ..sd_matrix[[group]]
-    
+
     cor(..means_frame[[group]], ..sd_matrix[[group]]) ->
       ..correlation_vector[[group]]
   }
-  
+
   # ...and for the whole experiment
   log_info("Calculating global statistics...")
 
   ..means_frame[["Global"]] = rowMeans(unlogged_expression_set, na.rm = TRUE)
   ..sd_matrix[["Global"]] = apply(unlogged_expression_set, 1, sd, na.rm = TRUE)
   ..correlation_vector[["Global"]] = cor(..means_frame[,"Global"], ..sd_matrix[,"Global"])
-  
+
   # Scatter plot
   log_info("Making plots...")
   p <- function() {
@@ -510,7 +513,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
     par(mfrow = c(1, 1))
   }
   printPlots(p, "SD_vs_Mean Plot")
-  
+
   # ---- Filtering ----
 
   expression_set <- filter_expression_data(
@@ -531,7 +534,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
     log_info("Running differential expression analysis by limma.")
 
     log_info("Making limma design matrix...")
-    
+
     if (paired_mode) {
       ..factor_pairings <- as.factor(experimental_design$pairings)
       ..pairings_levels <- levels(..factor_pairings)
@@ -596,17 +599,13 @@ GATTACA <- function(options.path, input.file, output.dir) {
         format = "Generating... [:bar] :percent (:eta)",
         total = length(raw_contrasts), clear = FALSE, width= 80)
       pb$tick(0)
-      ..limma_output_expression <- DEGs.limma[[i]]
-      ..limma_output_expression$probe_id <- rownames(..limma_output_expression)
-      rownames(..limma_output_expression) <- NULL
       for (i in seq_along(raw_contrasts)) {
-        degTabName = paste("Limma - DEG Table ", raw_contrasts[i], ".csv", sep = "")
-        write.csv(..limma_output_expression, degTabName, row.names = FALSE, quote = FALSE)
+        write_expression_data(DEGs.limma[[i]], paste0("Limma - DEG Table ", raw_contrasts[i], ".csv"))
         pb$tick()
       }
       log_info(paste0("Saved tables in ", output.dir))
     }
-    
+
     # Summary of DEGs (you can change the Log2-Fold-Change Threshold lfc...)
     results.limma = decideTests(
       ..limma_Bayes, adjust.method = "BH", p.value = 0.05,
@@ -616,7 +615,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
       vennDiagram(results.limma)
     }
     printPlots(p, "Limma Venn")
-    
+
     # Show Hyperparameters
     d0 = ..limma_Bayes$df.prior           # prior degrees of freedom
     dg = mean(..limma_fit$df.residual)    # original degrees of freedom
@@ -642,7 +641,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
     # ---- Limma Plot ----
     log_info("Making DEG plots...")
     # MA-Plots with significant DEGs and Volcano plots
-    
+
     # Find Axis Limits
     log_info("Finding axis limits...")
     max.M.value = 0
@@ -673,7 +672,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
         min.P.value = temp
       }
     }
-    
+
     # MA-Plot with DEGs
     log_info("Making Limma MA-Plots...")
     # I cannot place a progress bar here as `printPlots` logs to stdout.
@@ -692,13 +691,13 @@ GATTACA <- function(options.path, input.file, output.dir) {
       }
       printPlots(p, paste("MA-Plot with Limma DEGs ", raw_contrasts[i], sep = ""))
     }
-    
+
     # Volcano Plots
     log_info("Making Limma Volcano plots...")
     for (i in seq_along(raw_contrasts)) {
       tot.DEG = sum(DEGs.limma[[i]]$adj.P.Val < 0.05) # Total number of significant DEGs (without any FC cutoff)
       high.DEG = min(c(5,tot.DEG)) # To highlight no more than 5 genes per plot
-      
+
       # Significance Threshold
       # TODO : Discuss if this is right
       # Find that p-value corresponding to BH-adj.p-value ~ 0.05 (or Bonferroni point when tot.DEG = 0)
@@ -721,7 +720,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
           "  Gene Ranking       =  ", tot.DEG, ":", tot.DEG + 1, "\n\n", sep = ""
         )
       )
-      
+
       # Enhanced Volcano Plot
       if (getOption("use.annotations")) {
         ..annotation_data <- merge_annotations(DEGs.limma[[i]], annotation_data)
@@ -756,7 +755,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
     }
   }
-  
+
   # ---- DE by RankProduct ----
   if (opts$switches$rankproduct) {
     log_info("Running differential expression analysis with rankproduct...")
@@ -771,29 +770,29 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
     for (i in seq_along(raw_contrasts)) {
       log_info(paste0("Running analysis ", i, " of ", length(raw_contrasts)))
-      
+
       log_info("Finding control and case groups...")
       ..unpacked_groups = strsplit(raw_contrasts[i], split = "-", fixed = TRUE)[[1]]
-      
+
       ..control_group <- ..unpacked_groups[2]
       ..treated_group <- ..unpacked_groups[1]
-      
+
       expression_set |> dp_select(
         starts_with(..control_group) | starts_with(..treated_group)
         ) -> ..sub_expression_set
-      
+
       # The above filter rearranges the columns. This crashes later as the
       # column order is needed to match the pairings for subtraction.
       # So we return to the original one here.
       ..original_col_order <- colnames(expression_set)[
         colnames(expression_set) %in% colnames(..sub_expression_set)
-      ] 
+      ]
       ..sub_expression_set <- ..sub_expression_set[, ..original_col_order]
-      
+
       # Make the cl array, representing class labels of the sample
       colnames(..sub_expression_set) |> startsWith(..treated_group) |> as.numeric() ->
         ..rp_class_labels
-      
+
       if (paired_mode) {
         # To make a paired run, we need to subtract the matching paired sets.
         # First, we need to get the pairings that survived the filtering
@@ -806,16 +805,16 @@ GATTACA <- function(options.path, input.file, output.dir) {
         for (pairing in unique(..sub_parings)) {
 
           ..paired_expression_set <- ..sub_expression_set[..sub_parings == pairing]
-          
+
           ..paired_expression_set |> dp_select(starts_with(..control_group)) ->
             ..control_set
           ..paired_expression_set |> dp_select(starts_with(..treated_group)) ->
             ..treated_set
-          
+
           if (ncol(..control_set) != 1) {
             log_warn(
               paste0(
-                "There are more than 1 '", ..control_group, 
+                "There are more than 1 '", ..control_group,
                 "' paired samples (",
                 paste(colnames(..control_set), collapse = ", "), ").",
                 " The average of them will be used instead."
@@ -831,11 +830,11 @@ GATTACA <- function(options.path, input.file, output.dir) {
               )
             )
           }
-          
+
           if (ncol(..treated_set) != 1) {
             log_warn(
               paste0(
-                "There are more than 1 '", ..treated_group, 
+                "There are more than 1 '", ..treated_group,
                 "' paired samples (",
                 paste(colnames(..treated_set), collapse = ", "), ").",
                 " The average of them will be used instead."
@@ -851,11 +850,11 @@ GATTACA <- function(options.path, input.file, output.dir) {
               )
             )
           }
-          
+
           # Now, control and treated sets can be subtracted as they are one
           # and only one column.
           ..subtracted_partial_set <- ..control_set - ..treated_set
-          
+
           ..subtracted_expression_set <- merge(
             ..subtracted_expression_set, ..subtracted_partial_set,
             all = TRUE, by = 0
@@ -883,7 +882,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
         invisible(capture.output(plotRP(RP.out, cutoff = 0.05)))
       }
       printPlots(p, paste("Rankprod ", raw_contrasts[i]))
-      
+
       # Compute full DEG Tables (returns a list of 2 matrices, not data frames)
       log_info("Computing DEG table...")
       invisible(
@@ -897,14 +896,14 @@ GATTACA <- function(options.path, input.file, output.dir) {
         DEGs.RP[[j]][,3] = log2(1/DEGs.RP[[j]][,3])
         colnames(DEGs.RP[[j]])[3] = "Log2FC" # Correct column name
       }
-      
+
       # Print Results (Top-Ten genes) for all the contrasts of interest
       log_info("Getting top contrasts...")
       log_info(paste0("DEG Top-List for contrast: ", raw_contrasts[i]))
       tops = rbind(DEGs.RP$Table1[1:10,], DEGs.RP$Table2[1:10,])
       printdata(tops) # just on-Screen
       pitstop("")
-      
+
       # Save full DEG Tables
       if (write_data_to_disk) {
         log_info("Saving full DEG tables...")
@@ -913,7 +912,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
         write_expression_data(as.data.frame(DEGs.RP[[1]]), upDegTabName)
         write_expression_data(as.data.frame(DEGs.RP[[2]]), dwnDegTabName)
       }
-      
+
       # Fetch indexes of significant DEGs
       log_info("Finding DEGs of interest...")
       ups.Index = which(DEGs.RP$Table1[,4] < 0.05 & DEGs.RP$Table1[,3] > thrFC)
@@ -924,15 +923,15 @@ GATTACA <- function(options.path, input.file, output.dir) {
           length(dwn.Index), "downregulated genes."
         )
       )
-      
+
       # Here 'results.RP' is filled in analogy to 'results.limma':
       # (-1,0,+1) for (Down, NotSig, Up)-regulated genes
       # Accessing matrix rows by row name: matrix[rowname, col_i]
       results.RP[rownames(DEGs.RP$Table1)[ups.Index],i] = 1
       results.RP[rownames(DEGs.RP$Table2)[dwn.Index],i] = -1
-      
+
     }
-    
+
     log_info("Calculating summary statistics...")
     summary.RP = rbind(
       colSums(results.RP == -1), # Cast to matrix
@@ -941,18 +940,18 @@ GATTACA <- function(options.path, input.file, output.dir) {
     )
     rownames(summary.RP) = c("Down", "NotSig", "Up")
     print(summary.RP)
-    
+
     log_info("Finished DEA.")
     pitstop("")
   }
-  
+
   if (opts$switches$limma & opts$switches$rankproduct) {
     log_info("Making comparison plots between limma and rankproduct...")
     # Venn diagrams of DEGs from Limma and RP methods
-    
+
     # To suppress 'venn.diagram()' logging
     futile.logger::flog.threshold(futile.logger::ERROR, name = "VennDiagramLogger")
-    
+
     # Plot Venn diagrams
     log_info("Plotting Venn diagrams...")
     for (i in seq_along(raw_contrasts)) {
@@ -960,18 +959,18 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
         DEG.id.limma = rownames(results.limma)[which(results.limma[,i] == j)]
         DEG.id.RP = rownames(results.RP)[which(results.RP[,i] == j)]
-        
+
         if (j == 1) {
           venn.sub = "UP-regulated DEGs"
         } else {
           venn.sub = "DOWN-regulated DEGs"
         }
-        
+
         if (length(DEG.id.limma) == 0 & length(DEG.id.RP) == 0) {
           log_warn("Both the sets are empty in the contrast: ", raw_contrasts[i], " (", venn.sub, ")")
           next # Skip the current iteration of the for loop without terminating it
         }
-        
+
         venn.plot = venn.diagram(
           x = list(DEG.id.limma, DEG.id.RP),
           filename = NULL, # to print just on screen
@@ -988,7 +987,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
           cat.dist = c(0.055, 0.055),
           cat.fontfamily = "sans"
         )
-        
+
         # Create a new canvas and draw the Venn
         p <- function() {
           grid.newpage()
@@ -1004,6 +1003,6 @@ GATTACA <- function(options.path, input.file, output.dir) {
       }
     }
   }
-  
+
   log_info("GATTACA finished")
 }

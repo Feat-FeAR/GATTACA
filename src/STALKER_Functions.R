@@ -595,7 +595,7 @@ write_expression_data <- function (
     ))
   }
 
-  write.csv(expression_data, target, row.names = FALSE, quote = FALSE)
+  write.csv(expression_data, target, row.names = FALSE, quote = TRUE)
 }
 
 #' Read and extract row names from a .csv containing expression data.

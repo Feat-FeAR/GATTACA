@@ -84,6 +84,7 @@ merge_annotations <- function(gene.stat, annotation, sort.by = 1) {
 #' @author MrHedmad 
 get_db_names <- function(db_namespace) {
   suppressWarnings({
+    stopifnot("Invalid database name - cannot be empty"=db_namespace==character(0))
     if (!require(db_namespace, character.only = TRUE)) {
       BiocManager::install(db_namespace)
       suppressPackageStartupMessages(library(db_namespace, character.only = TRUE))
