@@ -319,14 +319,17 @@ extract_markings <- function(DEGs.limma) {
 #'   represent the contrasts that are described in the data.frames.
 #'   Looks for a column named `markings` in each frame that describes which
 #'   genes are Upregulated (`1`), Downregulated (`-1`) or Not Significant (`0`).
+#' @param chip_id The chip ID to source annotations for the volcano plot.
+#'   Leave to NULL to not use annotations.
+#' @param fc_threshold The FC threshold that was used when calculating the
+#'   DEGs.limma.
+#' @param volcano_colour Colour to use to mark interesting points in the volcano
+#'   plot.
 #'
 #' @author FeAR, Hedmad
 make_limma_plots <- function(
-  DEGs.limma, annotations = NULL, fc_threshold = 0.5,
-  colours = c(
-    "cornflowerblue", "firebrick3", "olivedrab3",
-    "darkgoldenrod1", "purple", "magenta3"
-  )
+  DEGs.limma, chip_id = NULL, fc_threshold = 0.5,
+  volcano_colour = "firebrick3"
 ) {
   log_info("Making limma DEG plots...")
 
@@ -413,8 +416,8 @@ make_limma_plots <- function(
     )
 
     # Enhanced Volcano Plot
-    if (! is.null(annotations)) {
-      ..annotation_data <- annotate_data(DEGs.limma[[i]], annotations, "SYMBOL")
+    if (! is.null(chip_id)) {
+      ..annotation_data <- annotate_data(DEGs.limma[[i]], chip_id, "SYMBOL")
       print(head(..annotation_data))
       ..volcano_labels <- ..annotation_data$SYMBOL
     } else {
@@ -433,7 +436,7 @@ make_limma_plots <- function(
             x = "logFC", y = "P.Value",
             pCutoff = thrP, FCcutoff = fc_threshold,
             pointSize = 1,
-            col = c("black", "black", "black", colours[2]),
+            col = c("black", "black", "black", volcano_colour),
             lab = ..volcano_labels,
             #selectLab = myLabels[1:high.DEG],
             labSize = 4,
@@ -800,7 +803,8 @@ GATTACA <- function(options.path, input.file, output.dir) {
     # Make and save limma plots
     make_limma_plots(
       DEGs.limma = DEGs.limma, fc_threshold = thrFC,
-      annotations = opts$general$annotation_chip_id
+      chip_id = opts$general$annotation_chip_id,
+      volcano_colour = user_colours[2]
     )
 
     if (!is.null(getOption("use.annotations"))) {
