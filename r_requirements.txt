@@ -25,6 +25,7 @@ VennDiagram
 bioc::EnhancedVolcano
 gplots
 RColorBrewer
+UpSetR
 
 ## Others
 rafalib

@@ -704,9 +704,17 @@ get_median <- function(data_set) {
 #' @param .ylab The label to use for the Y ("M") axis.
 #' @param show_trend Bool. Add a trend line through the data?
 #' @param show_density Bool. Add a density blob on the data?
-#' @param density_palette A palette (see `?scale_fill_distiller`) for the density blob.
-#' @param xrange Range of X to zoom into. Passed as `c(min, max)`. Leave `NA` to use default.
-#' @param yrange Range of Y to zoom into. Passed as `c(min, max)`. Leave `NA` to use default.
+#' @param density_palette A palette (see `?scale_fill_distiller`) for the
+#'   density blob.
+#' @param xrange Range of X to zoom into. Passed as `c(min, max)`.
+#'   Leave `NA` to use default.
+#' @param yrange Range of Y to zoom into. Passed as `c(min, max)`.
+#'   Leave `NA` to use default.
+#' @param highligths A named list of boolean vectors. Each entry will be matched
+#'   with the points in the data, and the TRUE points will be marked in the
+#'   color specified by the name of the vector.
+#' @param input_is_ma If TRUE, then X is treated as the A value, and Y is treated
+#'   as the M value, and they are not calculated by this function.
 #'
 #' @author Hedmad
 mamaplot <- function(
@@ -717,16 +725,23 @@ mamaplot <- function(
   show_density = TRUE,
   density_palette = "RdBu",
   xrange = c(NA, NA),
-  yrange = c(NA, NA)
+  yrange = c(NA, NA),
+  highligths = NULL,
+  input_is_ma = FALSE
 ) {
   library(ggplot2)
 
   stopifnot("x and y lengths differ" = {length(x) == length(y)})
 
-  m <- y - x
-  a <- (x + y) / 2
+  if (input_is_ma) {
+    m <- y
+    a <- x
+  } else {
+    m <- y - x
+    a <- (x + y) / 2
+  }
 
-  data <- as.data.frame(x = x, y = y)
+  data <- data.frame(m = m, a = a)
   p <- ggplot(data, aes(x = a, y = m)) +
     geom_point(color = "black", size = 0.1)
 
@@ -753,6 +768,24 @@ mamaplot <- function(
 
   p <- p +
     coord_cartesian(xlim = xrange, ylim = yrange)
+
+  if (! is.null(highligths)) {
+    for (i in seq_along(highligths)) {
+      if (all(!highligths[[i]])) {
+        # All the entries are FALSE, so we move on
+        next
+      }
+
+      data_subset <- subset(data, highligths[[i]])
+      color <- names(highligths[i])
+      p <- p +
+        geom_point(
+          shape = 18,
+          data = data_subset, color = color, size = 3,
+          show.legend = FALSE
+        )
+    }
+  }
 
   return(p)
 }

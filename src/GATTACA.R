@@ -42,6 +42,7 @@
 # Load required packages and source external scripts
 
 source(file.path(ROOT, "src", "STALKER_Functions.R"))   # Collection of custom functions
+source(file.path(ROOT, "src", "annotator.R")) # Functions to annotate expression sets
 
 graceful_load(c(
   "preprocessCore",   # Interarray Normalization by Quantile-Quantile Algorithm
@@ -57,7 +58,8 @@ graceful_load(c(
   "RColorBrewer",     # Color Palette for R - display.brewer.all()
   "yaml",             # Yaml file parsing
   "logger",           # Well, logging
-  "progress"          # Progress bars
+  "progress",         # Progress bars
+  "UpSetR"            # UpSet Plots
 ))
 
 # The annotation DB loads after dplyr so the `select` function gets overwritten.
@@ -160,11 +162,298 @@ filter_expression_data <- function(
 }
 
 
+#' Run a DEA with `limma`.
+#'
+#' @param expression_set The expression set to run the analysis with.
+#'   It is a data.frame with row names as probes and column as samples. The
+#'   col names are assumed to start with one of the possible levels in the
+#'   experimental design.
+#' @param groups A vector describing the groups of the data, in the same order
+#'   as the columns.
+#' @param contrasts A character vector describing contrasts suitable for
+#'   `limma::makeContrasts`.
+#' @param pairings A vector describing the pairings of the data or NULL if no
+#'   pairings are present. Must be the same length as the columns of the
+#'   expression_set.
+#' @param fc_threshold The absolute Fold-change threshold to use to consider
+#'   a gene as differentially expressed, regardless of the P-value or FDR.
+#'
+#' @returns A list of Data.frames, each with the DEGs found using a different
+#'   contrast. Each dataframe has a column named `markings`, with the marking
+#'   of either Upregulated (`1`), Downregulated (`-1`) or Not Significant (`0`).
+#'
+#' @author FeAR, Hedmad
+run_limma <- function(
+  expression_set, groups, contrasts,
+  pairings = NULL, fc_threshold = 0.5
+) {
+  log_info("Running differential expression analysis by limma.")
+
+  log_info("Making limma design matrix...")
+
+  if ( !is.null(pairings) ) {
+    factor_pairings <- as.factor(pairings)
+    # We need to rename the model matrix. It uses all levels except for the
+    # last.
+    levels(factor_pairings)[1:length(levels(factor_pairings))-1] |>
+      make.names() -> pairing_levels
+
+    # Same for the groups, but we use all of them now. The matrix inserts them
+    # in the same order as `sort`, so we sort them.
+    groups_levels <- sort(unique(groups))
+    limma_design <- model.matrix(
+      ~ 0 + groups + factor_pairings
+    )
+    # The colnames are the union of the sorted groups and the pairings.
+    colnames(limma_design) <- c(groups_levels, pairing_levels)
+  } else {
+    limma_design <- model.matrix(~ 0 + groups)
+    limma_design[,order(colnames(limma_design))]
+    colnames(limma_design) <- sort(unique(groups))
+  }
+
+  log_info("Design matrix:\n", get.print.str(limma_design))
+
+  log_info("Making contrasts matrix...")
+  makeContrasts(
+    contrasts = contrasts,
+    levels = limma_design
+  ) -> contrast_matrix
+
+  log_info("Contrasts matrix:\n", get.print.str(contrast_matrix))
+
+  log_info("Computing contrasts...")
+  lmFit(expression_set, limma_design) -> limma_fit
+  limma_fit |> contrasts.fit(contrast_matrix) |> eBayes() -> limma_Bayes
+
+  log_info("Getting Differential expressions...")
+  pb <- progress_bar$new(
+    format = "Generating... [:bar] :percent (:eta)",
+    total = length(contrasts), clear = FALSE, width= 80)
+  pb$tick(0)
+
+  DEGs.limma = list() # Create an empty list
+  for (i in seq_along(contrasts)) {
+    # This fills the list with data.frames
+    DEGs.limma[[i]] = topTable(
+      limma_Bayes, coef = i, number = Inf,
+      adjust.method = "BH", sort.by = "B"
+    )
+    pb$tick()
+  }
+
+  names(DEGs.limma) <- contrasts
+
+  # Markings for DEGs given a P-value
+  # We don't filter it out here as it is not suggested. See the help for the
+  # `decideTests` function.
+  decideTests(limma_Bayes, adjust.method = "BH", p.value = 0.05) |>
+    as.data.frame() -> markings
+  for (contrast in seq_along(contrasts)) {
+    # Add the "markings" column
+    contr_markings <- markings[contrast]
+    colnames(contr_markings) <- "markings"
+    DEGs.limma[[contrast]] <- merge(
+      DEGs.limma[[contrast]], contr_markings, sort = FALSE, by = "row.names"
+    )
+    rownames(DEGs.limma[[contrast]]) <- DEGs.limma[[contrast]]$Row.names
+    DEGs.limma[[contrast]]$Row.names <- NULL
+
+    # Filter out markings with low FC
+    DEGs.limma[[contrast]]$markings[
+      abs(DEGs.limma[[contrast]]$logFC) < fc_threshold
+    ] <- 0
+  }
+
+
+  # Show Hyperparameters
+  d0 = limma_Bayes$df.prior           # prior degrees of freedom
+  dg = mean(limma_fit$df.residual)    # original degrees of freedom
+  hyp = cbind(
+    c(limma_Bayes$s2.prior,           # prior variance
+      mean(limma_fit$sigma^2),        # mean sample residual variance
+      mean(limma_Bayes$s2.post),      # mean posterior residual variance
+      d0, dg, d0/(d0+dg))             # Shrinkage degree
+  )
+  rownames(hyp) = c(
+    "Prior Var",
+    "Sample Residual Mean Var",
+    "Posterior Residual Mean Var",
+    "Prior df",
+    "Original df",
+    "Shrinkage degree"
+  )
+  colnames(hyp) = "Hyperparameters"
+  log_info(paste0("Hyperparameters:: \n", get.print.str(hyp)))
+
+  return(DEGs.limma)
+}
+
+
+#' Extract markings from a list of limma DEGs.
+#'
+#' Looks for the `markings` column and extracts it in a new data.frame.
+#' Uses the last Data frame rownames for simplicity, assuming all frames
+#' come from the same call of `run_limma`.
+extract_markings <- function(DEGs.limma) {
+  container <- list()
+  for (contrast in names(DEGs.limma)) {
+    container[contrast] <- DEGs.limma[[contrast]]["markings"]
+  }
+  container <- data.frame(container)
+  rownames(container) <- rownames(DEGs.limma[[contrast]])
+  return(container)
+}
+
+
+#' Make and save (in the current WD) diagnostic plots for limma results.
+#'
+#' This prints some plots with `printPlots`, and assumes that the correct
+#' options have already been selected.
+#'
+#' The plots include: A Venn diagram OR an upset plot of the detected DEGs
+#' (if there are more than 3 contrasts), a set of MA plots with the detected
+#' DEGs highlighted, and a set of volcano plots with the (annotated) DEGs.
+#'
+#' @param DEGs.limma A named list of Data.frames. The names of the list must
+#'   represent the contrasts that are described in the data.frames.
+#'   Looks for a column named `markings` in each frame that describes which
+#'   genes are Upregulated (`1`), Downregulated (`-1`) or Not Significant (`0`).
+#'
+#' @author FeAR, Hedmad
+make_limma_plots <- function(
+  DEGs.limma, annotations = NULL, fc_threshold = 0.5,
+  colours = c(
+    "cornflowerblue", "firebrick3", "olivedrab3",
+    "darkgoldenrod1", "purple", "magenta3"
+  )
+) {
+  log_info("Making limma DEG plots...")
+
+  extract_markings(DEGs.limma) |> abs() -> markings
+
+  if (length(DEGs.limma) > 3) {
+    # Prepare the dataset to allow the upset plot
+    upset_data <- list()
+    for (i in seq_along(markings)) {
+      upset_data[[colnames(markings)[i]]] <- rownames(markings)[as.logical(markings[[i]])]
+    }
+
+    upset_data <- fromList(upset_data)
+    print(topleft.head(upset_data))
+    p <- function() {
+      upset(
+        upset_data, nsets = length(DEGs.limma), nintersects = NA,
+        keep.order = TRUE,
+      ) |> print()
+    }
+    printPlots(p, "Upset Plot - Limma")
+  } else {
+    p <- function() {
+      vennDiagram(markings)
+    }
+    printPlots(p, "Venn Diagram - Limma")
+  }
+
+  # MA-Plots with significant DEGs and Volcano plots
+  # Find Axis Limits
+  log_info("Finding axis limits...")
+  max.M.value = max(sapply(DEGs.limma, \(data){max(abs(data$logFC))} ))
+  max.A.value = max(sapply(DEGs.limma, \(data){max(data$AveExpr)} ))
+  min.A.value = min(sapply(DEGs.limma, \(data){min(data$AveExpr)} ))
+  min.P.value = min(sapply(DEGs.limma, \(data){min(data$P.Value)} ))
+
+  # MA-Plot with DEGs
+  log_info("Making Limma MA-Plots...")
+  # I cannot place a progress bar here as `printPlots` logs to stdout.
+  for (i in seq_along(contrasts)) {
+    # Mark in red/blue all the up-/down- regulated genes
+    # This MA plot is made with the LogFC and estimates from the TopTables
+    p <- function() {
+      mamaplot(
+        x = DEGs.limma[[i]]$AveExpr, y = DEGs.limma[[i]]$logFC,
+        input_is_ma = TRUE,
+        highligths = list(
+          "red" = DEGs.limma[[i]]$markings == 1,
+          "blue" = DEGs.limma[[i]]$markings == -1
+        )
+      ) |> print()
+    }
+    printPlots(p, paste("MA-Plot with Limma DEGs ", names(DEGs.limma)[i], sep = ""))
+  }
+
+  # Volcano Plots
+  log_info("Making Limma Volcano plots...")
+  for (i in seq_along(contrasts)) {
+    # Total number of significant DEGs (without any FC cutoff)
+    tot.DEG = sum(DEGs.limma[[i]]$adj.P.Val < 0.05)
+    high.DEG = min(c(5,tot.DEG)) # To highlight no more than 5 genes per plot
+
+    # Significance Threshold
+    # TODO : Discuss if this is right
+    # Find that p-value corresponding to BH-adj.p-value ~ 0.05 (or Bonferroni point when tot.DEG = 0)
+    thrP = (0.05/nrow(DEGs.limma[[i]]))*(tot.DEG + 1)
+    # TODO : Implement this?
+    # Alternative approach - Suitable also for correction methods other than BH
+    # WARNING: DEG list has to be sorted by p-value or B statistics!
+    #if (tot.DEG > 0) {
+    #  thrP = DEGs.limma[[i]][tot.DEG + 1, "P.Value"] # This is the p-value of the first non-DEG
+    #} else {
+    #  thrP = (0.05/filtSize) # Bonferroni point
+    #}
+    # Check the threshold p-value
+    log_info(
+      paste0(
+        "\n", names(DEGs.limma)[i], " - Threshold Report:\n",
+        "--------------------------------------\n",
+        "  p-value threshold  =  ", thrP, "\n",
+        "  -log10(p-value)    =  ", -log10(thrP), "\n",
+        "  Gene Ranking       =  ", tot.DEG, ":", tot.DEG + 1, "\n\n", sep = ""
+      )
+    )
+
+    # Enhanced Volcano Plot
+    if (! is.null(annotations)) {
+      ..annotation_data <- annotate_data(DEGs.limma[[i]], annotations, "SYMBOL")
+      print(head(..annotation_data))
+      ..volcano_labels <- ..annotation_data$SYMBOL
+    } else {
+      ..volcano_labels = rownames(DEGs.limma[[i]])
+    }
+    print(..volcano_labels)
+    p <- function() {
+      # NOTICE: When in a for loop, you have to explicitly print your
+      # resulting EnhancedVolcano object
+      suppressWarnings(
+        # This prints warnings as - I think - the internal implementation
+        # uses xlim and ylim but ggplot2 ignores them.
+        print(
+          EnhancedVolcano(
+            DEGs.limma[[i]],
+            x = "logFC", y = "P.Value",
+            pCutoff = thrP, FCcutoff = fc_threshold,
+            pointSize = 1,
+            col = c("black", "black", "black", colours[2]),
+            lab = ..volcano_labels,
+            #selectLab = myLabels[1:high.DEG],
+            labSize = 4,
+            title = names(DEGs.limma)[i],
+            subtitle = "Limma",
+            legendPosition = "none"
+          )
+        )
+      )
+    }
+    printPlots(p, paste("Volcano with Limma DEGs ", names(DEGs.limma)[i], sep = ""))
+  }
+}
+
+
 GATTACA <- function(options.path, input.file, output.dir) {
   # This function is so long, a description wouldn't fit here.
   # Refer to the project's README.
 
-  set.seed(1) # Rankprod needs randomness.
+  set.seed(1) # Rank Prod needs randomness.
 
   # ---- Option parsing ----
   opts <- yaml.load_file(options.path)
@@ -240,13 +529,13 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
   # ---- Load the experimental design ----
   log_info("Loading experimental design...")
-  experimental_design <- design_parser(opts$design$experimental_design)
-
   # This is a list containing the group sequence in `$groups` and the IDs for
   # pairing in '$pairing'
-  experimental_design <- split_design(experimental_design)
+  design_parser(opts$design$experimental_design) |>
+    split_design() ->
+    experimental_design
 
-  # Check the design
+  # Check the design for validity
   if (length(experimental_design$groups) != ncol(expression_set)) {
     stop(paste0(
       "The number of patients (", ncol(expression_set),
@@ -365,22 +654,10 @@ GATTACA <- function(options.path, input.file, output.dir) {
     expression_set |> dp_select(starts_with(combo[1])) |> rowMeans() -> group1
     expression_set |> dp_select(starts_with(combo[2])) |> rowMeans() -> group2
 
-    print(head(group1)) ; print(head(group2))
-
-    p <- function() {
-      maplot(
-        group2, group1,
-        xlab = "A (Average log-expression)", ylab = "M (Expression log-ratio)",
-        n = 5e4,
-        curve.add = TRUE, curve.col = user_colours[2], curve.lwd = 1.5,
-        curve.n = 1e4, pch = 20, cex = 0.1
-      )
-      title(main = paste(combo[1], "vs", combo[2]))
-      abline(h = 0, col = user_colours[1], lty = 2) # lty = line type
-      abline(h = c(1,-1), col = user_colours[1])
-      abline(v = min_log2_expression, col = user_colours[1]) # Platform-specific log2-expression threshold
-    }
-    printPlots(p, paste0("MA_Plot_", combo[[1]], "_vs_", combo[[2]]))
+    matitle <- paste0("MA_Plot_", combo[[1]], "_vs_", combo[[2]])
+    printPlots(\(){
+      suppressMessages(print(mamaplot(group1, group2, title = matitle)))
+    }, matitle)
   }
 
 
@@ -393,19 +670,6 @@ GATTACA <- function(options.path, input.file, output.dir) {
     hierarchical_clusters
 
   printPlots(\(){plot(hierarchical_clusters)}, "Dendrogram")
-  # Desired number of clusters
-  # TODO : Should this be an option?
-  nr_shown_clusters = min(6, length(expression_set) - 1) # The -1 is needed.
-  print(nr_shown_clusters)
-
-  p <- function() {
-    plot(hierarchical_clusters)
-    # Red borders around the kNum clusters
-    rect.hclust(
-      hierarchical_clusters, k = nr_shown_clusters, border = user_colours[2]
-    )
-  }
-  printPlots(p, "Dendrogram and Clusters")
 
   log_info("Finished with hierarchical clustering.")
   pitstop("Maybe check the plots and come back?")
@@ -527,233 +791,40 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
   # ---- DE by Limma ----
   if (opts$switches$limma) {
-    log_info("Running DEA with `limma`...")
-    pitstop("")
+    DEGs.limma <- run_limma(
+      expression_set, groups = experimental_design$groups, contrasts = raw_contrasts,
+      pairings = if (paired_mode) {experimental_design$pairings} else {NULL},
+      fc_threshold = thrFC
+    )
 
-    # Differential Expression Assessment and Figure Production
-    log_info("Running differential expression analysis by limma.")
+    # Make and save limma plots
+    make_limma_plots(
+      DEGs.limma = DEGs.limma, fc_threshold = thrFC,
+      annotations = opts$general$annotation_chip_id
+    )
 
-    log_info("Making limma design matrix...")
-
-    if (paired_mode) {
-      ..factor_pairings <- as.factor(experimental_design$pairings)
-      ..pairings_levels <- levels(..factor_pairings)
-      ..pairings_levels <- ..pairings_levels[1:length(..pairings_levels)-1]
-      ..pairings_levels <- make.names(..pairings_levels)
-      ..groups_levels <- sort(unique_simple_groups)
-      ..limma_design <- model.matrix(
-        ~ 0 + experimental_design$groups + ..factor_pairings
-      )
-      colnames(..limma_design) <- c(..groups_levels, ..pairings_levels)
-    } else {
-      ..limma_design <- model.matrix(~ 0 + experimental_design$groups)
-      ..limma_design[,order(colnames(..limma_design))]
-      colnames(..limma_design) <- unique_simple_groups[order(unique_simple_groups)]
-    }
-
-    log_info("Design matrix:\n", get.print.str(..limma_design))
-
-    log_info("Making contrasts matrix...")
-    makeContrasts(
-      contrasts = raw_contrasts,
-      levels = ..limma_design
-    ) -> ..contrast_matrix
-
-    log_info("Contrasts matrix:\n", get.print.str(..contrast_matrix))
-
-    log_info("Computing contrasts...")
-    lmFit(expression_set, ..limma_design) -> ..limma_fit
-    ..limma_fit |> contrasts.fit(..contrast_matrix) |> eBayes() -> ..limma_Bayes
-
-    # Print Results (Top-Ten genes) for all the contrasts of interest
-    # This is only useful in slowmode.
-    if (opts$general$slowmode) {
-      for (i in seq_along(raw_contrasts)) {
-        # 'print' because automatic printing is turned off in loops (and functions)
-        # `cat` is also OK here as we are in slowmode.
-        cat("\nDEG Top-List for contrast: ", raw_contrasts[i], "\n", sep = "")
-        print(topTable(..limma_Bayes, coef = i, adjust.method = "BH", sort.by = "B"))
-        cat("\n") # The one time I like a bit more space.
+    if (!is.null(getOption("use.annotations"))) {
+      log_info("Annotating limma results...")
+      for (i in seq_along(DEGs.limma)) {
+        DEGs.limma[[i]] <- annotate_data(DEGs.limma[[i]], opts$general$annotation_chip_id, "SYMBOL")
       }
-    }
-    pitstop("Next: Save all DEGs.")
-
-    log_info("Getting Differential expressions...")
-    pb <- progress_bar$new(
-      format = "Generating... [:bar] :percent (:eta)",
-      total = length(raw_contrasts), clear = FALSE, width= 80)
-    pb$tick(0)
-    DEGs.limma = list() # Create an empty list
-    for (i in seq_along(raw_contrasts)) {
-      DEGs.limma[[i]] = topTable(
-        ..limma_Bayes, coef = i, number = Inf,
-        adjust.method = "BH", sort.by = "B"
-      ) # this is a list of Data Frames
-      pb$tick()
     }
 
     # Save full DEG Tables
     if (write_data_to_disk) {
       log_info("Saving Differential expression tables...")
       pb <- progress_bar$new(
-        format = "Generating... [:bar] :percent (:eta)",
+        format = "Saving... [:bar] :percent (:eta)",
         total = length(raw_contrasts), clear = FALSE, width= 80)
       pb$tick(0)
       for (i in seq_along(raw_contrasts)) {
-        write_expression_data(DEGs.limma[[i]], paste0("Limma - DEG Table ", raw_contrasts[i], ".csv"))
+        write_expression_data(
+          DEGs.limma[[i]], paste0("Limma - DEG Table ", raw_contrasts[i], ".csv"))
         pb$tick()
       }
       log_info(paste0("Saved tables in ", output.dir))
     }
 
-    # Summary of DEGs (you can change the Log2-Fold-Change Threshold lfc...)
-    results.limma = decideTests(
-      ..limma_Bayes, adjust.method = "BH", p.value = 0.05,
-      lfc = thrFC
-    )
-    p <- function() {
-      vennDiagram(results.limma)
-    }
-    printPlots(p, "Limma Venn")
-
-    # Show Hyperparameters
-    d0 = ..limma_Bayes$df.prior           # prior degrees of freedom
-    dg = mean(..limma_fit$df.residual)    # original degrees of freedom
-    hyp = cbind(
-      c(..limma_Bayes$s2.prior,     # prior variance
-      mean(..limma_fit$sigma^2),    # mean sample residual variance
-      mean(..limma_Bayes$s2.post),  # mean posterior residual variance
-      d0, dg, d0/(d0+dg))   # Shrinkage degree
-    )
-    rownames(hyp) = c(
-      "Prior Var",
-      "Sample Residual Mean Var",
-      "Posterior Residual Mean Var",
-      "Prior df",
-      "Original df",
-      "Shrinkage degree"
-    )
-    colnames(hyp) = "Hyperparameters"
-    log_info(paste0("Hyperparameters:: \n", get.print.str(hyp)))
-
-    pitstop("Finished running DEA.")
-
-    # ---- Limma Plot ----
-    log_info("Making DEG plots...")
-    # MA-Plots with significant DEGs and Volcano plots
-
-    # Find Axis Limits
-    log_info("Finding axis limits...")
-    max.M.value = 0
-    for (i in seq_along(raw_contrasts)) {
-      temp = max(abs(DEGs.limma[[i]]$logFC))
-      if (temp > max.M.value) {
-        max.M.value = temp
-      }
-    }
-    max.A.value = 0
-    for (i in seq_along(raw_contrasts)) {
-      temp = max(DEGs.limma[[i]]$AveExpr)
-      if (temp > max.A.value) {
-        max.A.value = temp
-      }
-    }
-    min.A.value = Inf
-    for (i in seq_along(raw_contrasts)) {
-      temp = min(DEGs.limma[[i]]$AveExpr)
-      if (temp < min.A.value) {
-        min.A.value = temp
-      }
-    }
-    min.P.value = 1
-    for (i in seq_along(raw_contrasts)) {
-      temp = min(DEGs.limma[[i]]$P.Value)
-      if (temp < min.P.value) {
-        min.P.value = temp
-      }
-    }
-
-    # MA-Plot with DEGs
-    log_info("Making Limma MA-Plots...")
-    # I cannot place a progress bar here as `printPlots` logs to stdout.
-    for (i in seq_along(raw_contrasts)) {
-      # Mark in red/blue all the up-/down- regulated genes (+1/-1 in 'results.limma' matrix)
-      p <- function() {
-        plotMD(
-          ..limma_Bayes, status = results.limma[,i],
-          values = c(1,-1), hl.col = user_colours[c(2,1)],
-          xlab = "A (Average log-expression)",
-          ylab = "M (log2-Fold-Change)"
-        )
-        abline(h = 0, col = user_colours[1], lty = 2) # lty = line type
-        abline(h = c(thrFC,-thrFC), col = user_colours[1])
-        abline(v = min_log2_expression, col = user_colours[1]) # Platform-specific log2-expression threshold
-      }
-      printPlots(p, paste("MA-Plot with Limma DEGs ", raw_contrasts[i], sep = ""))
-    }
-
-    # Volcano Plots
-    log_info("Making Limma Volcano plots...")
-    for (i in seq_along(raw_contrasts)) {
-      tot.DEG = sum(DEGs.limma[[i]]$adj.P.Val < 0.05) # Total number of significant DEGs (without any FC cutoff)
-      high.DEG = min(c(5,tot.DEG)) # To highlight no more than 5 genes per plot
-
-      # Significance Threshold
-      # TODO : Discuss if this is right
-      # Find that p-value corresponding to BH-adj.p-value ~ 0.05 (or Bonferroni point when tot.DEG = 0)
-      thrP = (0.05/nrow(expression_set))*(tot.DEG + 1)
-      # TODO : Implement this?
-      # Alternative approach - Suitable also for correction methods other than BH
-      # WARNING: DEG list has to be sorted by p-value or B statistics!
-      #if (tot.DEG > 0) {
-      #  thrP = DEGs.limma[[i]][tot.DEG + 1, "P.Value"] # This is the p-value of the first non-DEG
-      #} else {
-      #  thrP = (0.05/filtSize) # Bonferroni point
-      #}
-      # Check the threshold p-value
-      log_info(
-        paste0(
-          "\n", raw_contrasts[i], " - Threshold Report:\n",
-          "--------------------------------------\n",
-          "  p-value threshold  =  ", thrP, "\n",
-          "  -log10(p-value)    =  ", -log10(thrP), "\n",
-          "  Gene Ranking       =  ", tot.DEG, ":", tot.DEG + 1, "\n\n", sep = ""
-        )
-      )
-
-      # Enhanced Volcano Plot
-      if (getOption("use.annotations")) {
-        ..annotation_data <- merge_annotations(DEGs.limma[[i]], annotation_data)
-        ..volcano_labels <- ..annotation_data$SYMBOL
-      } else {
-        ..volcano_labels = rownames(DEGs.limma[[i]])
-      }
-      p <- function() {
-        # NOTICE: When in a for loop, you have to explicitly print your
-        # resulting EnhancedVolcano object
-        suppressWarnings(
-          # This prints warnings as - I think - the internal implementation
-          # uses xlim and ylim but ggplot2 ignores them.
-          print(
-            EnhancedVolcano(
-              DEGs.limma[[i]],
-              x = "logFC", y = "P.Value",
-              pCutoff = thrP, FCcutoff = thrFC,
-              pointSize = 1,
-              col = c("black", "black", "black", user_colours[2]),
-              lab = ..volcano_labels,
-              #selectLab = myLabels[1:high.DEG],
-              labSize = 4,
-              title = raw_contrasts[i],
-              subtitle = "Limma",
-              legendPosition = "none"
-            )
-          )
-        )
-      }
-      printPlots(p, paste("Volcano with Limma DEGs ", raw_contrasts[i], sep = ""))
-
-    }
   }
 
   # ---- DE by RankProduct ----
@@ -951,6 +1022,8 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
     # To suppress 'venn.diagram()' logging
     futile.logger::flog.threshold(futile.logger::ERROR, name = "VennDiagramLogger")
+
+    results.limma <- extract_markings(DEGs.limma)
 
     # Plot Venn diagrams
     log_info("Plotting Venn diagrams...")
