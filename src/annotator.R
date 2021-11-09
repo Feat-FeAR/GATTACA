@@ -86,7 +86,7 @@ get_db_names <- function(db_namespace) {
   suppressWarnings({
     stopifnot("Invalid database name - cannot be empty"=db_namespace==character(0))
     if (!require(db_namespace, character.only = TRUE)) {
-      BiocManager::install(db_namespace)
+      BiocManager::install(db_namespace, update = FALSE)
       suppressPackageStartupMessages(library(db_namespace, character.only = TRUE))
     }
   })
@@ -156,9 +156,7 @@ get_remote_annotations <- function(
   for (selection in selections) {
     # This raises deprecation warnings for no reason.
     suppressWarnings(
-      {
-        data[selection] <- get(paste0(db_clean_name, selection))
-      }
+      { data[selection] <- get(paste0(db_clean_name, selection)) }
     )
   }
   

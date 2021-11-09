@@ -1079,3 +1079,16 @@ get_mamaplot_score <- function(m, a) {
 is.wholenumber <- function(x, tol = .Machine$double.eps^0.5) {
   return(abs(x - round(x)) < tol)
 }
+
+
+#' This function returns a corrected alpha threshold for the Benjamini-Hochberg
+#' procedure, to be used instead of the inputted one to filter by P-value
+#' instead of by the adjusted p-value.
+#'
+#' @param adj_pvals A vector with the BH-adjusted p-values.
+#' @param alpha_threshold The desired alpha threshold to correct.
+find_BH_critical_p <- function(adj_pvals, alpha_threshold = 0.05) {
+  total_hits = sum(adj_pvals < alpha_threshold)
+  corrected_alpha = (alpha_threshold / length(adj_pvals)) * (total_hits + 1)
+  return(corrected_alpha)
+}

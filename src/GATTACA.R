@@ -294,15 +294,48 @@ run_limma <- function(
 #'
 #' Looks for the `markings` column and extracts it in a new data.frame.
 #' Uses the last Data frame rownames for simplicity, assuming all frames
-#' come from the same call of `run_limma`.
-extract_markings <- function(DEGs.limma) {
+#' come from the same call of `run_limma` or `run_rankprod`.
+extract_markings <- function(DEGs.list) {
   container <- list()
-  for (contrast in names(DEGs.limma)) {
-    container[contrast] <- DEGs.limma[[contrast]]["markings"]
+  for (contrast in names(DEGs.list)) {
+    container[contrast] <- DEGs.list[[contrast]]["markings"]
   }
   container <- data.frame(container)
-  rownames(container) <- rownames(DEGs.limma[[contrast]])
+  rownames(container) <- rownames(DEGs.list[[contrast]])
   return(container)
+}
+
+#' Prints out either a venn or an upset plot from a markings frame,
+#' such as that of `extract_markings`.
+#'
+#' If the data does not allow either, does not plot anything.
+#'
+#' Uses the PrintPlots function, so the options can be set from outside
+#' this function.
+make_overlaps_from_markings <- function(markings, toolname = "") {
+  if (length(markings) > 3 & sum(markings) > 0) {
+    # Prepare the dataset to allow the upset plot
+    upset_data <- list()
+    for (i in seq_along(markings)) {
+      upset_data[[colnames(markings)[i]]] <- rownames(markings)[as.logical(markings[[i]])]
+    }
+    upset_data <- fromList(upset_data)
+    p <- function() {
+      upset(
+        upset_data, nsets = Inf, nintersects = NA,
+        keep.order = TRUE
+      ) |> print()
+    }
+    printPlots(p, paste("Upset Plot", toolname, sep = " - "))
+
+  } else if (sum(markings) > 0) {
+    p <- function() {
+      vennDiagram(markings)
+    }
+    printPlots(p, "Venn Diagram - Limma")
+  } else {
+    log_warn("Cannot plot a Venn or Upset Plot as no DEGs have been detected.")
+  }
 }
 
 
@@ -315,50 +348,29 @@ extract_markings <- function(DEGs.limma) {
 #' (if there are more than 3 contrasts), a set of MA plots with the detected
 #' DEGs highlighted, and a set of volcano plots with the (annotated) DEGs.
 #'
+#' Looks for a column named "SYMBOL" to source the volcano plot labels with,
+#' else uses the rownames.
+#'
 #' @param DEGs.limma A named list of Data.frames. The names of the list must
 #'   represent the contrasts that are described in the data.frames.
 #'   Looks for a column named `markings` in each frame that describes which
 #'   genes are Upregulated (`1`), Downregulated (`-1`) or Not Significant (`0`).
-#' @param chip_id The chip ID to source annotations for the volcano plot.
-#'   Leave to NULL to not use annotations.
 #' @param fc_threshold The FC threshold that was used when calculating the
 #'   DEGs.limma.
 #' @param volcano_colour Colour to use to mark interesting points in the volcano
 #'   plot.
 #'
 #' @author FeAR, Hedmad
-make_limma_plots <- function(
-  DEGs.limma, chip_id = NULL, fc_threshold = 0.5,
-  volcano_colour = "firebrick3"
+diagnose_limma_data <- function(
+  DEGs.limma, fc_threshold = 0.5, volcano_colour = "firebrick3"
 ) {
   log_info("Making limma DEG plots...")
 
   extract_markings(DEGs.limma) |> abs() -> markings
 
-  if (length(DEGs.limma) > 3) {
-    # Prepare the dataset to allow the upset plot
-    upset_data <- list()
-    for (i in seq_along(markings)) {
-      upset_data[[colnames(markings)[i]]] <- rownames(markings)[as.logical(markings[[i]])]
-    }
+  make_overlaps_from_markings(markings, toolname = "limma")
 
-    upset_data <- fromList(upset_data)
-    print(topleft.head(upset_data))
-    p <- function() {
-      upset(
-        upset_data, nsets = length(DEGs.limma), nintersects = NA,
-        keep.order = TRUE,
-      ) |> print()
-    }
-    printPlots(p, "Upset Plot - Limma")
-  } else {
-    p <- function() {
-      vennDiagram(markings)
-    }
-    printPlots(p, "Venn Diagram - Limma")
-  }
-
-  # MA-Plots with significant DEGs and Volcano plots
+  # MA-Plots with significant DEGs
   # Find Axis Limits
   log_info("Finding axis limits...")
   max.M.value = max(sapply(DEGs.limma, \(data){max(abs(data$logFC))} ))
@@ -379,7 +391,9 @@ make_limma_plots <- function(
         highligths = list(
           "red" = DEGs.limma[[i]]$markings == 1,
           "blue" = DEGs.limma[[i]]$markings == -1
-        )
+        ),
+        xrange = c(min.A.value, max.A.value),
+        yrange = c(NA, max.M.value)
       ) |> print()
     }
     printPlots(p, paste("MA-Plot with Limma DEGs ", names(DEGs.limma)[i], sep = ""))
@@ -388,42 +402,15 @@ make_limma_plots <- function(
   # Volcano Plots
   log_info("Making Limma Volcano plots...")
   for (i in seq_along(contrasts)) {
-    # Total number of significant DEGs (without any FC cutoff)
-    tot.DEG = sum(DEGs.limma[[i]]$adj.P.Val < 0.05)
-    high.DEG = min(c(5,tot.DEG)) # To highlight no more than 5 genes per plot
-
-    # Significance Threshold
-    # TODO : Discuss if this is right
-    # Find that p-value corresponding to BH-adj.p-value ~ 0.05 (or Bonferroni point when tot.DEG = 0)
-    thrP = (0.05/nrow(DEGs.limma[[i]]))*(tot.DEG + 1)
-    # TODO : Implement this?
-    # Alternative approach - Suitable also for correction methods other than BH
-    # WARNING: DEG list has to be sorted by p-value or B statistics!
-    #if (tot.DEG > 0) {
-    #  thrP = DEGs.limma[[i]][tot.DEG + 1, "P.Value"] # This is the p-value of the first non-DEG
-    #} else {
-    #  thrP = (0.05/filtSize) # Bonferroni point
-    #}
-    # Check the threshold p-value
-    log_info(
-      paste0(
-        "\n", names(DEGs.limma)[i], " - Threshold Report:\n",
-        "--------------------------------------\n",
-        "  p-value threshold  =  ", thrP, "\n",
-        "  -log10(p-value)    =  ", -log10(thrP), "\n",
-        "  Gene Ranking       =  ", tot.DEG, ":", tot.DEG + 1, "\n\n", sep = ""
-      )
-    )
+    volcano_p_threshold = find_BH_critical_p(DEGs.limma[[i]]$adj.P.Val)
 
     # Enhanced Volcano Plot
-    if (! is.null(chip_id)) {
-      ..annotation_data <- annotate_data(DEGs.limma[[i]], chip_id, "SYMBOL")
-      print(head(..annotation_data))
-      ..volcano_labels <- ..annotation_data$SYMBOL
+    if ("SYMBOL" %in% colnames(DEGs.limma[[i]])) {
+      volcano_labels <- DEGs.limma$SYMBOL
     } else {
-      ..volcano_labels = rownames(DEGs.limma[[i]])
+      volcano_labels = rownames(DEGs.limma[[i]])
     }
-    print(..volcano_labels)
+
     p <- function() {
       # NOTICE: When in a for loop, you have to explicitly print your
       # resulting EnhancedVolcano object
@@ -434,10 +421,10 @@ make_limma_plots <- function(
           EnhancedVolcano(
             DEGs.limma[[i]],
             x = "logFC", y = "P.Value",
-            pCutoff = thrP, FCcutoff = fc_threshold,
+            pCutoff = volcano_p_threshold, FCcutoff = fc_threshold,
             pointSize = 1,
             col = c("black", "black", "black", volcano_colour),
-            lab = ..volcano_labels,
+            lab = volcano_labels,
             #selectLab = myLabels[1:high.DEG],
             labSize = 4,
             title = names(DEGs.limma)[i],
@@ -448,6 +435,346 @@ make_limma_plots <- function(
       )
     }
     printPlots(p, paste("Volcano with Limma DEGs ", names(DEGs.limma)[i], sep = ""))
+  }
+}
+
+
+#' Run a DEA with `RankProd`.
+#'
+#' @param expression_set The expression set to run the analysis with.
+#'   It is a data.frame with row names as probes and column as samples. The
+#'   col names are assumed to start with one of the possible levels in the
+#'   experimental design.
+#' @param groups A vector describing the groups of the data, in the same order
+#'   as the columns.
+#' @param contrasts A character vector describing contrasts.
+#' @param pairings A vector describing the pairings of the data or NULL if no
+#'   pairings are present. Must be the same length as the columns of the
+#'   expression_set.
+#' @param fc_threshold The absolute Fold-change threshold to use to consider
+#'   a gene as differentially expressed, regardless of the P-value or FDR.
+#'
+#' @returns A list of Data.frames, each with the DEGs found using a different
+#'   contrast. Each dataframe has a column named `markings`, with the marking
+#'   of either Upregulated (`1`), Downregulated (`-1`) or Not Significant (`0`).
+#'
+#' @author FeAR, Hedmad
+run_rankprod <- function(
+  expression_set, groups, contrasts, pairings = NULL, fc_threshold = 0.5
+) {
+  log_info("Running differential expression analysis with rankproduct...")
+
+  # Make a container for the rankprod results
+  DEGs.rankprod = list()
+
+  for (i in seq_along(contrasts)) {
+    log_info(paste0("Running analysis ", i, " of ", length(contrasts)))
+
+    log_info("Finding control and case groups...")
+    unpacked_groups = strsplit(contrasts[i], split = "-", fixed = TRUE)[[1]]
+
+    control_group <- unpacked_groups[2]
+    treated_group <- unpacked_groups[1]
+
+    expression_set |> dp_select(
+      starts_with(control_group) | starts_with(treated_group)
+    ) -> sub_expression_set
+
+    # The above filter rearranges the columns. This crashes later as the
+    # column order is needed to match the pairings for subtraction.
+    # So we return to the original one here.
+    original_col_order <- colnames(expression_set)[
+      colnames(expression_set) %in% colnames(sub_expression_set)
+    ]
+    sub_expression_set <- sub_expression_set[, original_col_order]
+
+    # Make the cl array, representing class labels of the sample
+    colnames(sub_expression_set) |> startsWith(treated_group) |> as.numeric() ->
+      rp_class_labels
+
+    if (!is.null(pairings)) {
+      # To make a paired run, we need to subtract the matching paired sets.
+      # First, we need to get the pairings that survived the filtering
+      colnames(expression_set) %in% colnames(sub_expression_set) ->
+        surviving_cols
+      sub_parings <- pairings[surviving_cols]
+
+      # We make an empty dataframe to hold the subtraction result
+      subtracted_expression_set <- data.frame(row.names = rownames(sub_expression_set))
+      for (pairing in unique(sub_parings)) {
+
+        # Get only the columns of this pair...
+        paired_expression_set <- sub_expression_set[sub_parings == pairing]
+        # Select the "control" and "treated" group columns
+        paired_expression_set |> dp_select(starts_with(control_group)) ->
+          control_set
+        paired_expression_set |> dp_select(starts_with(treated_group)) ->
+          treated_set
+
+        # If there is more than one sample for each pairing in each set,
+        # we need to collapse them in some way as there is ambiguity on how
+        # to subtract them.
+        if (ncol(control_set) != 1) {
+          log_warn(
+            paste0(
+              "There are more than 1 '", control_group,
+              "' paired samples (",
+              paste(colnames(control_set), collapse = ", "), ").",
+              " The average of them will be used instead."
+            )
+          )
+          control_set <- rowMeans(control_set)
+          colnames(control_set) <- paste0("averaged_", control_group)
+        } else if (ncol(control_set) == 0) {
+          stop(
+            paste0(
+              "There are no paired columns for group '", control_group,
+              "' for pairing ", pairing
+            )
+          )
+        }
+
+        if (ncol(treated_set) != 1) {
+          log_warn(
+            paste0(
+              "There are more than 1 '", treated_group,
+              "' paired samples (",
+              paste(colnames(treated_set), collapse = ", "), ").",
+              " The average of them will be used instead."
+            )
+          )
+          treated_set <- rowMeans(treated_set)
+          colnames(treated_set) <- paste0("averaged_", treated_group)
+        } else if (ncol(treated_set) == 0) {
+          stop(
+            paste0(
+              "There are no paired columns for group '", treated_group,
+              "' for pairing ", pairing
+            )
+          )
+        }
+
+        # Now, control and treated sets can be subtracted as they are one
+        # and only one column.
+        subtracted_partial_set <- control_set - treated_set
+
+        subtracted_expression_set <- merge(
+          subtracted_expression_set, subtracted_partial_set,
+          all = TRUE, by = 0
+        )
+        # The merge makes the row names into their own col. This returns them
+        # to actual row names.
+        rownames(subtracted_expression_set) <- subtracted_expression_set$Row.names
+        subtracted_expression_set$Row.names <- NULL
+      }
+      log_info("Finished pairing dataset.")
+      # We put the new data in the same containers
+      sub_expression_set <- subtracted_expression_set
+      # The class labels are now identical as the set is paired
+      rp_class_labels <- rep(1, ncol(subtracted_expression_set))
+    }
+
+    # invisible(capture.output()) is to suppress automatic output to console
+    # WARNING: therein <- (instead of =) is mandatory for assignment!
+    log_info("Running RankProduct...")
+    RP.out <- RP.advance(
+      sub_expression_set,
+      rp_class_labels, origin = rep(1, ncol(sub_expression_set)),
+      gene.names = rownames(expression_set),
+      logged = TRUE, na.rm = FALSE, plot = FALSE, rand = 123
+    )
+
+    # Compute full DEG Tables (returns a list of 2 matrices, not data frames)
+    log_info("Computing DEG table...")
+    invisible(
+      capture.output(
+        # The Inf cutoff is to print all genes
+        DEGs.RP <- topGene(RP.out, logged = TRUE, logbase = 2, cutoff = Inf)
+      )
+    )
+    for (j in 1:2) {
+      # Invert FC to get Case vs Ctrl and take the log2 values
+      DEGs.RP[[j]][,3] = log2(1/DEGs.RP[[j]][,3])
+      colnames(DEGs.RP[[j]])[3] = "Log2FC" # Correct column name
+    }
+
+    # Condense the data from the two matrices into a single dataframe to
+    # be stored in the output
+    partial_data_up <- as.data.frame(DEGs.RP[[1]])
+    partial_data_dw <- as.data.frame(DEGs.RP[[2]])
+
+    # The colname order is always known
+    colnames(partial_data_up) <- c(
+      "gene.index", "RP/Rsum.UP", "Log2FC", "pfp.UP", "P.value.UP"
+    )
+    colnames(partial_data_dw) <- c(
+      "gene.index", "RP/Rsum.DOWN", "Log2FC", "pfp.DOWN", "P.value.DOWN"
+    )
+
+    partial_data <- merge(
+      partial_data_up, partial_data_dw, by = c("row.names", "gene.index", "Log2FC")
+    )
+    # Restore the rownames to actual rownames
+    rownames(partial_data) <- partial_data$Row.names
+    partial_data$Row.names <- NULL
+
+    # Reorder the cols with the magic of dplyr
+    partial_data |>
+      dp_select(gene.index, Log2FC, everything()) ->
+      partial_data
+
+    # We add the "markings" column, with 1 for upregulated, 0 for not significant
+    # and -1 for downregulated DEGs.
+    # Initialize the array
+    markings <- rep(0, length(partial_data$gene.index))
+
+    markings[
+      partial_data$Log2FC > fc_threshold &
+        partial_data$pfp.UP < 0.05
+    ] <- 1
+    markings[
+      partial_data$Log2FC < -fc_threshold &
+        partial_data$pfp.DOWN < 0.05
+    ] <- -1
+    partial_data$markings <- markings
+
+    # We add the AverageExpression column to all the DEG lists to be consistent
+    # with the output from limma. The averages are computed overall, not
+    # groupwise.
+    # This is a left outer join, dropping averages as needed.
+    averages <- data.frame("AveExpr" = apply(expression_set, 1, mean))
+    partial_data <- merge(
+      partial_data, averages, by = "row.names",
+      all.x = TRUE
+    )
+    # Restore the rownames to actual rownames
+    rownames(partial_data) <- partial_data$Row.names
+    partial_data$Row.names <- NULL
+
+    # RankProd uses "Log2FC" as col name, while limma uses "logFC".
+    # I make it so it is the same as limma.
+    dplyr::rename -> dp_rename
+    partial_data |> dp_rename("logFC" = "Log2FC") -> partial_data
+
+    # Put the data in the list
+    DEGs.rankprod[[contrasts[i]]] <- partial_data
+
+  } # Hard to see but here ends the loop on all the contrasts
+
+  return(DEGs.rankprod)
+}
+
+
+#' Make and save (in the current WD) diagnostic plots for rankprod results.
+#'
+#' This prints some plots with `printPlots`, and assumes that the correct
+#' options have already been selected.
+#'
+#' Looks for a column named "SYMBOL" to source the volcano plot labels with,
+#' else uses the rownames.
+#'
+#' The plots include: A Venn diagram OR an upset plot of the detected DEGs
+#' (if there are more than 3 contrasts), a set of MA plots with the detected
+#' DEGs highlighted, and a set of volcano plots with the (annotated) DEGs.
+#'
+#' @param DEGs.rankprod A list of DEG tables such as that produced by
+#'   `run_rankprod`.
+#' @param fc_threshold The fold change threshold that was used in the
+#'   `run_rankprod` call.
+#' @param `volcano_colour` The colour of the significant DEGs in the volcano
+#'   plot.
+diagnose_rankprod_data <- function(
+  DEGs.rankprod, fc_threshold = 0.5, volcano_colour = "firebrick3"
+) {
+  log_info("Making rankprod DEG plots...")
+
+  extract_markings(DEGs.rankprod) |> abs() -> markings
+
+  make_overlaps_from_markings(markings, toolname = "RankProd")
+
+  # MA-Plots with significant DEGs
+  # Find Axis Limits
+  log_info("Finding axis limits...")
+  max.M.value = max(sapply(DEGs.rankprod, \(data){max(abs(data$logFC))} ))
+  max.A.value = max(sapply(DEGs.rankprod, \(data){max(data$AveExpr)} ))
+  min.A.value = min(sapply(DEGs.rankprod, \(data){min(data$AveExpr)} ))
+  min.P.value = min(sapply(DEGs.rankprod, \(data){min(c(data$P.value.DOWN, data$P.value.UP))} ))
+
+  # MA-Plot with DEGs
+  log_info("Making Rankprod MA-Plots...")
+  # I cannot place a progress bar here as `printPlots` logs to stdout.
+  for (i in seq_along(contrasts)) {
+    # Mark in red/blue all the up-/down- regulated genes
+    # This MA plot is made with the LogFC and estimates from the TopTables
+    p <- function() {
+      mamaplot(
+        x = DEGs.rankprod[[i]]$AveExpr, y = DEGs.rankprod[[i]]$logFC,
+        input_is_ma = TRUE,
+        highligths = list(
+          "red" = DEGs.rankprod[[i]]$markings == 1,
+          "blue" = DEGs.rankprod[[i]]$markings == -1
+        ),
+        xrange = c(min.A.value, max.A.value),
+        yrange = c(NA, max.M.value)
+      ) |> print()
+    }
+    printPlots(p, paste("MA-Plot with RankProd DEGs ", names(DEGs.rankprod)[i], sep = ""))
+  }
+
+  # Volcano Plots
+  log_info("Making RankProd Volcano plots...")
+  for (i in seq_along(contrasts)) {
+    volcano_p_threshold = find_BH_critical_p(DEGs.rankprod[[i]]$adj.P.Val)
+
+    # Enhanced Volcano Plot
+    if ("SYMBOL" %in% colnames(DEGs.rankprod[[i]])) {
+      volcano_labels <- DEGs.rankprod$SYMBOL
+    } else {
+      volcano_labels = rownames(DEGs.rankprod[[i]])
+    }
+
+    # We need to harmonize the p-values, as we have two lists (P.value.UP and
+    # P.value.DOWN). I choose to keep the P.value.UP for genes with positive
+    # LogFC, and P.value.DOWN for negative genes.
+    harm_p_vals <- rep(NA, length(DEGs.rankprod[[i]]))
+    harm_p_vals[DEGs.rankprod[[i]]$logFC > 0] <-
+      DEGs.rankprod[[i]]$P.value.UP[DEGs.rankprod[[i]]$logFC > 0]
+    harm_p_vals[DEGs.rankprod[[i]]$logFC <= 0] <-
+      DEGs.rankprod[[i]]$P.value.DOWN[DEGs.rankprod[[i]]$logFC <= 0]
+    DEGs.rankprod[[i]]$harmonized_p_value <- harm_p_vals
+
+    # I do the same for the adj.p.values to find the critical p-value threshold
+    harm_adj_p_vals <- rep(NA, length(DEGs.rankprod[[i]]))
+    harm_adj_p_vals[DEGs.rankprod[[i]]$logFC > 0] <-
+      DEGs.rankprod[[i]]$pfp.UP[DEGs.rankprod[[i]]$logFC > 0]
+    harm_adj_p_vals[DEGs.rankprod[[i]]$logFC <= 0] <-
+      DEGs.rankprod[[i]]$pfp.DOWN[DEGs.rankprod[[i]]$logFC <= 0]
+
+    volcano_p_threshold <- find_BH_critical_p(harm_adj_p_vals)
+
+    p <- function() {
+      # NOTICE: When in a for loop, you have to explicitly print your
+      # resulting EnhancedVolcano object
+      suppressWarnings(
+        # This prints warnings as - I think - the internal implementation
+        # uses xlim and ylim but ggplot2 ignores them.
+        print(
+          EnhancedVolcano(
+            DEGs.rankprod[[i]],
+            x = "logFC", y = "harmonized_p_value",
+            pCutoff = volcano_p_threshold, FCcutoff = fc_threshold,
+            pointSize = 1,
+            col = c("black", "black", "black", volcano_colour),
+            lab = volcano_labels,
+            labSize = 4,
+            title = names(DEGs.rankprod)[i],
+            subtitle = "RankProd",
+            legendPosition = "none"
+          )
+        )
+      )
+    }
+    printPlots(p, paste("Volcano with RankProd DEGs ", names(DEGs.rankprod)[i], sep = ""))
   }
 }
 
@@ -522,15 +849,12 @@ GATTACA <- function(options.path, input.file, output.dir) {
   # Gene Expression Matrix - log2-Intensity-Values
   log_info("Loading data...")
 
-  expression_set <- read.csv(input.file, header = TRUE, row.names = "probe_id")
-  log_info(paste(
-    "Loaded expression_set dimensions:", paste0(dim(expression_set), collapse = " x ")
-  ))
+  expression_set <- read_expression_data(input.file)
   printdata(expression_set)
 
   pitstop("Finished loading data.")
 
-  # ---- Load the experimental design ----
+  # Load the experimental design
   log_info("Loading experimental design...")
   # This is a list containing the group sequence in `$groups` and the IDs for
   # pairing in '$pairing'
@@ -552,7 +876,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   if (all(..pairing_NAs)) {
     log_info("No sample pairing detected. Running in unpaired mode.")
     paired_mode <- FALSE
-  } else if (!all(..pairing_NAs)) {
+  } else if (all(!..pairing_NAs)) {
     log_info("Found sample pairings. Running in paired mode.")
     paired_mode <- TRUE
   } else {
@@ -631,6 +955,8 @@ GATTACA <- function(options.path, input.file, output.dir) {
         expression_set, legend = FALSE, main = "Expression values per sample"
       )
     }, "Pre-normalization density")
+
+    log_info("Running quantile-quantile normalization...")
     expression_set <- qq_normalize(expression_set)
   }
 
@@ -690,8 +1016,8 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
   # Do the PCA (centering the data before performing PCA, by default)
   PCA_object = pca(expression_set, metadata = metadata)
+
   log_info("Finished running PCA. Plotting results...")
-  # Plot results
   printPlots(\(){print(screeplot(PCA_object))}, "Scree Plot")
 
   p <- function() {
@@ -782,7 +1108,6 @@ GATTACA <- function(options.path, input.file, output.dir) {
   printPlots(p, "SD_vs_Mean Plot")
 
   # ---- Filtering ----
-
   expression_set <- filter_expression_data(
     expression_set, groups = experimental_design$groups,
     min_groupwise_presence = opts$design$filters$min_groupwise_presence,
@@ -790,7 +1115,6 @@ GATTACA <- function(options.path, input.file, output.dir) {
   )
 
   log_info("Done filtering.")
-
 
   # ---- DE by Limma ----
   if (opts$switches$limma) {
@@ -800,19 +1124,18 @@ GATTACA <- function(options.path, input.file, output.dir) {
       fc_threshold = thrFC
     )
 
-    # Make and save limma plots
-    make_limma_plots(
-      DEGs.limma = DEGs.limma, fc_threshold = thrFC,
-      chip_id = opts$general$annotation_chip_id,
-      volcano_colour = user_colours[2]
-    )
-
-    if (!is.null(getOption("use.annotations"))) {
+    if (getOption("use.annotations")) {
       log_info("Annotating limma results...")
       for (i in seq_along(DEGs.limma)) {
-        DEGs.limma[[i]] <- annotate_data(DEGs.limma[[i]], opts$general$annotation_chip_id, "SYMBOL")
+        DEGs.limma[[i]] <- merge_annotations(DEGs.limma[[i]], annotation_data)
       }
     }
+
+    # Make diagnostic plots for Limma
+    diagnose_limma_data(
+      DEGs.limma = DEGs.limma, fc_threshold = thrFC,
+      volcano_colour = user_colours[2]
+    )
 
     # Save full DEG Tables
     if (write_data_to_disk) {
@@ -826,208 +1149,55 @@ GATTACA <- function(options.path, input.file, output.dir) {
           DEGs.limma[[i]], paste0("Limma - DEG Table ", raw_contrasts[i], ".csv"))
         pb$tick()
       }
-      log_info(paste0("Saved tables in ", output.dir))
     }
 
   }
 
   # ---- DE by RankProduct ----
   if (opts$switches$rankproduct) {
-    log_info("Running differential expression analysis with rankproduct...")
-    log_info("Running in unpaired mode.")
-    # Differential Expression Assessment and Figure Production
-    results.RP = matrix(
-      data = 0,
-      nrow = nrow(expression_set), ncol = length(raw_contrasts)
+    DEGs.rankprod <- run_rankprod(
+      expression_set, groups = experimental_design$groups, contrasts = raw_contrasts,
+      pairings = if (paired_mode) {experimental_design$pairings} else {NULL},
+      fc_threshold = thrFC
     )
-    rownames(results.RP) = rownames(expression_set)
-    colnames(results.RP) = raw_contrasts
 
-    for (i in seq_along(raw_contrasts)) {
-      log_info(paste0("Running analysis ", i, " of ", length(raw_contrasts)))
-
-      log_info("Finding control and case groups...")
-      ..unpacked_groups = strsplit(raw_contrasts[i], split = "-", fixed = TRUE)[[1]]
-
-      ..control_group <- ..unpacked_groups[2]
-      ..treated_group <- ..unpacked_groups[1]
-
-      expression_set |> dp_select(
-        starts_with(..control_group) | starts_with(..treated_group)
-        ) -> ..sub_expression_set
-
-      # The above filter rearranges the columns. This crashes later as the
-      # column order is needed to match the pairings for subtraction.
-      # So we return to the original one here.
-      ..original_col_order <- colnames(expression_set)[
-        colnames(expression_set) %in% colnames(..sub_expression_set)
-      ]
-      ..sub_expression_set <- ..sub_expression_set[, ..original_col_order]
-
-      # Make the cl array, representing class labels of the sample
-      colnames(..sub_expression_set) |> startsWith(..treated_group) |> as.numeric() ->
-        ..rp_class_labels
-
-      if (paired_mode) {
-        # To make a paired run, we need to subtract the matching paired sets.
-        # First, we need to get the pairings that survived the filtering
-        colnames(expression_set) %in% colnames(..sub_expression_set) ->
-          ..surviving_cols
-        ..sub_parings <- experimental_design$pairings[..surviving_cols]
-
-        # We make an empty dataframe to hold the subtraction result
-        ..subtracted_expression_set <- data.frame(row.names = rownames(..sub_expression_set))
-        for (pairing in unique(..sub_parings)) {
-
-          ..paired_expression_set <- ..sub_expression_set[..sub_parings == pairing]
-
-          ..paired_expression_set |> dp_select(starts_with(..control_group)) ->
-            ..control_set
-          ..paired_expression_set |> dp_select(starts_with(..treated_group)) ->
-            ..treated_set
-
-          if (ncol(..control_set) != 1) {
-            log_warn(
-              paste0(
-                "There are more than 1 '", ..control_group,
-                "' paired samples (",
-                paste(colnames(..control_set), collapse = ", "), ").",
-                " The average of them will be used instead."
-              )
-            )
-            ..control_set <- rowMeans(..control_set)
-            colnames(..control_set) <- paste0("averaged_", ..control_group)
-          } else if (ncol(..control_set) == 0) {
-            stop(
-              paste0(
-                "There are no paired columns for group '", ..control_group,
-                "' for pairing ", pairing
-              )
-            )
-          }
-
-          if (ncol(..treated_set) != 1) {
-            log_warn(
-              paste0(
-                "There are more than 1 '", ..treated_group,
-                "' paired samples (",
-                paste(colnames(..treated_set), collapse = ", "), ").",
-                " The average of them will be used instead."
-              )
-            )
-            ..treated_set <- rowMeans(..treated_set)
-            colnames(..treated_set) <- paste0("averaged_", ..treated_group)
-          } else if (ncol(..treated_set) == 0) {
-            stop(
-              paste0(
-                "There are no paired columns for group '", ..treated_group,
-                "' for pairing ", pairing
-              )
-            )
-          }
-
-          # Now, control and treated sets can be subtracted as they are one
-          # and only one column.
-          ..subtracted_partial_set <- ..control_set - ..treated_set
-
-          ..subtracted_expression_set <- merge(
-            ..subtracted_expression_set, ..subtracted_partial_set,
-            all = TRUE, by = 0
-          )
-          # the merge makes the rownames into their own col
-          rownames(..subtracted_expression_set) <- ..subtracted_expression_set$Row.names
-          ..subtracted_expression_set$Row.names <- NULL
-        }
-        log_info("Finished pairing dataset.")
-        ..sub_expression_set <- ..subtracted_expression_set
-        ..rp_class_labels <- rep(1, ncol(..subtracted_expression_set))
+    if (getOption("use.annotations")) {
+      log_info("Annotating RankProd results...")
+      for (i in seq_along(DEGs.rankprod)) {
+        DEGs.rankprod[[i]] <- merge_annotations(DEGs.rankprod[[i]], annotation_data)
       }
-
-      # invisible(capture.output()) is to suppress automatic output to console
-      # WARNING: therein <- (instead of =) is mandatory for assignment!
-      log_info("Running RankProduct...")
-      RP.out <- RP.advance(
-        ..sub_expression_set,
-        ..rp_class_labels, origin = rep(1, ncol(..sub_expression_set)),
-        gene.names = rownames(expression_set),
-        logged = TRUE, na.rm = FALSE, plot = FALSE, rand = 123
-      )
-      cat("\n")
-      p <- function() {
-        invisible(capture.output(plotRP(RP.out, cutoff = 0.05)))
-      }
-      printPlots(p, paste("Rankprod ", raw_contrasts[i]))
-
-      # Compute full DEG Tables (returns a list of 2 matrices, not data frames)
-      log_info("Computing DEG table...")
-      invisible(
-        capture.output(
-          # The Inf cutoff is to print all genes
-          DEGs.RP <- topGene(RP.out, logged = TRUE, logbase = 2, cutoff = Inf)
-        )
-      )
-      for (j in 1:2) {
-         # Invert FC to get Case vs Ctrl and take the log2 values
-        DEGs.RP[[j]][,3] = log2(1/DEGs.RP[[j]][,3])
-        colnames(DEGs.RP[[j]])[3] = "Log2FC" # Correct column name
-      }
-
-      # Print Results (Top-Ten genes) for all the contrasts of interest
-      log_info("Getting top contrasts...")
-      log_info(paste0("DEG Top-List for contrast: ", raw_contrasts[i]))
-      tops = rbind(DEGs.RP$Table1[1:10,], DEGs.RP$Table2[1:10,])
-      printdata(tops) # just on-Screen
-      pitstop("")
-
-      # Save full DEG Tables
-      if (write_data_to_disk) {
-        log_info("Saving full DEG tables...")
-        upDegTabName = paste0("RP_Up - DEG Table ", raw_contrasts[i], ".csv")
-        dwnDegTabName = paste0("RP_Down - DEG Table ", raw_contrasts[i], ".csv")
-        write_expression_data(as.data.frame(DEGs.RP[[1]]), upDegTabName)
-        write_expression_data(as.data.frame(DEGs.RP[[2]]), dwnDegTabName)
-      }
-
-      # Fetch indexes of significant DEGs
-      log_info("Finding DEGs of interest...")
-      ups.Index = which(DEGs.RP$Table1[,4] < 0.05 & DEGs.RP$Table1[,3] > thrFC)
-      dwn.Index = which(DEGs.RP$Table2[,4] < 0.05 & DEGs.RP$Table2[,3] < -thrFC)
-      log_info(
-        paste(
-          "Found", length(ups.Index), "upregulated and",
-          length(dwn.Index), "downregulated genes."
-        )
-      )
-
-      # Here 'results.RP' is filled in analogy to 'results.limma':
-      # (-1,0,+1) for (Down, NotSig, Up)-regulated genes
-      # Accessing matrix rows by row name: matrix[rowname, col_i]
-      results.RP[rownames(DEGs.RP$Table1)[ups.Index],i] = 1
-      results.RP[rownames(DEGs.RP$Table2)[dwn.Index],i] = -1
-
     }
 
-    log_info("Calculating summary statistics...")
-    summary.RP = rbind(
-      colSums(results.RP == -1), # Cast to matrix
-      colSums(results.RP == 0),
-      colSums(results.RP == 1)
+    # Make diagnostic plots for RankProd
+    diagnose_rankprod_data(
+      DEGs.rankprod = DEGs.rankprod, fc_threshold = thrFC,
+      volcano_colour = user_colours[2]
     )
-    rownames(summary.RP) = c("Down", "NotSig", "Up")
-    print(summary.RP)
 
-    log_info("Finished DEA.")
-    pitstop("")
+    # Save full DEG Tables
+    if (write_data_to_disk) {
+      log_info("Saving Differential expression tables...")
+      pb <- progress_bar$new(
+        format = "Saving... [:bar] :percent (:eta)",
+        total = length(raw_contrasts), clear = FALSE, width= 80)
+      pb$tick(0)
+      for (i in seq_along(raw_contrasts)) {
+        write_expression_data(
+          DEGs.rankprod[[i]], paste0("RankProd - DEG Table ", raw_contrasts[i], ".csv"))
+        pb$tick()
+      }
+    }
   }
 
+  # ---- Comparison Plots - Limma vs RankProd ----
   if (opts$switches$limma & opts$switches$rankproduct) {
     log_info("Making comparison plots between limma and rankproduct...")
-    # Venn diagrams of DEGs from Limma and RP methods
 
     # To suppress 'venn.diagram()' logging
     futile.logger::flog.threshold(futile.logger::ERROR, name = "VennDiagramLogger")
 
     results.limma <- extract_markings(DEGs.limma)
+    results.RP <- extract_markings(DEGs.rankprod)
 
     # Plot Venn diagrams
     log_info("Plotting Venn diagrams...")

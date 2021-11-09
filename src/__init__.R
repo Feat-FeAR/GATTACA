@@ -10,6 +10,8 @@ options(
 suppressMessages(library(futile.logger))
 suppressMessages(library(logger))
 
+log_layout(layout_glue_generator(format = '{time} <{fn}> [{level}]: {msg}'))
+
 setup_file_logging <- function (log_dir, log_name = NULL) {
   # Setup logging facilities to save to file.
   if (!is.null(log_name) && log_name == "NULL") {
