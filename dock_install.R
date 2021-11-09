@@ -11,7 +11,7 @@ if (!requireNamespace("BiocManager", quietly = TRUE)) {
   install.packages("BiocManager")
 }
 
-ppackages <- readLines("/GATTACA/r_requirements.txt")
+packages <- readLines("/GATTACA/r_requirements.txt")
 
 # Filter out comments and blank lines
 ..is_valid_package <- function(x) {
