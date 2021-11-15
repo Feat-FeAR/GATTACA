@@ -21,12 +21,7 @@
 #   - Save expression matrix
 #
 
-
-# ---- Load Required libraries ----
-
-source(file.path(ROOT, "src", "STALKER_Functions.R"))
-
-graceful_load(c("limma", "progress", "reshape2"))
+log_debug("Sourcing the 'Agilent_TXT_to_Expression.R' file.")
 
 agil2expression <- function (
   input_dir, output_file, analysis_program,

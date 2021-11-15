@@ -11,6 +11,8 @@ if (!requireNamespace("BiocManager", quietly = TRUE)) {
   install.packages("BiocManager")
 }
 
+# This file is copied first in the root project dir, as is r_requirements.
+# This call should only be changed together with changing the Dockerfile.
 packages <- readLines("/GATTACA/r_requirements.txt")
 
 # Filter out comments and blank lines

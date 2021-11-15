@@ -19,6 +19,7 @@ bioc::limma
 bioc::RankProd
 bioc::oligo
 bioc::affycoretools
+statmod
 
 ## Graphics
 VennDiagram
@@ -29,6 +30,7 @@ UpSetR
 
 ## Others
 rafalib
+testthat
 
 # Databases
 ## Base database reader

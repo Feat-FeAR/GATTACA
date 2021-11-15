@@ -53,9 +53,7 @@
 #
 # ------------------------------------------------------------------------------
 
-# Load the helper functions.
-source(file.path(ROOT, "src", "STALKER_Functions.R"))
-source(file.path(ROOT, "src", "annotator.R"))
+log_debug("Sourcing the 'Affy_CEL_to_Expression.R' file.")
 
 affy2expression <- function(
     input.folder, output.file, remove.controls = TRUE,
@@ -67,13 +65,6 @@ affy2expression <- function(
     paste(input.folder, output.file, remove.controls, sep = " :: ")
   ) |>
     log_debug()
-  # ---- Loading packages ----
-  graceful_load(c(
-    "oligo",
-    "limma",
-    "affycoretools",
-    "reshape2"
-  ))
 
   # Set options for printPlots
   options(
@@ -104,16 +95,15 @@ affy2expression <- function(
 
   # Check Platform and set the exon.probes flag
   # This is done as newer platforms need different processing than old ones.
-  #
-  # The parameter 'target' (only for Gene ST and Exon ST) defines the degree
-  # of summarization, "core" is the default option which use transcript
-  # clusters containing "safely" annotated genes. For summarization on the
-  # exon level (not recommended for Gene arrays), use "probeset".
   platform <- affyRaw@annotation
   log_info(paste0("Detected platform: ", platform))
-  if (platform %in% c("pd.hg.u133a", "pd.hg.u133b", "pd.hg.u133.plus.2")) {
+  if (platform %in% c(
+    "pd.hg.u133a", "pd.hg.u133b", "pd.hg.u133.plus.2", "pd.drosophila.2"
+  )) {
     exon.probes = FALSE
-  } else if (platform %in% c("pd.hugene.1.0.st.v1")) {
+  } else if (platform %in% c(
+    "pd.hugene.1.0.st.v1"
+  )) {
     exon.probes = TRUE
   } else {
     stop("Invalid or unsupported platform")
@@ -139,18 +129,30 @@ affy2expression <- function(
 
   if (n_plots != Inf) {
     stopifnot(
-      "Invalid amount of plots to display"={is.wholenumber(n_plots)},
-      "Number of plots to display is too high."={length(ma.plots) > n_plots}
+      "Invalid amount of plots to display"={is.wholenumber(n_plots)}
     )
+    if (length(ma.plots) > n_plots) {
+      log_warn(paste0(
+        "Number of plots to display (", n_plots,
+        ") is higher than the number of plots to be saved (", length(ma.plots),
+        "). Printing all of them."
+      ))
+      n_plots <- Inf
+    }
     ma.plots <- ma.plots[1:n_plots]
   }
 
+  pb <- progress_bar$new(
+    format = "Saving plots... [:bar] :percent (:eta)",
+    total = length(ma.plots), clear = FALSE, width= 80)
+  pb$tick(0)
   for (i in seq_along(ma.plots)) {
-    maplot <- ma.plots[[i]]
+    maplot <- ma.plots[[i]] # This unpacking is necessary! (for some reason...)
     printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
+    pb$tick()
   }
 
-  log_info("Making overall boxplot")
+  log_info("Making overall boxplot...")
   p <- function(){
     bplot <- ggplot(data = melt(unnormalized_data), aes(y = value, x = variable)) +
       geom_boxplot(outlier.alpha = 0.5, outlier.size = 1) +
@@ -167,12 +169,10 @@ affy2expression <- function(
   rm(unnormalized_data)
   # Done making plots
 
-  log_info("Running RMA normalization...")
-  if (exon.probes) {
-    expression_set = oligo::rma(affyRaw, target = "core")
-  } else {
-    expression_set = oligo::rma(affyRaw)
-  }
+  # The call knows when to use `target = "core"` or not, and the defaults are
+  # always to use `target = "core"`.
+  log_info("Running RMA normalization.")
+  expression_set = oligo::rma(affyRaw)
 
   log_info(paste0("Dataset dimensions: ", dim(expression_set)[1], " probe sets x ",
                   dim(expression_set)[2], " samples"))
@@ -209,15 +209,23 @@ affy2expression <- function(
 
   expression_set |> exprs() |> as.data.frame() -> transposed
 
-  ma.plots <- get_better_mas(transposed, title = "Normalized MA plot - {x} vs Median of other samples")
+  ma.plots <- get_better_mas(
+    transposed,
+    title = "Normalized MA plot - {x} vs Median of other samples"
+  )
 
   if (n_plots != Inf) {
     ma.plots <- ma.plots[1:n_plots]
   }
 
+  pb <- progress_bar$new(
+    format = "Saving plots... [:bar] :percent (:eta)",
+    total = length(ma.plots), clear = FALSE, width= 80)
+  pb$tick(0)
   for (i in seq_along(ma.plots)) {
-    maplot <- ma.plots[[i]]
+    maplot <- ma.plots[[i]] # This unpacking is necessary! (for some reason...)
     printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
+    pb$tick()
   }
 
   log_info("Making overall boxplot")

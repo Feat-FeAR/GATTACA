@@ -25,6 +25,7 @@
 #
 # ------------------------------------------------------------------------------
 
+log_debug("Sourcing the 'annotations.R' file.")
 
 # This list maps shortcodes representing chips to their respective databases.
 CHIP_TO_DB <- list(

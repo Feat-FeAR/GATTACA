@@ -38,33 +38,85 @@
 #
 # ------------------------------------------------------------------------------
 
-# ---- Package Loading ----
-# Load required packages and source external scripts
 
-source(file.path(ROOT, "src", "STALKER_Functions.R"))   # Collection of custom functions
-source(file.path(ROOT, "src", "annotator.R")) # Functions to annotate expression sets
+#' Average technical replicates in an expression set.
+#'
+#' As limma can use `duplicateCorrelation`, this is only useful for RankProd.
+#'
+#' This function has to replace the colnames. It does so by running
+#' `make.unique_from1` on the new colnames (after averaging the data).
+#'
+#' @param data The expression set to fix.
+#' @param groups The groups associated with the expression set.
+#' @param pairings The pairings associated with the expression set.
+#' @param technical_replicates A vector of labels, where identical labels
+#'   represent technical replicates.
+#'
+#' @returns A list with the following entries:
+#'   - A `data` slot with the averaged data;
+#'   - A `groups` slot with the new groupings;
+#'   - A `pairings` slot with the new pairings;
+#'
+#' @author Hedmad
+fix_replicates <- function(data, groups, technical_replicates, pairings = NULL) {
+  stopifnot(
+    "Length of groups is not the length of the data" =
+      {length(groups) == ncol(data)},
+    "Length of technical_replicates is not the length of the data" =
+      {length(technical_replicates) == ncol(data)},
+    "Length of pairings is not the length of the data" =
+      {is.null(pairings) | length(pairings) == ncol(data)}
+  )
 
-graceful_load(c(
-  "preprocessCore",   # Interarray Normalization by Quantile-Quantile Algorithm
-  "rafalib",          # Bland Altman Plots (aka MA Plots)
-  "PCAtools",         # Principal Component Analysis
-  "genefilter",       # Expression Gene Filtering
-  "limma",            # Empirical Bayes Method for Differential Expression
-  "RankProd",         # Rank Product Method for Differential Expression
-  "VennDiagram",      # Venn Diagrams
-  "EnhancedVolcano",  # Volcano Plots
-  "gplots",           # Heatmap with extensions - heatmap.2()
-  "ggplot2",          # Box Plot and Bar Chart with Jitter (already loaded by PCAtools)
-  "RColorBrewer",     # Color Palette for R - display.brewer.all()
-  "yaml",             # Yaml file parsing
-  "logger",           # Well, logging
-  "progress",         # Progress bars
-  "UpSetR"            # UpSet Plots
-))
+  technical_replicates <- factor(technical_replicates)
 
-# The annotation DB loads after dplyr so the `select` function gets overwritten.
-# Why does R allow this?
-dp_select <- dplyr::select
+  if (length(levels(technical_replicates)) == 1) {
+    stop("The whole experiment is just one technical replicate. Cannot proceed.")
+  }
+
+  new_data <- data.frame(row.names = rownames(data))
+  new_groups <- c()
+  new_pairings <- c()
+
+  for (level in levels(technical_replicates)) {
+    # Check that the labels of a replicate are identical
+    if (! all_identical(groups[technical_replicates == level])) {
+      stop(paste0(
+        "The group inside one or more technical replicates is different. ",
+        "Replicate: '", level, "', Groups:", paste(
+          unique(groups[technical_replicates == level]), collapse = ", "
+        ), "."
+      ))
+    }
+    if (!is.null(pairings) & ! all_identical(pairings[technical_replicates == level])) {
+      stop(paste0(
+        "The pairing inside one or more technical replicates is different. ",
+        "Replicate: '", level, "', Pairings:", paste(
+          unique(pairings[technical_replicates == level]), collapse = ", "
+        ), "."
+      ))
+    }
+
+    new_groups <- c(new_groups, groups[technical_replicates == level][1])
+    new_pairings <- c(new_pairings, pairings[technical_replicates == level][1])
+
+    if (ncol(data[, technical_replicates == level, drop = FALSE]) > 1) {
+      new_data[level] <- apply(data[, technical_replicates == level], 1, mean)
+    } else {
+      # This sample has no replicate counterparts.
+      new_data[level] <- data[, technical_replicates == level]
+    }
+  }
+
+  colnames(new_data) <- make.unique_from1(new_groups)
+
+  return(list(
+    data = new_data,
+    groups = new_groups,
+    pairings = new_pairings
+  ))
+}
+
 
 #' Run groupwise filtering on expression data.
 #'
@@ -185,6 +237,7 @@ filter_expression_data <- function(
 #' @author FeAR, Hedmad
 run_limma <- function(
   expression_set, groups, contrasts,
+  technical_replicates = NULL,
   pairings = NULL, fc_threshold = 0.5
 ) {
   log_info("Running differential expression analysis by limma.")
@@ -212,6 +265,18 @@ run_limma <- function(
     colnames(limma_design) <- sort(unique(groups))
   }
 
+  if (!is.null(technical_replicates)) {
+    log_info("Calculating technical replicates intra-correlation...")
+    corr_correction <- duplicateCorrelation(
+      expression_set, design = limma_design,
+      block = as.factor(technical_replicates)
+    )
+
+    if (corr_correction$consensus.correlation < 0) {
+      log_warn("Consensus of technical replicates is negative. This shouldn't happen.")
+    }
+  }
+
   log_info("Design matrix:\n", get.print.str(limma_design))
 
   log_info("Making contrasts matrix...")
@@ -223,7 +288,16 @@ run_limma <- function(
   log_info("Contrasts matrix:\n", get.print.str(contrast_matrix))
 
   log_info("Computing contrasts...")
-  lmFit(expression_set, limma_design) -> limma_fit
+  if (!is.null(technical_replicates)) {
+    lmFit(
+      expression_set, limma_design,
+      block = as.factor(technical_replicates),
+      correlation = corr_correction$consensus.correlation
+    ) -> limma_fit
+  } else {
+    lmFit(expression_set, limma_design) -> limma_fit
+  }
+
   limma_fit |> contrasts.fit(contrast_matrix) |> eBayes() -> limma_Bayes
 
   log_info("Getting Differential expressions...")
@@ -264,7 +338,6 @@ run_limma <- function(
       abs(DEGs.limma[[contrast]]$logFC) < fc_threshold
     ] <- 0
   }
-
 
   # Show Hyperparameters
   d0 = limma_Bayes$df.prior           # prior degrees of freedom
@@ -332,7 +405,7 @@ make_overlaps_from_markings <- function(markings, toolname = "") {
     p <- function() {
       vennDiagram(markings)
     }
-    printPlots(p, "Venn Diagram - Limma")
+    printPlots(p, paste("Upset Plot", toolname, sep = " - "))
   } else {
     log_warn("Cannot plot a Venn or Upset Plot as no DEGs have been detected.")
   }
@@ -460,12 +533,24 @@ diagnose_limma_data <- function(
 #'
 #' @author FeAR, Hedmad
 run_rankprod <- function(
-  expression_set, groups, contrasts, pairings = NULL, fc_threshold = 0.5
+  expression_set, groups, contrasts,
+  technical_replicates = NULL,
+  pairings = NULL, fc_threshold = 0.5
 ) {
   log_info("Running differential expression analysis with rankproduct...")
 
   # Make a container for the rankprod results
   DEGs.rankprod = list()
+
+  if (!is.null(technical_replicates)) {
+    log_info("Correcting data to collapse technical replicates...")
+    corrected_data <- fix_replicates(
+      expression_set, groups, technical_replicates, pairings = pairings
+    )
+    expression_set <- corrected_data$data
+    groups <- corrected_data$groups
+    pairings <- corrected_data$pairings
+  }
 
   for (i in seq_along(contrasts)) {
     log_info(paste0("Running analysis ", i, " of ", length(contrasts)))
@@ -1120,6 +1205,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   if (opts$switches$limma) {
     DEGs.limma <- run_limma(
       expression_set, groups = experimental_design$groups, contrasts = raw_contrasts,
+      technical_replicates = opts$design$technical_replicates,
       pairings = if (paired_mode) {experimental_design$pairings} else {NULL},
       fc_threshold = thrFC
     )
@@ -1157,6 +1243,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   if (opts$switches$rankproduct) {
     DEGs.rankprod <- run_rankprod(
       expression_set, groups = experimental_design$groups, contrasts = raw_contrasts,
+      technical_replicates = opts$design$technical_replicates,
       pairings = if (paired_mode) {experimental_design$pairings} else {NULL},
       fc_threshold = thrFC
     )

@@ -11,8 +11,8 @@ RUN apt update && \
 WORKDIR /GATTACA
 
 # Copy just the installation scripts 
-COPY ./dock_install.R ./
-COPY ./r_requirements.txt ./
+COPY ./src/dock_install.R ./
+COPY ./src/resources/r_requirements.txt ./
 
 # Install the dependencies of the R scripts...
 RUN Rscript --vanilla \
