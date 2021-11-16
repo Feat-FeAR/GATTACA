@@ -2,7 +2,7 @@
 
 order=$3
 
-if [ order = "testall" ]; then
+if [ $order != "testall" ]; then
     # We need the host UID/GID to give permissions back when we're done.
     # This is a bit of a hack, but I cannot find a better way to do it.
     host_uid=$(stat -c "%u" /GATTACA/target)
@@ -16,9 +16,6 @@ else
     # We dont need the lognames and so on, as we're testing.
     shift
 fi
-
-# Take out the order from the GATTACA script, defining what we have to do.
-shift # This gets rid of $1 containig the order.
 
 case "$order" in
     init)
