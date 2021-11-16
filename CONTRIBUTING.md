@@ -6,14 +6,32 @@ R makes .Rproj and more session files that are automatically loaded upon startup
     - Always `.gitignore` and `.dockerignore` these files (`*/.Rprofile` and `*/*.Rproj`) so that they do not propagate.
 
 ## Working and testing locally
-When working on the environment locally, manually install the dependencies in `r_requirements.txt` using calls similar to those found in `dock_install.R`. Afterwards, remember to `source` the `__init__.R` script before starting to work locally.
+It is useful to work interactively on the source code. To do this, you will need the required libraries installed. The file "/src/resources/r-requirements.txt" keeps a list of the packages needed.
+To install them, run something akin to this:
+```r
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")
+}
+
+packages <- read.table("/GATTACA/r_requirements.txt")[, 1]
+
+for (package in packages) {
+  if (startsWith(package, "bioc::")) {
+    package <- gsub("^bioc::", "", package)
+    BiocManager::install(package)
+  } else {
+    install.packages(package)
+  }
+}
+```
+Afterwards, remember to `source` the `__init__.R` script before starting to work locally.
 
 Even better, ignore all of this, and rebuild the docker each time you need to test the package. See the next section.
 
 ## Rebuilding the Docker
-Docker saves intermediate containers in the cache, so that changes in steps further on in the dockerfile will cause the container to rebuild completely.
+Docker saves intermediate containers in the cache, so that changes in the dockerfile will not (often) cause the container to rebuild completely.
 
-What does this mean for us? It means that the very long installation process doesn't need to be restarted if the installation files, `dock_install.R` and `renv.lock` don't change.
+What does this mean for us? It means that the very long installation process doesn't need to be restarted if the dockerfile is not change.
 
 So, feel free to change any other file without having to worry about lengthy recompilation. This also means that tests can (and should) be run in the container and not in interactive mode (like Rstudio).
 

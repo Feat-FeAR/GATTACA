@@ -19,6 +19,7 @@ function _gattaca_print_general_help {
     echo "    prepaffy          Create an expression matrix from Affymetrix .CEL files."
     echo "    prepagil          Create an expression matrix from Agilent .txt files."
     echo "    annotate          Annotate an expression file with remote annotations."
+    echo "    test              Run the tests associated with the code."
     echo
     echo "Use '-h' or '--help' in any subcommand to get additional help and possible options"
 }
@@ -408,6 +409,14 @@ function _gattaca_run_prepagil {
         "prepagil" "$output_filename" "$analysis_program" "$grep_pattern" "$remove_controls" "$plot_size" "$use_pdf"  "$plot_number"
 }
 
+function _gattaca_run_tests {
+  docker run \
+      --rm \
+      mrhedmad/gattaca:"$version" \
+      "NULL" "NULL" \
+      "testall"
+}
+
 if [ $# == 0 ]; then
     _gattaca_print_general_help
 fi
@@ -460,6 +469,11 @@ while test $# -gt 0; do
         prepagil)
             shift
             _gattaca_run_prepagil "$@"
+            exit 0
+        ;;
+        test)
+            shift
+            _gattaca_run_tests
             exit 0
         ;;
         *)

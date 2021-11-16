@@ -1,7 +1,6 @@
-# Declare list of packages to be installed
-# Lines starting with `#` are ignored, so are empty lines.
-# Stuff with `bioc::` at the start is installed from bioconductor
-# Leading and trailing whitespace is ignored.
+# This is a list of packages that can be used by an iteractive user to
+# install packages with. Read the README for a code snippet useful to read
+# this file.
 
 ## Basic utility packages
 logger
@@ -14,7 +13,6 @@ tidyverse
 ## Stuff from Bioc to process data
 bioc::preprocessCore
 bioc::PCAtools
-bioc::genefilter
 bioc::limma
 bioc::RankProd
 bioc::oligo
@@ -25,11 +23,9 @@ statmod
 VennDiagram
 bioc::EnhancedVolcano
 gplots
-RColorBrewer
 UpSetR
 
 ## Others
-rafalib
 testthat
 
 # Databases

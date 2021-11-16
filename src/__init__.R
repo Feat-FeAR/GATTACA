@@ -19,9 +19,7 @@ log_layout(layout_glue_generator(format = '{time} <{fn}> [{level}]: {msg}'))
 
 setup_file_logging <- function (log_dir, log_name = NULL) {
   # Setup logging facilities to save to file.
-  if (!is.null(log_name) && log_name == "NULL") {
-    log_name <- NULL
-  }
+  if (log_name == "NULL" | log_name == "") { log_name <- NULL }
 
   if (is.null(log_name)) {
     start.timedate <- gsub(" ", "_", date())
@@ -88,8 +86,7 @@ graceful_load(c(
   "affycoretools",    # Filter out the affy control probes
   "reshape2",         # Reshaping functions
   "AnnotationDbi",    # Base for the annotations
-  "org.Hs.eg.db",     # Base reader for all SQL packages
-  "corrplot"          # Draw nice correlation plots
+  "org.Hs.eg.db"      # Base reader for all SQL packages
 ))
 
 source(file.path(ROOT, "src", "tools", "tools.R"))
