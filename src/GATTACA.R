@@ -39,6 +39,76 @@
 # ------------------------------------------------------------------------------
 
 
+#' Make plots to diagnose the presence of batch effects
+#'
+#' Uses printPlots to save plots, and assumes its options are already set.
+#'
+#' The produced plots are an hierarchical cluster and a PCA plot.
+#'
+#' @param expression_set The expression set to evaluate
+#' @param groups The groups associaged with the data (for plotting)
+#' @param user_colours The colours associated with the groups of the data
+#'
+#' @author Hedmad
+diagnose_batch_effects <- function(
+  expression_set, groups, user_colours, title_mod = NULL
+) {
+  log_info("Starting sample-wise hierarchical clustering and PCA for batch-effect detection...")
+  # Matrix Transpose t() is used because dist() computes the distances between
+  # the ROWS of a matrix
+  # Distance matrix (NOTE: t(expression_set) is coerced to matrix)
+  log_info("Performing hierarchical clustering...")
+  expression_set |> t() |> dist() |> hclust(method = "ward.D") ->
+    hierarchical_clusters
+
+  printPlots(
+    \(){plot(hierarchical_clusters)},
+    paste("Dendrogram", title_mod, sep = " - ")
+  )
+
+  log_info("Performing PCA...")
+  # Bundle some metadata in the PCA object for later.
+  # Strictly enforced that rownames(metadata) == colnames(expression_set)
+  metadata = data.frame(
+    groups = groups,
+    row.names = colnames(expression_set)
+  )
+
+  # Do the PCA (centering the data before performing PCA, by default)
+  PCA_object = pca(expression_set, metadata = metadata)
+
+  log_info("Finished running PCA. Plotting results...")
+  printPlots(
+    \(){print(screeplot(PCA_object))},
+    paste("Scree Plot", title_mod, sep = " - ")
+  )
+
+  printPlots(
+    \() {
+      suppressMessages(print(
+        biplot(
+          PCA_object, colby = "groups", colkey = user_colours,
+          title = "Principal Component Analysis"
+        )
+      ))
+    },
+    paste("PCA", title_mod, sep = " - ")
+  )
+
+  printPlots(
+    \() {
+      suppressMessages(print(
+        pairsplot(
+          PCA_object, colby = "groups", colkey = user_colours,
+          title = "Paired PCA Plots"
+        )
+      ))
+    },
+    paste("PCA Pairs", title_mod, sep = " - ")
+  )
+}
+
+
 #' Average technical replicates in an expression set.
 #'
 #' As limma can use `duplicateCorrelation`, this is only useful for RankProd.
@@ -214,6 +284,74 @@ filter_expression_data <- function(
 }
 
 
+#' Produce a limma design matrix given a set of groups and potentially other
+#' variables
+#'
+#' Only the groups are assured to be all included (so all of them can be
+#' used by `makeContrasts`).
+#'
+#' @param groups A character vector with the group names, in the order of the
+#'   columns of the data.
+#' @param ... Any character vector, with arbitrary names, included as variables
+#'   in the design matrix. Note that one level from each variable is removed
+#'   due to how `model.matrix` works.
+#'
+#' @author Hedmad
+make_limma_design <- function(groups, ...) {
+  args <- list(...)
+  if (length(args) != 0) {
+    stopifnot(
+      "All extra variables must be named (as in `some_var = c(...)`)" = {
+        !is.null(names(args)) & all(names(args) != "")
+      },
+      "The `groups` variable and all other variables must have the same length."={
+        all(length(groups) == sapply(args, length))
+      },
+      "All extra variable names must be unique" = {
+        # This might already be enforced...?
+        length(args) == length(unique(names(args)))
+      }
+    )
+
+    factor_vars <- lapply(args, as.factor)
+  }
+
+  groups <- as.factor(groups)
+
+  str_formula <- "~ 0 + groups"
+  # The matrix names follow a pattern:
+  #   - The groups are always all included, in alphabetical order.
+  #   - The other vars are included, in alphabetical order, except for the
+  #     first one.
+  groups |> levels() |> sort() -> matrix_names
+  if (length(args) != 0) {
+    for (some_var in names(factor_vars)) {
+      str_formula <- paste0(str_formula, "+ factor_vars$", some_var)
+      pretty_level_names <- paste(
+        some_var, levels(factor_vars[[some_var]])[-1], sep = "_"
+      )
+      matrix_names <- c(
+        matrix_names, pretty_level_names
+      )
+    }
+  }
+
+  mm <- model.matrix(formula(str_formula))
+  # NOTE: The model matrix has a variety of attributes that *could* mean
+  # something. Some of them carry the original variable names of the data,
+  # as well as the colnames. I was worried that the calculations would be
+  # affected in some way by these variables (like the $contrasts attribute)
+  # so I tested it (November 17, 2021, limma ver 3.50.0) by removing these
+  # arguments from the model matrix before running limma. The outputs are
+  # identical in the two cases (tested with `identical()`), so I feel
+  # confident in replacing the colnames here, as I think that these extra
+  # attributes are ignored by limma. - Hedmad
+  colnames(mm) <- matrix_names
+
+  return(mm)
+}
+
+
 #' Run a DEA with `limma`.
 #'
 #' @param expression_set The expression set to run the analysis with.
@@ -238,32 +376,19 @@ filter_expression_data <- function(
 run_limma <- function(
   expression_set, groups, contrasts,
   technical_replicates = NULL,
-  pairings = NULL, fc_threshold = 0.5
+  other_vars = NULL,
+  fc_threshold = 0.5
 ) {
   log_info("Running differential expression analysis by limma.")
-
   log_info("Making limma design matrix...")
 
-  if ( !is.null(pairings) ) {
-    factor_pairings <- as.factor(pairings)
-    # We need to rename the model matrix. It uses all levels except for the
-    # last.
-    levels(factor_pairings)[1:length(levels(factor_pairings))-1] |>
-      make.names() -> pairing_levels
-
-    # Same for the groups, but we use all of them now. The matrix inserts them
-    # in the same order as `sort`, so we sort them.
-    groups_levels <- sort(unique(groups))
-    limma_design <- model.matrix(
-      ~ 0 + groups + factor_pairings
-    )
-    # The colnames are the union of the sorted groups and the pairings.
-    colnames(limma_design) <- c(groups_levels, pairing_levels)
+  if ( !is.null(other_vars) ) {
+    limma_design <- do.call(make_limma_design, c(list(groups = groups), other_vars))
   } else {
-    limma_design <- model.matrix(~ 0 + groups)
-    limma_design[,order(colnames(limma_design))]
-    colnames(limma_design) <- sort(unique(groups))
+    limma_design <- make_limma_design(groups = groups)
   }
+
+  log_info("Design matrix:\n", get.print.str(limma_design))
 
   if (!is.null(technical_replicates)) {
     log_info("Calculating technical replicates intra-correlation...")
@@ -276,8 +401,6 @@ run_limma <- function(
       log_warn("Consensus of technical replicates is negative. This shouldn't happen.")
     }
   }
-
-  log_info("Design matrix:\n", get.print.str(limma_design))
 
   log_info("Making contrasts matrix...")
   makeContrasts(
@@ -393,19 +516,19 @@ make_overlaps_from_markings <- function(markings, toolname = "") {
       upset_data[[colnames(markings)[i]]] <- rownames(markings)[as.logical(markings[[i]])]
     }
     upset_data <- fromList(upset_data)
-    p <- function() {
-      upset(
-        upset_data, nsets = Inf, nintersects = NA,
-        keep.order = TRUE
-      ) |> print()
-    }
-    printPlots(p, paste("Upset Plot", toolname, sep = " - "))
+
+    printPlots(
+      \() {
+        upset(
+          upset_data, nsets = Inf, nintersects = NA,
+          keep.order = TRUE
+        ) |> print()
+      },
+      paste("Upset Plot", toolname, sep = " - ")
+    )
 
   } else if (sum(markings) > 0) {
-    p <- function() {
-      vennDiagram(markings)
-    }
-    printPlots(p, paste("Upset Plot", toolname, sep = " - "))
+    printPlots(\(){vennDiagram(markings)}, paste("Upset Plot", toolname, sep = " - "))
   } else {
     log_warn("Cannot plot a Venn or Upset Plot as no DEGs have been detected.")
   }
@@ -457,19 +580,21 @@ diagnose_limma_data <- function(
   for (i in seq_along(contrasts)) {
     # Mark in red/blue all the up-/down- regulated genes
     # This MA plot is made with the LogFC and estimates from the TopTables
-    p <- function() {
-      mamaplot(
-        x = DEGs.limma[[i]]$AveExpr, y = DEGs.limma[[i]]$logFC,
-        input_is_ma = TRUE,
-        highligths = list(
-          "red" = DEGs.limma[[i]]$markings == 1,
-          "blue" = DEGs.limma[[i]]$markings == -1
-        ),
-        xrange = c(min.A.value, max.A.value),
-        yrange = c(NA, max.M.value)
-      ) |> print()
-    }
-    printPlots(p, paste("MA-Plot with Limma DEGs ", names(DEGs.limma)[i], sep = ""))
+    printPlots(
+      \() {
+        mamaplot(
+          x = DEGs.limma[[i]]$AveExpr, y = DEGs.limma[[i]]$logFC,
+          input_is_ma = TRUE,
+          highligths = list(
+            "red" = DEGs.limma[[i]]$markings == 1,
+            "blue" = DEGs.limma[[i]]$markings == -1
+          ),
+          xrange = c(min.A.value, max.A.value),
+          yrange = c(NA, max.M.value)
+        ) |> print()
+      },
+      paste("MA-Plot with Limma DEGs ", names(DEGs.limma)[i], sep = "")
+    )
   }
 
   # Volcano Plots
@@ -484,7 +609,7 @@ diagnose_limma_data <- function(
       volcano_labels = rownames(DEGs.limma[[i]])
     }
 
-    p <- function() {
+    get_h_volcano <- function() {
       # NOTICE: When in a for loop, you have to explicitly print your
       # resulting EnhancedVolcano object
       suppressWarnings(
@@ -507,7 +632,7 @@ diagnose_limma_data <- function(
         )
       )
     }
-    printPlots(p, paste("Volcano with Limma DEGs ", names(DEGs.limma)[i], sep = ""))
+    printPlots(get_h_volcano, paste("Volcano with Limma DEGs ", names(DEGs.limma)[i], sep = ""))
   }
 }
 
@@ -791,26 +916,26 @@ diagnose_rankprod_data <- function(
   for (i in seq_along(contrasts)) {
     # Mark in red/blue all the up-/down- regulated genes
     # This MA plot is made with the LogFC and estimates from the TopTables
-    p <- function() {
-      mamaplot(
-        x = DEGs.rankprod[[i]]$AveExpr, y = DEGs.rankprod[[i]]$logFC,
-        input_is_ma = TRUE,
-        highligths = list(
-          "red" = DEGs.rankprod[[i]]$markings == 1,
-          "blue" = DEGs.rankprod[[i]]$markings == -1
-        ),
-        xrange = c(min.A.value, max.A.value),
-        yrange = c(NA, max.M.value)
-      ) |> print()
-    }
-    printPlots(p, paste("MA-Plot with RankProd DEGs ", names(DEGs.rankprod)[i], sep = ""))
+    printPlots(
+      \() {
+        mamaplot(
+          x = DEGs.rankprod[[i]]$AveExpr, y = DEGs.rankprod[[i]]$logFC,
+          input_is_ma = TRUE,
+          highligths = list(
+            "red" = DEGs.rankprod[[i]]$markings == 1,
+            "blue" = DEGs.rankprod[[i]]$markings == -1
+          ),
+          xrange = c(min.A.value, max.A.value),
+          yrange = c(NA, max.M.value)
+        ) |> print()
+      },
+      paste("MA-Plot with RankProd DEGs ", names(DEGs.rankprod)[i], sep = "")
+    )
   }
 
   # Volcano Plots
   log_info("Making RankProd Volcano plots...")
   for (i in seq_along(contrasts)) {
-    volcano_p_threshold = find_BH_critical_p(DEGs.rankprod[[i]]$adj.P.Val)
-
     # Enhanced Volcano Plot
     if ("SYMBOL" %in% colnames(DEGs.rankprod[[i]])) {
       volcano_labels <- DEGs.rankprod$SYMBOL
@@ -837,7 +962,7 @@ diagnose_rankprod_data <- function(
 
     volcano_p_threshold <- find_BH_critical_p(harm_adj_p_vals)
 
-    p <- function() {
+    get_h_volcano <- function() {
       # NOTICE: When in a for loop, you have to explicitly print your
       # resulting EnhancedVolcano object
       suppressWarnings(
@@ -859,7 +984,7 @@ diagnose_rankprod_data <- function(
         )
       )
     }
-    printPlots(p, paste("Volcano with RankProd DEGs ", names(DEGs.rankprod)[i], sep = ""))
+    printPlots(get_h_volcano, paste("Volcano with RankProd DEGs ", names(DEGs.rankprod)[i], sep = ""))
   }
 }
 
@@ -871,7 +996,16 @@ GATTACA <- function(options.path, input.file, output.dir) {
   set.seed(1) # Rank Prod needs randomness.
 
   # ---- Option parsing ----
-  opts <- yaml.load_file(options.path)
+  # If we get passed a list, it is for testing purposes.
+  if (!is.list(options.path)) {
+    opts <- yaml.load_file(options.path)
+  } else {
+    log_warn(
+      "I was given a list as input. I assume this is a testing run. ",
+      "You should never see this message."
+    )
+    opts <- options.path
+  }
 
   # ---- Making static functions ----
   pitstop <- pitstop.maker(opts$general$slowmode)
@@ -907,7 +1041,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
     opts$general$save_pdf <- FALSE
   }
 
-  # Global options suitable for STALKER_Functions
+  # Global options suitable for PrintPlots
   options(
     scriptName = "GATTACA",
     save.PNG.plot = opts$general$save_png,
@@ -950,8 +1084,9 @@ GATTACA <- function(options.path, input.file, output.dir) {
   # Check the design for validity
   if (length(experimental_design$groups) != ncol(expression_set)) {
     stop(paste0(
-      "The number of patients (", ncol(expression_set),
-      ") does not match the number of design groups (", length(experimental_design$groups), ")"
+      "The number of samples (", ncol(expression_set),
+      ") does not match the number of design groups (",
+      length(experimental_design$groups), ")"
     ))
   }
 
@@ -966,6 +1101,47 @@ GATTACA <- function(options.path, input.file, output.dir) {
     paired_mode <- TRUE
   } else {
     stop("Some samples have pairing data and some do not. Cannot proceed with pairing ambiguity.")
+  }
+
+  # Expand and test batch variable
+  if (!is.null(opts$design$batches)) {
+    batches <- design_parser(opts$design$batches)
+    if (length(batches) != ncol(expression_set)) {
+      stop(paste0(
+        "The number of samples (", ncol(expression_set),
+        ") does not match the number of batches (", length(batches), ")"
+      ))
+    }
+  }
+
+  # The same for the technical replicates array
+  if (!is.null(opts$design$technical_replicates)) {
+    technical_replicates <- design_parser(
+      opts$design$technical_replicates, ignore_asterisk = TRUE
+    )
+    if (length(batches) != ncol(expression_set)) {
+      stop(paste0(
+        "The number of samples (", ncol(expression_set),
+        ") does not match the number of technical replicates (",
+        length(technical_replicates), ")"
+      ))
+    }
+  }
+
+  # The same for all extra variables
+  if (!is.null(opts$design$extra_limma_vars)) {
+    extra_limma_vars <- lapply(
+      opts$design$extra_limma_vars, design_parser, ignore_asterisk = TRUE
+    )
+    length_check <- lapply(extra_limma_vars, length) == ncol(expression_set)
+    if (! all(length_check)) {
+      stop(paste0(
+        "Some extra limma variables are not the same length as the number of",
+        " samples. The culprit(s) are list(s) number ",
+        paste(which(length_check == FALSE), collapse = ", "),
+        "."
+      ))
+    }
   }
 
   log_info("Experimental desing loaded.")
@@ -1048,7 +1224,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
   # ---- MA-Plot & Box-Plot ----
   # Normalization Final Check with Figure Production
-  printPlots(function() {
+  printPlots(\() {
     boxplot(
       expression_set,
       las = 2, col = user_colours[experimental_design$groups],
@@ -1057,7 +1233,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
     },
     "Final Boxplot"
   )
-  printPlots(function() {
+  printPlots(\() {
     plotDensities(expression_set, legend = FALSE, main = "Expression values per sample")
   }, "Final Density")
 
@@ -1076,57 +1252,23 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
 
   # ---- Clustering ----
-  log_info("Starting sample-wise hierarchical clustering for batch-effect detection...")
-  # Matrix Transpose t() is used because dist() computes the distances between
-  # the ROWS of a matrix
-  # Distance matrix (NOTE: t(expression_set) is coerced to matrix)
-  expression_set |> t() |> dist() |> hclust(method = "ward.D") ->
-    hierarchical_clusters
-
-  printPlots(\(){plot(hierarchical_clusters)}, "Dendrogram")
-
-  log_info("Finished with hierarchical clustering.")
-  pitstop("Maybe check the plots and come back?")
-
-
-  # ---- PCA ----
-  # Performed on Samples for Batch-Effect Detection
-  log_info("Performing PCA to detect batch sampling...")
-  # Bundle some metadata in the PCA object for later.
-  # Strictly enforced that rownames(metadata) == colnames(expression_set)
-  metadata = data.frame(
-    groups = experimental_design$groups,
-    row.names = unique_groups
+  diagnose_batch_effects(
+    expression_set, experimental_design$groups, user_colours,
+    title_mod = "original"
   )
 
-  # Do the PCA (centering the data before performing PCA, by default)
-  PCA_object = pca(expression_set, metadata = metadata)
-
-  log_info("Finished running PCA. Plotting results...")
-  printPlots(\(){print(screeplot(PCA_object))}, "Scree Plot")
-
-  p <- function() {
-    suppressMessages(print(
-      biplot(
-        PCA_object, colby = "groups", colkey = user_colours,
-        title = "Principal Component Analysis"
-      )
-    ))
+  if (!is.null(batches)) {
+    log_info("Correcting batch effects for visualization...")
+    batch_corrected_expr_set <- removeBatchEffect(
+      expression_set, batch = batches
+    )
+    log_info("Diagnosing batch effects again...")
+    diagnose_batch_effects(
+      batch_corrected_expr_set, experimental_design$groups, user_colours,
+      title_mod = "Unbatched"
+    )
   }
-  printPlots(p, "PCA")
-  p <- function() {
-    suppressMessages(print(
-      pairsplot(
-        PCA_object, colby = "groups", colkey = user_colours,
-        title = "Paired PCA Plots"
-      )
-    ))
-  }
-  printPlots(p, "PCA Pairs")
-  pitstop(paste0(
-    "Take a look at the PCA results.",
-    " If there are some batched samples, remove them and re-run GATTACA."
-    ))
+  pitstop("The PCA and cluster plots should show no obvious cluster.")
 
   # ---- SD vs Mean Plot ----
   # Poisson Hypothesis Check
@@ -1176,21 +1318,23 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
   # Scatter plot
   log_info("Making plots...")
-  p <- function() {
-    par(mfrow = c(1, length(unique_simple_groups)+1))
-    X.max = max(..means_frame, na.rm = TRUE)
-    Y.max = max(..sd_matrix, na.rm = TRUE)
-    for (group in c(unique_simple_groups, "Global")) {
-      plot(..means_frame[[group]], ..sd_matrix[[group]],
-           xlab = "Mean", ylab = "SD",
-           xlim = c(0, X.max), ylim = c(0, Y.max),
-           pch = 20, cex = 0.5)
-      title(main = group)
-      mtext(side = 3, paste("Corr =", toString(round(..correlation_vector[[group]], digits = 5))))
-    }
-    par(mfrow = c(1, 1))
-  }
-  printPlots(p, "SD_vs_Mean Plot")
+  printPlots(
+    \() {
+      par(mfrow = c(1, length(unique_simple_groups)+1))
+      X.max = max(..means_frame, na.rm = TRUE)
+      Y.max = max(..sd_matrix, na.rm = TRUE)
+      for (group in c(unique_simple_groups, "Global")) {
+        plot(..means_frame[[group]], ..sd_matrix[[group]],
+             xlab = "Mean", ylab = "SD",
+             xlim = c(0, X.max), ylim = c(0, Y.max),
+             pch = 20, cex = 0.5)
+        title(main = group)
+        mtext(side = 3, paste("Corr =", toString(round(..correlation_vector[[group]], digits = 5))))
+      }
+      par(mfrow = c(1, 1))
+    },
+    "SD_vs_Mean Plot"
+  )
 
   # ---- Filtering ----
   expression_set <- filter_expression_data(
@@ -1203,10 +1347,15 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
   # ---- DE by Limma ----
   if (opts$switches$limma) {
+    additional_limma_vars <- c(
+      if (paired_mode) {list(pairings = experimental_design$pairings)} else {NULL},
+      if (! is.null(opts$design$extra_limma_vars)) {extra_limma_vars} else {NULL}
+    )
+
     DEGs.limma <- run_limma(
       expression_set, groups = experimental_design$groups, contrasts = raw_contrasts,
-      technical_replicates = opts$design$technical_replicates,
-      pairings = if (paired_mode) {experimental_design$pairings} else {NULL},
+      technical_replicates = technical_replicates,
+      other_vars = additional_limma_vars,
       fc_threshold = thrFC
     )
 
@@ -1243,7 +1392,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   if (opts$switches$rankproduct) {
     DEGs.rankprod <- run_rankprod(
       expression_set, groups = experimental_design$groups, contrasts = raw_contrasts,
-      technical_replicates = opts$design$technical_replicates,
+      technical_replicates = technical_replicates,
       pairings = if (paired_mode) {experimental_design$pairings} else {NULL},
       fc_threshold = thrFC
     )
@@ -1323,12 +1472,8 @@ GATTACA <- function(options.path, input.file, output.dir) {
         )
 
         # Create a new canvas and draw the Venn
-        p <- function() {
-          grid.newpage()
-          grid.draw(venn.plot)
-        }
         printPlots(
-          p,
+          \() {grid.newpage(); grid.draw(venn.plot)},
           paste0(
             "Comparison Venn ", raw_contrasts[i], "_",
             strsplit(venn.sub, split = "-")[[1]][1]

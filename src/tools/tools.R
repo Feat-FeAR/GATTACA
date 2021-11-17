@@ -438,3 +438,13 @@ all_identical <- function(vector) {
   }
   return(all(vector == vector[1]))
 }
+
+#' The kOverA function from GeneFilter. We need just this one, so loading
+#' the package is overkill.
+kOverA <- function (k, A = 100, na.rm = TRUE) {
+  function(x) {
+    if (na.rm)
+      x <- x[!is.na(x)]
+    sum(x > A) >= k
+  }
+}

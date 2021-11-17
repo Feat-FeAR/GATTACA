@@ -19,7 +19,7 @@ fi
 
 case "$order" in
     init)
-        cp "/GATTACA/src/GATTACA_default_options.yaml" "/GATTACA/target/$1"
+        cp "/GATTACA/src/resources/GATTACA_default_options.yaml" "/GATTACA/target/$1"
     ;;
     gattaca)
         ## As this should only be run from the main GATTACA file, we can be sure that
@@ -87,6 +87,6 @@ case "$order" in
         ;;
 esac
 
-if [ order = "testall" ]; then
+if [ order != "testall" ]; then
   chown -R $host_uid:$host_gid /GATTACA/target
 fi

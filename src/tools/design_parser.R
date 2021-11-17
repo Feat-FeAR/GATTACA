@@ -11,11 +11,12 @@ log_debug("Sourcing the 'desing_parser.R' file.")
 #' @param core A string of comma separated labels to expand
 #' @param times The number of times to expand
 #' @param initial.num The initial number to use to expand wildcards.
+#' @param ignore_asterisk If TRUE, asterisk wildcards are not replaced.
 #'
 #' @returns The expanded labels as a single string
 #'
 #' @author MrHedmad
-expand_intercalated <- function(core, times, initial.num) {
+expand_intercalated <- function(core, times, initial.num, ignore_asterisk = FALSE) {
   stopifnot(
     "`core` is an empty string" = {core != ""},
     "`core` starts with a comma. This leads to weird outputs" = {!startsWith(core, ",")},
@@ -27,7 +28,11 @@ expand_intercalated <- function(core, times, initial.num) {
   result <- ""
   rep.number <- initial.num
   for (i in rep(0, times)) {
-    uniquestr <- gsub("\\*", rep.number, core)
+    if (! ignore_asterisk) {
+      uniquestr <- gsub("\\*", rep.number, core)
+    } else {
+      uniquestr <- core
+    }
     result <- paste(result, uniquestr, sep = ",")
     rep.number <- rep.number + 1
   }
@@ -44,11 +49,12 @@ expand_intercalated <- function(core, times, initial.num) {
 #' @param core A string of comma separated labels to expand
 #' @param times The number of times to expand
 #' @param initial.num The initial number to use to expand wildcards.
+#' @param ignore_asterisk If TRUE, asterisk wildcards are not replaced.
 #'
 #' @returns The expanded labels as a single string
 #'
 #' @author MrHedmad
-expand_ordered <- function(core, times, initial.num) {
+expand_ordered <- function(core, times, initial.num, ignore_asterisk = FALSE) {
   stopifnot(
     "`core` is an empty string" = {core != ""},
     "`core` starts with a comma. This leads to weird outputs" = {!startsWith(core, ",")},
@@ -62,7 +68,11 @@ expand_ordered <- function(core, times, initial.num) {
   for (entry in strsplit(core, ",")[[1]]) {
 
     for (i in rep(0, times)){
-      uniquestr <- gsub("\\*", rep.number, entry)
+      if (! ignore_asterisk) {
+        uniquestr <- gsub("\\*", rep.number, entry)
+      } else {
+        uniquestr <- entry
+      }
       result <- paste(result, uniquestr, sep = ",")
       rep.number <- rep.number + 1
     }
@@ -139,10 +149,11 @@ get_captures <- function(pattern, string) {
 #'  Note: Both types of expansion work identically if only one label is specified
 #'  in the brackets.
 #'
-#'  @param rawstr The raw design string to be parsed.
+#' @param rawstr The raw design string to be parsed.
+#' @param ignore_asterisk If TRUE, ignores any asterisks in the string.
 #'
-#'  @author MrHedmad
-design_parser <- function(rawstr) {
+#' @author MrHedmad
+design_parser <- function(rawstr, ignore_asterisk = FALSE) {
   rawstr <- gsub(" ", "", rawstr)
 
   # The `:x` modifiers pollute finding the max patient number. This removes
@@ -153,7 +164,6 @@ design_parser <- function(rawstr) {
 
   # Split the initial string by commas *not* in parenthesis.
   splitted <- strsplit(rawstr, ",(?![^(^\\[]*[\\)\\]])", perl = TRUE)[[1]]
-
 
   # I put a lot of comments here as there are many nested ifs and its hard
   # to know what is doing what.
@@ -170,7 +180,8 @@ design_parser <- function(rawstr) {
       expanded <- expand_intercalated(
         core = captures[2],
         times = as.integer(captures[3]),
-        initial.num = initial.num
+        initial.num = initial.num,
+        ignore_asterisk = ignore_asterisk
       )
       # As we've used as.integer(captures[3]) many nums, we need to increase
       # this number that much for the other expansions.
@@ -184,7 +195,8 @@ design_parser <- function(rawstr) {
       expanded <- expand_ordered(
         core = captures[2],
         times = as.integer(captures[3]),
-        initial.num = initial.num
+        initial.num = initial.num,
+        ignore_asterisk = ignore_asterisk
       )
       # As we've used as.integer(captures[3]) many nums, we need to increase
       # this number that much for the other expansions.
@@ -250,3 +262,4 @@ split_design <- function(experimental_design) {
   )
   return(result)
 }
+
