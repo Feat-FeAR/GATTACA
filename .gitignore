@@ -5,12 +5,6 @@ notes.txt
 .vscode
 *.code-workspace
 
-# Accidental test files
-tests.*
-test.*
-test
-tests
-
 # RENV things
 renv/
 
