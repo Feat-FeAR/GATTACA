@@ -1128,6 +1128,8 @@ GATTACA <- function(options.path, input.file, output.dir) {
         ") does not match the number of batches (", length(batches), ")"
       ))
     }
+  } else {
+    batches <- NULL
   }
 
   # The same for the technical replicates array
@@ -1365,6 +1367,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   if (opts$switches$limma) {
     additional_limma_vars <- c(
       if (paired_mode) {list(pairings = experimental_design$pairings)} else {NULL},
+      if (!is.null(batches)) {list(batches = batches)} else {NULL},
       if (! is.null(opts$design$extra_limma_vars)) {extra_limma_vars} else {NULL}
     )
 
@@ -1409,6 +1412,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
     DEGs.rankprod <- run_rankprod(
       expression_set, groups = experimental_design$groups, contrasts = raw_contrasts,
       technical_replicates = technical_replicates,
+      batches = batches,
       pairings = if (paired_mode) {experimental_design$pairings} else {NULL},
       fc_threshold = thrFC
     )
