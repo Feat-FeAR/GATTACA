@@ -3,7 +3,7 @@
 [![License](https://img.shields.io/github/license/Feat-FeAR/GATTACA)](https://choosealicense.com/licenses/mit/)
 [![Issues](https://img.shields.io/github/issues/Feat-FeAR/GATTACA)](https://github.com/Feat-FeAR/GATTACA/issues)
 [![R Version](https://img.shields.io/badge/R%20version-4.1.1-informational)](https://www.r-project.org/)
-[![Latest docker image size](https://img.shields.io/docker/image-size/mrhedmad/gattaca/v0.0.0-beta.2?label=Docker%20image%20size)](https://hub.docker.com/repository/docker/mrhedmad/gattaca#)
+[![Latest docker image size](https://img.shields.io/docker/image-size/mrhedmad/gattaca/latest)](https://hub.docker.com/repository/docker/mrhedmad/gattaca)
 
 
 <b>GATTACA</b> is a short for <b>General Algorithm for The Transcriptional Analysis by one-Channel Arrays</b>.
