@@ -53,82 +53,130 @@
 #
 # ------------------------------------------------------------------------------
 
-# Load the helper functions.
-source(file.path(ROOT, "src", "STALKER_Functions.R"))
-source(file.path(ROOT, "src", "annotator.R"))
+log_debug("Sourcing the 'Affy_CEL_to_Expression.R' file.")
 
 affy2expression <- function(
-    input.folder, output.file, log_name = NULL,
-    use.affy = FALSE, remove.controls = TRUE
+    input.folder, output.file, remove.controls = TRUE,
+    plot.width = 16, plot.height = 9, use.pdf = TRUE,
+    n_plots = Inf
     ) {
-  # ---- Loading packages ----
-  library(oligo)
-  library(limma)          # For plotMD() function
-  library(logger)
-  library(affycoretools)
+  paste0(
+    "Call (input.folder, output.file, remove.controls): ",
+    paste(input.folder, output.file, remove.controls, sep = " :: ")
+  ) |>
+    log_debug()
 
-  print(paste0(
-    "Call: (in/out/log/affy/rm) ",
-    input.folder, output.file, log_name,
-    use.affy, remove.controls, sep = " :: "
-  ))
-  
-  # Setup logging facilities
-  output.dir <- dirname(output.file)
-  start.timedate <- gsub(" ", "_", date())
-  
-  # I don't know if log_name was passed as a string or NULL, so in the call
-  # made by entry I have to wrap the input in "" to make it a valid string.
-  # This causes NULL to become "NULL", and therefore I have to do this badness
-  log_name <- if (log_name == "NULL") {NULL} else {log_name}
-  log.target <- if (is.null(log_name)) {
-    file.path(output.dir, paste0("affy2expression_", start.timedate, ".log"))
-  } else {
-    file.path(output.dir, log_name)
-  }
-  file.create(log.target)
-  log_appender(appender_tee(log.target))
-  
+  # Set options for printPlots
+  options(
+    "scriptName" = "prepaffy",
+    "save.PNG.plot" = !use.pdf,
+    "save.PDF.plot" = use.pdf,
+    "plot.width" = plot.width,
+    "plot.height" = plot.height
+  )
+
   # ---- Load .CEL files ----
   log_info("Looking for .CEL files...")
+  output.folder <- dirname(output.file)
   setwd(input.folder)
-  
+
   celFiles = list.celfiles()
   paste0(
     "Found ", length(celFiles), " .CEL files: ", paste0(celFiles, collapse = ", ")
     ) |>
     log_info()
-  
+
   log_info("Parsing found files to raw data...")
   # This should also install-and-load the platform design package (e.g. pd.hg.u133a)
   affyRaw = read.celfiles(celFiles)
-  
+
+  # We can now move to where the plots will be saved.
+  setwd(output.folder)
+
   # Check Platform and set the exon.probes flag
   # This is done as newer platforms need different processing than old ones.
   platform <- affyRaw@annotation
   log_info(paste0("Detected platform: ", platform))
-  if (platform %in% c("pd.hg.u133a", "pd.hg.u133b", "pd.hg.u133.plus.2")) {
+  if (platform %in% c(
+    "pd.hg.u133a", "pd.hg.u133b", "pd.hg.u133.plus.2", "pd.drosophila.2"
+  )) {
     exon.probes = FALSE
-  } else if (platform %in% c("pd.hugene.1.0.st.v1")) {
+  } else if (platform %in% c(
+    "pd.hugene.1.0.st.v1"
+  )) {
     exon.probes = TRUE
   } else {
     stop("Invalid or unsupported platform")
   }
-  
-  log_info("Running RMA normalization...")
+
+  # Making plots for quality control
+  log_info("Making MA plots before normalization...")
   if (exon.probes) {
-    # The parameter 'target' (only for Gene ST and Exon ST) defines the degree
-    # of summarization, "core" is the default option which use transcript
-    # clusters containing "safely" annotated genes. For summarization on the
-    # exon level (not recommended for Gene arrays), use "probeset".
-    expression_set = rma(affyRaw, target = "core")
+    unnormalized_data <- oligo::rma(
+      affyRaw, target = "core", normalize = FALSE, background = FALSE
+    )
   } else {
-    expression_set = rma(affyRaw)
+    unnormalized_data <- oligo::rma(
+      affyRaw, normalize = FALSE, background = FALSE
+    )
   }
-  
+
+  unnormalized_data |> exprs() |> as.data.frame() -> unnormalized_data
+  ma.plots <- get_better_mas(
+    unnormalized_data,
+    title = "Unnormalized MA plot - {x} vs Median of other samples"
+  )
+
+  if (n_plots != Inf) {
+    stopifnot(
+      "Invalid amount of plots to display"={is.wholenumber(n_plots)}
+    )
+    if (length(ma.plots) > n_plots) {
+      log_warn(paste0(
+        "Number of plots to display (", n_plots,
+        ") is higher than the number of plots to be saved (", length(ma.plots),
+        "). Printing all of them."
+      ))
+      n_plots <- Inf
+    }
+    ma.plots <- ma.plots[1:n_plots]
+  }
+
+  pb <- progress_bar$new(
+    format = "Saving plots... [:bar] :percent (:eta)",
+    total = length(ma.plots), clear = FALSE, width= 80)
+  pb$tick(0)
+  for (i in seq_along(ma.plots)) {
+    maplot <- ma.plots[[i]] # This unpacking is necessary! (for some reason...)
+    printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
+    pb$tick()
+  }
+
+  log_info("Making overall boxplot...")
+  p <- function(){
+    bplot <- ggplot(data = melt(unnormalized_data), aes(y = value, x = variable)) +
+      geom_boxplot(outlier.alpha = 0.5, outlier.size = 1) +
+      theme_bw() +
+      scale_x_discrete(
+        labels = 1:length(unnormalized_data)
+      ) +
+      ylab("Expression") + xlab("Sample") +
+      ggtitle("Unnormalized Boxplots")
+    print(bplot)
+  }
+  printPlots(suppressMessages(p), "Unnormalized Boxplots")
+
+  rm(unnormalized_data)
+  # Done making plots
+
+  # The call knows when to use `target = "core"` or not, and the defaults are
+  # always to use `target = "core"`.
+  log_info("Running RMA normalization.")
+  expression_set = oligo::rma(affyRaw)
+
   log_info(paste0("Dataset dimensions: ", dim(expression_set)[1], " probe sets x ",
                   dim(expression_set)[2], " samples"))
-  
+
   if (remove.controls) {
     log_info("Removing control probes...")
     # Remove Affymetrix control probes
@@ -158,20 +206,43 @@ affy2expression <- function(
       log_warn("Detected some missing values in the dataset. Has something gone terribly wrong?")
     }
   }
-  
-  # Transposing this object is a pain. But `write.exprs` actually does what we
-  # need. So I do this badness.
-  log_info("Transposing and extracting probe ids...")
-  temp <- tempfile()
-  on.exit(unlink(temp)) # This assures that the tempfile is deleted no matter what
-  write.exprs(expression_set, file = temp)
-  
-  transposed <- read.table(file = temp, row.names = 1)
-  
-  transposed <- data.frame(probe_id = row.names(transposed), transposed)
-  row.names(transposed) <- NULL
-  
+
+  expression_set |> exprs() |> as.data.frame() -> transposed
+
+  ma.plots <- get_better_mas(
+    transposed,
+    title = "Normalized MA plot - {x} vs Median of other samples"
+  )
+
+  if (n_plots != Inf) {
+    ma.plots <- ma.plots[1:n_plots]
+  }
+
+  pb <- progress_bar$new(
+    format = "Saving plots... [:bar] :percent (:eta)",
+    total = length(ma.plots), clear = FALSE, width= 80)
+  pb$tick(0)
+  for (i in seq_along(ma.plots)) {
+    maplot <- ma.plots[[i]] # This unpacking is necessary! (for some reason...)
+    printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
+    pb$tick()
+  }
+
+  log_info("Making overall boxplot")
+  p <- function(){
+    bplot <- ggplot(data = melt(transposed), aes(y = value, x = variable)) +
+      geom_boxplot(outlier.alpha = 0.5, outlier.size = 1) +
+      theme_bw() +
+      scale_x_discrete(
+        labels = 1:length(transposed)
+      ) +
+      ylab("Expression") + xlab("Sample") +
+      ggtitle("Normalized Boxplots")
+    print(bplot)
+  }
+  printPlots(suppressMessages(p), "Normalized Boxplots")
+
   log_info("Saving Expression Matrix to file...")
-  write.csv(transposed, file = output.file, row.names = FALSE)
+  write_expression_data(transposed, output.file)
   log_info("affy2expression finished")
 }

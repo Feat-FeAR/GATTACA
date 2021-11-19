@@ -1,0 +1,46 @@
+# This is a list of packages that can be used by an iteractive user to
+# install packages with. Read the README for a code snippet useful to read
+# this file.
+
+## Basic utility packages
+logger
+progress
+yaml
+
+## We all love the tidyverse
+tidyverse
+
+## Stuff from Bioc to process data
+bioc::preprocessCore
+bioc::PCAtools
+bioc::limma
+bioc::RankProd
+bioc::oligo
+bioc::affycoretools
+statmod
+
+## Graphics
+VennDiagram
+bioc::EnhancedVolcano
+gplots
+UpSetR
+
+## Others
+testthat
+
+# Databases
+## Base database reader
+bioc::org.Hs.eg.db
+
+## The actual databases
+bioc::hgu133a.db
+bioc::hgu133b.db
+bioc::hgu133plus2.db
+bioc::HsAgilentDesign026652.db
+bioc::hugene10sttranscriptcluster.db
+
+## Platform files needed by affy to load the data
+bioc::pd.hg.u133a
+bioc::pd.hg.u133b
+bioc::pd.hg.u133.plus.2
+bioc::pd.hugene.1.0.st.v1

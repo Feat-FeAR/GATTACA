@@ -38,69 +38,998 @@
 #
 # ------------------------------------------------------------------------------
 
-# ---- Package Loading ----
-# Load required packages and source external scripts
 
-library(preprocessCore)   # Interarray Normalization by Quantile-Quantile Algorithm
-library(rafalib)          # Bland Altman Plots (aka MA Plots)
-library(PCAtools)         # Principal Component Analysis
-library(genefilter)       # Expression Gene Filtering
-library(limma)            # Empirical Bayes Method for Differential Expression
-library(RankProd)         # Rank Product Method for Differential Expression
-library(VennDiagram)      # Venn Diagrams
-library(EnhancedVolcano)  # Volcano Plots
-library(gplots)           # Heatmap with extensions - heatmap.2() 
-library(ggplot2)          # Box Plot and Bar Chart with Jitter (already loaded by PCAtools)
-library(RColorBrewer)     # Color Palette for R - display.brewer.all()
-library(yaml)             # Yaml file parsing
-library(logger)           # Well, logging
+#' Make plots to diagnose the presence of batch effects
+#'
+#' Uses printPlots to save plots, and assumes its options are already set.
+#'
+#' The produced plots are an hierarchical cluster and a PCA plot.
+#'
+#' @param expression_set The expression set to evaluate
+#' @param groups The groups associaged with the data (for plotting)
+#' @param user_colours The colours associated with the groups of the data
+#'
+#' @author Hedmad
+diagnose_batch_effects <- function(
+  expression_set, groups, user_colours, title_mod = NULL
+) {
+  log_info("Starting sample-wise hierarchical clustering and PCA for batch-effect detection...")
+  # Matrix Transpose t() is used because dist() computes the distances between
+  # the ROWS of a matrix
+  # Distance matrix (NOTE: t(expression_set) is coerced to matrix)
+  log_info("Performing hierarchical clustering...")
+  expression_set |> t() |> dist() |> hclust(method = "ward.D") ->
+    hierarchical_clusters
 
-source(file.path(ROOT, "src", "STALKER_Functions.R"))   # Collection of custom functions
+  printPlots(
+    \(){plot(hierarchical_clusters)},
+    paste("Dendrogram", title_mod, sep = " - ")
+  )
 
-# The annotation DB loads after dplyr so the `select` function gets overwritten.
-# Why does R allow this?
-dp_select <- dplyr::select
+  log_info("Performing PCA...")
+  # Bundle some metadata in the PCA object for later.
+  # Strictly enforced that rownames(metadata) == colnames(expression_set)
+  metadata = data.frame(
+    groups = groups,
+    row.names = colnames(expression_set)
+  )
+
+  # Do the PCA (centering the data before performing PCA, by default)
+  PCA_object = pca(expression_set, metadata = metadata)
+
+  log_info("Finished running PCA. Plotting results...")
+  printPlots(
+    \(){print(screeplot(PCA_object))},
+    paste("Scree Plot", title_mod, sep = " - ")
+  )
+
+  printPlots(
+    \() {
+      suppressMessages(print(
+        biplot(
+          PCA_object, colby = "groups", colkey = user_colours,
+          title = "Principal Component Analysis"
+        )
+      ))
+    },
+    paste("PCA", title_mod, sep = " - ")
+  )
+
+  printPlots(
+    \() {
+      suppressMessages(print(
+        pairsplot(
+          PCA_object, colby = "groups", colkey = user_colours,
+          title = "Paired PCA Plots"
+        )
+      ))
+    },
+    paste("PCA Pairs", title_mod, sep = " - ")
+  )
+}
+
+
+#' Average technical replicates in an expression set.
+#'
+#' As limma can use `duplicateCorrelation`, this is only useful for RankProd.
+#'
+#' This function has to replace the colnames. It does so by running
+#' `make.unique_from1` on the new colnames (after averaging the data).
+#'
+#' @param data The expression set to fix.
+#' @param groups The groups associated with the expression set.
+#' @param pairings The pairings associated with the expression set.
+#' @param technical_replicates A vector of labels, where identical labels
+#'   represent technical replicates.
+#'
+#' @returns A list with the following entries:
+#'   - A `data` slot with the averaged data;
+#'   - A `groups` slot with the new groupings;
+#'   - A `pairings` slot with the new pairings;
+#'
+#' @author Hedmad
+fix_replicates <- function(data, groups, technical_replicates, pairings = NULL) {
+  stopifnot(
+    "Length of groups is not the length of the data" =
+      {length(groups) == ncol(data)},
+    "Length of technical_replicates is not the length of the data" =
+      {length(technical_replicates) == ncol(data)},
+    "Length of pairings is not the length of the data" =
+      {is.null(pairings) | length(pairings) == ncol(data)}
+  )
+
+  technical_replicates <- factor(technical_replicates)
+
+  if (length(levels(technical_replicates)) == 1) {
+    stop("The whole experiment is just one technical replicate. Cannot proceed.")
+  }
+
+  new_data <- data.frame(row.names = rownames(data))
+  new_groups <- c()
+  new_pairings <- c()
+
+  for (level in levels(technical_replicates)) {
+    # Check that the labels of a replicate are identical
+    if (! all_identical(groups[technical_replicates == level])) {
+      stop(paste0(
+        "The group inside one or more technical replicates is different. ",
+        "Replicate: '", level, "', Groups:", paste(
+          unique(groups[technical_replicates == level]), collapse = ", "
+        ), "."
+      ))
+    }
+    if (!is.null(pairings) & ! all_identical(pairings[technical_replicates == level])) {
+      stop(paste0(
+        "The pairing inside one or more technical replicates is different. ",
+        "Replicate: '", level, "', Pairings:", paste(
+          unique(pairings[technical_replicates == level]), collapse = ", "
+        ), "."
+      ))
+    }
+
+    new_groups <- c(new_groups, groups[technical_replicates == level][1])
+    new_pairings <- c(new_pairings, pairings[technical_replicates == level][1])
+
+    if (ncol(data[, technical_replicates == level, drop = FALSE]) > 1) {
+      new_data[level] <- apply(data[, technical_replicates == level], 1, mean)
+    } else {
+      # This sample has no replicate counterparts.
+      new_data[level] <- data[, technical_replicates == level]
+    }
+  }
+
+  colnames(new_data) <- make.unique_from1(new_groups)
+
+  return(list(
+    data = new_data,
+    groups = new_groups,
+    pairings = new_pairings
+  ))
+}
+
+
+#' Run groupwise filtering on expression data.
+#'
+#' The expression data *must* be named with colnames starting with the same
+#' groups `groups`, for example by using `make.names(groups)`.
+#'
+#' The data is filtered by keeping genes that are expressed more than
+#' `expression_threshold` in at least `min_groupwise_presence` samples in
+#' at least one group.
+#'
+#' @param expression_set A data.frame with the data to be filtered.
+#' @param groups A vector with the group names that correspond to the columns
+#'   in the `expression_set`.
+#' @param min_groupwise_presence The minimum groupwise presence used to filter.
+#' @param expression_threshold The log2 expression treshold to use to consider
+#'   a gene to be sufficiently expressed in a sample.
+#'
+#' @returns A data.frame with the filtered data.
+filter_expression_data <- function(
+  expression_set, groups, min_groupwise_presence, expression_threshold
+) {
+  log_info(
+    "Filtering a ", ncol(expression_set), " cols by ", nrow(expression_set),
+    " rows expression set."
+  )
+
+  original_dims <- dim(expression_set)
+
+  report <- paste(
+    "Initial dims: ", ncol(expression_set), " cols by ", original_dims[1], " rows",
+    "\nMin presence per group: ", min_groupwise_presence,
+    "\nExpression threshold (log2): ", expression_threshold
+    )
+
+  log_debug(
+    "Raw colnames:", paste(colnames(expression_set), collapse = ", "),
+    "\nGroups:", paste(groups, collapse = ", ")
+  )
+
+  group_sizes <- table(groups)
+  min_presences <- ceiling(group_sizes * min_groupwise_presence)
+
+  table_report <- data.frame(
+    groups = names(group_sizes),
+    sizes = as.vector(group_sizes),
+    min_presence = as.vector(round(group_sizes * min_groupwise_presence, 2)),
+    actual_min_presence = as.vector(min_presences)
+  )
+
+  report <- paste(report, get.print.str(table_report), sep = "\n")
+
+  # To filter, we do three things. First, we look at the data and split it
+  # groupwise. Secondly, we apply to each split, row-wise, a function that
+  # gives us TRUE if at least `min_presence` columns have expression over
+  # `expression_treshold` expression. We save these vectors into a data frame,
+  # the `truth_dataframe`, with a col for each group. Finally, we collapse
+  # this dataframe to a single truth key, with one entry per row, by applying
+  # `any` row-wise, thus keeping an entry if the function described above is
+  # true in at least one group.
+  truth_dataframe <- data.frame(row.names = rownames(expression_set))
+
+  for (group in unique(groups)) {
+    # I cannot use "filter" as we first need to compare all cols to see if
+    # the rowwise test passes, and only then we can filter.
+    filter_fun <- function(frame) {
+      kOverA_filter <- kOverA(min_presences[[group]], expression_threshold)
+      frame |> apply(MARGIN = 1, FUN = kOverA_filter) ->
+        filter_key
+      return(filter_key)
+    }
+
+    expression_set |> dp_select(starts_with(group)) |> filter_fun() ->
+      truth_dataframe[[group]]
+  }
+
+  truth_dataframe |> apply(2, sum) -> nr_kept_genes
+  report <- paste(
+    report, "--------------\nRetained genes:", get.print.str(nr_kept_genes),
+    "Percentage:", get.print.str(nr_kept_genes / original_dims[1] * 100),
+    sep = "\n"
+  )
+
+  truth_dataframe |> apply(1, any) -> truth_key
+  expression_set <- expression_set[truth_key, ]
+
+  report <- paste(
+    report,
+    paste("-----------\nFiltered dims:", ncol(expression_set), "cols by ", nrow(expression_set), "rows"),
+    paste("Percentage retained genes:", nrow(expression_set) / original_dims[1] * 100),
+    sep = "\n"
+    )
+
+  log_info(report)
+  return(expression_set)
+}
+
+
+#' Produce a limma design matrix given a set of groups and potentially other
+#' variables
+#'
+#' Only the groups are assured to be all included (so all of them can be
+#' used by `makeContrasts`).
+#'
+#' @param groups A character vector with the group names, in the order of the
+#'   columns of the data.
+#' @param ... Any character vector, with arbitrary names, included as variables
+#'   in the design matrix. Note that one level from each variable is removed
+#'   due to how `model.matrix` works.
+#'
+#' @author Hedmad
+make_limma_design <- function(groups, ...) {
+  args <- list(...)
+  if (length(args) != 0) {
+    stopifnot(
+      "All extra variables must be named (as in `some_var = c(...)`)" = {
+        !is.null(names(args)) & all(names(args) != "")
+      },
+      "The `groups` variable and all other variables must have the same length."={
+        all(length(groups) == sapply(args, length))
+      },
+      "All extra variable names must be unique" = {
+        # This might already be enforced...?
+        length(args) == length(unique(names(args)))
+      }
+    )
+
+    factor_vars <- lapply(args, as.factor)
+  }
+
+  groups <- as.factor(groups)
+
+  str_formula <- "~ 0 + groups"
+  # The matrix names follow a pattern:
+  #   - The groups are always all included, in alphabetical order.
+  #   - The other vars are included, in alphabetical order, except for the
+  #     first one.
+  groups |> levels() |> sort() -> matrix_names
+  if (length(args) != 0) {
+    for (some_var in names(factor_vars)) {
+      str_formula <- paste0(str_formula, "+ factor_vars$", some_var)
+      pretty_level_names <- paste(
+        some_var, levels(factor_vars[[some_var]])[-1], sep = "_"
+      )
+      matrix_names <- c(
+        matrix_names, pretty_level_names
+      )
+    }
+  }
+
+  mm <- model.matrix(formula(str_formula))
+  # NOTE: The model matrix has a variety of attributes that *could* mean
+  # something. Some of them carry the original variable names of the data,
+  # as well as the colnames. I was worried that the calculations would be
+  # affected in some way by these variables (like the $contrasts attribute)
+  # so I tested it (November 17, 2021, limma ver 3.50.0) by removing these
+  # arguments from the model matrix before running limma. The outputs are
+  # identical in the two cases (tested with `identical()`), so I feel
+  # confident in replacing the colnames here, as I think that these extra
+  # attributes are ignored by limma. - Hedmad
+  colnames(mm) <- matrix_names
+
+  return(mm)
+}
+
+
+#' Run a DEA with `limma`.
+#'
+#' @param expression_set The expression set to run the analysis with.
+#'   It is a data.frame with row names as probes and column as samples. The
+#'   col names are assumed to start with one of the possible levels in the
+#'   experimental design.
+#' @param groups A vector describing the groups of the data, in the same order
+#'   as the columns.
+#' @param contrasts A character vector describing contrasts suitable for
+#'   `limma::makeContrasts`.
+#' @param pairings A vector describing the pairings of the data or NULL if no
+#'   pairings are present. Must be the same length as the columns of the
+#'   expression_set.
+#' @param fc_threshold The absolute Fold-change threshold to use to consider
+#'   a gene as differentially expressed, regardless of the P-value or FDR.
+#'
+#' @returns A list of Data.frames, each with the DEGs found using a different
+#'   contrast. Each dataframe has a column named `markings`, with the marking
+#'   of either Upregulated (`1`), Downregulated (`-1`) or Not Significant (`0`).
+#'
+#' @author FeAR, Hedmad
+run_limma <- function(
+  expression_set, groups, contrasts,
+  technical_replicates = NULL,
+  other_vars = NULL,
+  fc_threshold = 0.5
+) {
+  log_info("Running differential expression analysis by limma.")
+  log_info("Making limma design matrix...")
+
+  if ( !is.null(other_vars) ) {
+    limma_design <- do.call(make_limma_design, c(list(groups = groups), other_vars))
+  } else {
+    limma_design <- make_limma_design(groups = groups)
+  }
+
+  log_info("Design matrix:\n", get.print.str(limma_design))
+
+  if (!is.null(technical_replicates)) {
+    log_info("Calculating technical replicates intra-correlation...")
+    corr_correction <- duplicateCorrelation(
+      expression_set, design = limma_design,
+      block = as.factor(technical_replicates)
+    )
+
+    if (corr_correction$consensus.correlation < 0) {
+      log_warn("Consensus of technical replicates is negative. This shouldn't happen.")
+    }
+  }
+
+  log_info("Making contrasts matrix...")
+  makeContrasts(
+    contrasts = contrasts,
+    levels = limma_design
+  ) -> contrast_matrix
+
+  log_info("Contrasts matrix:\n", get.print.str(contrast_matrix))
+
+  log_info("Computing contrasts...")
+  if (!is.null(technical_replicates)) {
+    lmFit(
+      expression_set, limma_design,
+      block = as.factor(technical_replicates),
+      correlation = corr_correction$consensus.correlation
+    ) -> limma_fit
+  } else {
+    lmFit(expression_set, limma_design) -> limma_fit
+  }
+
+  limma_fit |> contrasts.fit(contrast_matrix) |> eBayes() -> limma_Bayes
+
+  log_info("Getting Differential expressions...")
+  pb <- progress_bar$new(
+    format = "Generating... [:bar] :percent (:eta)",
+    total = length(contrasts), clear = FALSE, width= 80)
+  pb$tick(0)
+
+  DEGs.limma = list() # Create an empty list
+  for (i in seq_along(contrasts)) {
+    # This fills the list with data.frames
+    DEGs.limma[[i]] = topTable(
+      limma_Bayes, coef = i, number = Inf,
+      adjust.method = "BH", sort.by = "B"
+    )
+    pb$tick()
+  }
+
+  names(DEGs.limma) <- contrasts
+
+  # Markings for DEGs given a P-value
+  # We don't filter it out here as it is not suggested. See the help for the
+  # `decideTests` function.
+  decideTests(limma_Bayes, adjust.method = "BH", p.value = 0.05) |>
+    as.data.frame() -> markings
+  for (contrast in seq_along(contrasts)) {
+    # Add the "markings" column
+    contr_markings <- markings[contrast]
+    colnames(contr_markings) <- "markings"
+    DEGs.limma[[contrast]] <- merge(
+      DEGs.limma[[contrast]], contr_markings, sort = FALSE, by = "row.names"
+    )
+    rownames(DEGs.limma[[contrast]]) <- DEGs.limma[[contrast]]$Row.names
+    DEGs.limma[[contrast]]$Row.names <- NULL
+
+    # Filter out markings with low FC
+    DEGs.limma[[contrast]]$markings[
+      abs(DEGs.limma[[contrast]]$logFC) < fc_threshold
+    ] <- 0
+  }
+
+  # Show Hyperparameters
+  d0 = limma_Bayes$df.prior           # prior degrees of freedom
+  dg = mean(limma_fit$df.residual)    # original degrees of freedom
+  hyp = cbind(
+    c(limma_Bayes$s2.prior,           # prior variance
+      mean(limma_fit$sigma^2),        # mean sample residual variance
+      mean(limma_Bayes$s2.post),      # mean posterior residual variance
+      d0, dg, d0/(d0+dg))             # Shrinkage degree
+  )
+  rownames(hyp) = c(
+    "Prior Var",
+    "Sample Residual Mean Var",
+    "Posterior Residual Mean Var",
+    "Prior df",
+    "Original df",
+    "Shrinkage degree"
+  )
+  colnames(hyp) = "Hyperparameters"
+  log_info(paste0("Hyperparameters:: \n", get.print.str(hyp)))
+
+  return(DEGs.limma)
+}
+
+
+#' Extract markings from a list of limma DEGs.
+#'
+#' Looks for the `markings` column and extracts it in a new data.frame.
+#' Uses the last Data frame rownames for simplicity, assuming all frames
+#' come from the same call of `run_limma` or `run_rankprod`.
+extract_markings <- function(DEGs.list) {
+  container <- list()
+  for (contrast in names(DEGs.list)) {
+    container[contrast] <- DEGs.list[[contrast]]["markings"]
+  }
+  container <- data.frame(container)
+  rownames(container) <- rownames(DEGs.list[[contrast]])
+  return(container)
+}
+
+#' Prints out either a venn or an upset plot from a markings frame,
+#' such as that of `extract_markings`.
+#'
+#' If the data does not allow either, does not plot anything.
+#'
+#' Uses the PrintPlots function, so the options can be set from outside
+#' this function.
+make_overlaps_from_markings <- function(markings, toolname = "") {
+  if (length(markings) > 3 & sum(markings) > 0) {
+    # Prepare the dataset to allow the upset plot
+    upset_data <- list()
+    for (i in seq_along(markings)) {
+      upset_data[[colnames(markings)[i]]] <- rownames(markings)[as.logical(markings[[i]])]
+    }
+    upset_data <- fromList(upset_data)
+
+    printPlots(
+      \() {
+        upset(
+          upset_data, nsets = Inf, nintersects = NA,
+          keep.order = TRUE
+        ) |> print()
+      },
+      paste("Upset Plot", toolname, sep = " - ")
+    )
+
+  } else if (sum(markings) > 0) {
+    printPlots(\(){vennDiagram(markings)}, paste("Upset Plot", toolname, sep = " - "))
+  } else {
+    log_warn("Cannot plot a Venn or Upset Plot as no DEGs have been detected.")
+  }
+}
+
+
+#' Make and save (in the current WD) diagnostic plots for limma results.
+#'
+#' This prints some plots with `printPlots`, and assumes that the correct
+#' options have already been selected.
+#'
+#' The plots include: A Venn diagram OR an upset plot of the detected DEGs
+#' (if there are more than 3 contrasts), a set of MA plots with the detected
+#' DEGs highlighted, and a set of volcano plots with the (annotated) DEGs.
+#'
+#' Looks for a column named "SYMBOL" to source the volcano plot labels with,
+#' else uses the rownames.
+#'
+#' @param DEGs.limma A named list of Data.frames. The names of the list must
+#'   represent the contrasts that are described in the data.frames.
+#'   Looks for a column named `markings` in each frame that describes which
+#'   genes are Upregulated (`1`), Downregulated (`-1`) or Not Significant (`0`).
+#' @param fc_threshold The FC threshold that was used when calculating the
+#'   DEGs.limma.
+#' @param volcano_colour Colour to use to mark interesting points in the volcano
+#'   plot.
+#'
+#' @author FeAR, Hedmad
+diagnose_limma_data <- function(
+  DEGs.limma, fc_threshold = 0.5, volcano_colour = "firebrick3"
+) {
+  log_info("Making limma DEG plots...")
+
+  extract_markings(DEGs.limma) |> abs() -> markings
+
+  make_overlaps_from_markings(markings, toolname = "limma")
+
+  # MA-Plots with significant DEGs
+  # Find Axis Limits
+  log_info("Finding axis limits...")
+  max.M.value = max(sapply(DEGs.limma, \(data){max(abs(data$logFC))} ))
+  max.A.value = max(sapply(DEGs.limma, \(data){max(data$AveExpr)} ))
+  min.A.value = min(sapply(DEGs.limma, \(data){min(data$AveExpr)} ))
+  min.P.value = min(sapply(DEGs.limma, \(data){min(data$P.Value)} ))
+
+  # MA-Plot with DEGs
+  log_info("Making Limma MA-Plots...")
+  # I cannot place a progress bar here as `printPlots` logs to stdout.
+  for (i in seq_along(contrasts)) {
+    # Mark in red/blue all the up-/down- regulated genes
+    # This MA plot is made with the LogFC and estimates from the TopTables
+    printPlots(
+      \() {
+        mamaplot(
+          x = DEGs.limma[[i]]$AveExpr, y = DEGs.limma[[i]]$logFC,
+          input_is_ma = TRUE,
+          highligths = list(
+            "red" = DEGs.limma[[i]]$markings == 1,
+            "blue" = DEGs.limma[[i]]$markings == -1
+          ),
+          xrange = c(min.A.value, max.A.value),
+          yrange = c(NA, max.M.value)
+        ) |> print()
+      },
+      paste("MA-Plot with Limma DEGs ", names(DEGs.limma)[i], sep = "")
+    )
+  }
+
+  # Volcano Plots
+  log_info("Making Limma Volcano plots...")
+  for (i in seq_along(contrasts)) {
+    volcano_p_threshold = find_BH_critical_p(DEGs.limma[[i]]$adj.P.Val)
+
+    # Enhanced Volcano Plot
+    if ("SYMBOL" %in% colnames(DEGs.limma[[i]])) {
+      volcano_labels <- DEGs.limma$SYMBOL
+    } else {
+      volcano_labels = rownames(DEGs.limma[[i]])
+    }
+
+    get_h_volcano <- function() {
+      # NOTICE: When in a for loop, you have to explicitly print your
+      # resulting EnhancedVolcano object
+      suppressWarnings(
+        # This prints warnings as - I think - the internal implementation
+        # uses xlim and ylim but ggplot2 ignores them.
+        print(
+          EnhancedVolcano(
+            DEGs.limma[[i]],
+            x = "logFC", y = "P.Value",
+            pCutoff = volcano_p_threshold, FCcutoff = fc_threshold,
+            pointSize = 1,
+            col = c("black", "black", "black", volcano_colour),
+            lab = volcano_labels,
+            #selectLab = myLabels[1:high.DEG],
+            labSize = 4,
+            title = names(DEGs.limma)[i],
+            subtitle = "Limma",
+            legendPosition = "none"
+          )
+        )
+      )
+    }
+    printPlots(get_h_volcano, paste("Volcano with Limma DEGs ", names(DEGs.limma)[i], sep = ""))
+  }
+}
+
+
+#' Run a DEA with `RankProd`.
+#'
+#' @param expression_set The expression set to run the analysis with.
+#'   It is a data.frame with row names as probes and column as samples. The
+#'   col names are assumed to start with one of the possible levels in the
+#'   experimental design.
+#' @param groups A vector describing the groups of the data, in the same order
+#'   as the columns.
+#' @param contrasts A character vector describing contrasts.
+#' @param pairings A vector describing the pairings of the data or NULL if no
+#'   pairings are present. Must be the same length as the columns of the
+#'   expression_set.
+#' @param fc_threshold The absolute Fold-change threshold to use to consider
+#'   a gene as differentially expressed, regardless of the P-value or FDR.
+#'
+#' @returns A list of Data.frames, each with the DEGs found using a different
+#'   contrast. Each dataframe has a column named `markings`, with the marking
+#'   of either Upregulated (`1`), Downregulated (`-1`) or Not Significant (`0`).
+#'
+#' @author FeAR, Hedmad
+run_rankprod <- function(
+  expression_set, groups, contrasts,
+  technical_replicates = NULL,
+  pairings = NULL, fc_threshold = 0.5
+) {
+  log_info("Running differential expression analysis with rankproduct...")
+
+  # Make a container for the rankprod results
+  DEGs.rankprod = list()
+
+  if (!is.null(technical_replicates)) {
+    log_info("Correcting data to collapse technical replicates...")
+    corrected_data <- fix_replicates(
+      expression_set, groups, technical_replicates, pairings = pairings
+    )
+    expression_set <- corrected_data$data
+    groups <- corrected_data$groups
+    pairings <- corrected_data$pairings
+  }
+
+  for (i in seq_along(contrasts)) {
+    log_info(paste0("Running analysis ", i, " of ", length(contrasts)))
+
+    log_info("Finding control and case groups...")
+    unpacked_groups = strsplit(contrasts[i], split = "-", fixed = TRUE)[[1]]
+
+    control_group <- unpacked_groups[2]
+    treated_group <- unpacked_groups[1]
+
+    expression_set |> dp_select(
+      starts_with(control_group) | starts_with(treated_group)
+    ) -> sub_expression_set
+
+    # The above filter rearranges the columns. This crashes later as the
+    # column order is needed to match the pairings for subtraction.
+    # So we return to the original one here.
+    original_col_order <- colnames(expression_set)[
+      colnames(expression_set) %in% colnames(sub_expression_set)
+    ]
+    sub_expression_set <- sub_expression_set[, original_col_order]
+
+    # Make the cl array, representing class labels of the sample
+    colnames(sub_expression_set) |> startsWith(treated_group) |> as.numeric() ->
+      rp_class_labels
+
+    if (!is.null(pairings)) {
+      # To make a paired run, we need to subtract the matching paired sets.
+      # First, we need to get the pairings that survived the filtering
+      colnames(expression_set) %in% colnames(sub_expression_set) ->
+        surviving_cols
+      sub_parings <- pairings[surviving_cols]
+
+      # We make an empty dataframe to hold the subtraction result
+      subtracted_expression_set <- data.frame(row.names = rownames(sub_expression_set))
+      for (pairing in unique(sub_parings)) {
+
+        # Get only the columns of this pair...
+        paired_expression_set <- sub_expression_set[sub_parings == pairing]
+        # Select the "control" and "treated" group columns
+        paired_expression_set |> dp_select(starts_with(control_group)) ->
+          control_set
+        paired_expression_set |> dp_select(starts_with(treated_group)) ->
+          treated_set
+
+        # If there is more than one sample for each pairing in each set,
+        # we need to collapse them in some way as there is ambiguity on how
+        # to subtract them.
+        if (ncol(control_set) != 1) {
+          log_warn(
+            paste0(
+              "There are more than 1 '", control_group,
+              "' paired samples (",
+              paste(colnames(control_set), collapse = ", "), ").",
+              " The average of them will be used instead."
+            )
+          )
+          control_set <- rowMeans(control_set)
+          colnames(control_set) <- paste0("averaged_", control_group)
+        } else if (ncol(control_set) == 0) {
+          stop(
+            paste0(
+              "There are no paired columns for group '", control_group,
+              "' for pairing ", pairing
+            )
+          )
+        }
+
+        if (ncol(treated_set) != 1) {
+          log_warn(
+            paste0(
+              "There are more than 1 '", treated_group,
+              "' paired samples (",
+              paste(colnames(treated_set), collapse = ", "), ").",
+              " The average of them will be used instead."
+            )
+          )
+          treated_set <- rowMeans(treated_set)
+          colnames(treated_set) <- paste0("averaged_", treated_group)
+        } else if (ncol(treated_set) == 0) {
+          stop(
+            paste0(
+              "There are no paired columns for group '", treated_group,
+              "' for pairing ", pairing
+            )
+          )
+        }
+
+        # Now, control and treated sets can be subtracted as they are one
+        # and only one column.
+        subtracted_partial_set <- control_set - treated_set
+
+        subtracted_expression_set <- merge(
+          subtracted_expression_set, subtracted_partial_set,
+          all = TRUE, by = 0
+        )
+        # The merge makes the row names into their own col. This returns them
+        # to actual row names.
+        rownames(subtracted_expression_set) <- subtracted_expression_set$Row.names
+        subtracted_expression_set$Row.names <- NULL
+      }
+      log_info("Finished pairing dataset.")
+      # We put the new data in the same containers
+      sub_expression_set <- subtracted_expression_set
+      # The class labels are now identical as the set is paired
+      rp_class_labels <- rep(1, ncol(subtracted_expression_set))
+    }
+
+    # invisible(capture.output()) is to suppress automatic output to console
+    # WARNING: therein <- (instead of =) is mandatory for assignment!
+    log_info("Running RankProduct...")
+    RP.out <- RP.advance(
+      sub_expression_set,
+      rp_class_labels, origin = rep(1, ncol(sub_expression_set)),
+      gene.names = rownames(expression_set),
+      logged = TRUE, na.rm = FALSE, plot = FALSE, rand = 123
+    )
+
+    # Compute full DEG Tables (returns a list of 2 matrices, not data frames)
+    log_info("Computing DEG table...")
+    invisible(
+      capture.output(
+        # The Inf cutoff is to print all genes
+        DEGs.RP <- topGene(RP.out, logged = TRUE, logbase = 2, cutoff = Inf)
+      )
+    )
+    for (j in 1:2) {
+      # Invert FC to get Case vs Ctrl and take the log2 values
+      DEGs.RP[[j]][,3] = log2(1/DEGs.RP[[j]][,3])
+      colnames(DEGs.RP[[j]])[3] = "Log2FC" # Correct column name
+    }
+
+    # Condense the data from the two matrices into a single dataframe to
+    # be stored in the output
+    partial_data_up <- as.data.frame(DEGs.RP[[1]])
+    partial_data_dw <- as.data.frame(DEGs.RP[[2]])
+
+    # The colname order is always known
+    colnames(partial_data_up) <- c(
+      "gene.index", "RP/Rsum.UP", "Log2FC", "pfp.UP", "P.value.UP"
+    )
+    colnames(partial_data_dw) <- c(
+      "gene.index", "RP/Rsum.DOWN", "Log2FC", "pfp.DOWN", "P.value.DOWN"
+    )
+
+    partial_data <- merge(
+      partial_data_up, partial_data_dw, by = c("row.names", "gene.index", "Log2FC")
+    )
+    # Restore the rownames to actual rownames
+    rownames(partial_data) <- partial_data$Row.names
+    partial_data$Row.names <- NULL
+
+    # Reorder the cols with the magic of dplyr
+    partial_data |>
+      dp_select(gene.index, Log2FC, everything()) ->
+      partial_data
+
+    # We add the "markings" column, with 1 for upregulated, 0 for not significant
+    # and -1 for downregulated DEGs.
+    # Initialize the array
+    markings <- rep(0, length(partial_data$gene.index))
+
+    markings[
+      partial_data$Log2FC > fc_threshold &
+        partial_data$pfp.UP < 0.05
+    ] <- 1
+    markings[
+      partial_data$Log2FC < -fc_threshold &
+        partial_data$pfp.DOWN < 0.05
+    ] <- -1
+    partial_data$markings <- markings
+
+    # We add the AverageExpression column to all the DEG lists to be consistent
+    # with the output from limma. The averages are computed overall, not
+    # groupwise.
+    # This is a left outer join, dropping averages as needed.
+    averages <- data.frame("AveExpr" = apply(expression_set, 1, mean))
+    partial_data <- merge(
+      partial_data, averages, by = "row.names",
+      all.x = TRUE
+    )
+    # Restore the rownames to actual rownames
+    rownames(partial_data) <- partial_data$Row.names
+    partial_data$Row.names <- NULL
+
+    # RankProd uses "Log2FC" as col name, while limma uses "logFC".
+    # I make it so it is the same as limma.
+    dplyr::rename -> dp_rename
+    partial_data |> dp_rename("logFC" = "Log2FC") -> partial_data
+
+    # Put the data in the list
+    DEGs.rankprod[[contrasts[i]]] <- partial_data
+
+  } # Hard to see but here ends the loop on all the contrasts
+
+  return(DEGs.rankprod)
+}
+
+
+#' Make and save (in the current WD) diagnostic plots for rankprod results.
+#'
+#' This prints some plots with `printPlots`, and assumes that the correct
+#' options have already been selected.
+#'
+#' Looks for a column named "SYMBOL" to source the volcano plot labels with,
+#' else uses the rownames.
+#'
+#' The plots include: A Venn diagram OR an upset plot of the detected DEGs
+#' (if there are more than 3 contrasts), a set of MA plots with the detected
+#' DEGs highlighted, and a set of volcano plots with the (annotated) DEGs.
+#'
+#' @param DEGs.rankprod A list of DEG tables such as that produced by
+#'   `run_rankprod`.
+#' @param fc_threshold The fold change threshold that was used in the
+#'   `run_rankprod` call.
+#' @param `volcano_colour` The colour of the significant DEGs in the volcano
+#'   plot.
+diagnose_rankprod_data <- function(
+  DEGs.rankprod, fc_threshold = 0.5, volcano_colour = "firebrick3"
+) {
+  log_info("Making rankprod DEG plots...")
+
+  extract_markings(DEGs.rankprod) |> abs() -> markings
+
+  make_overlaps_from_markings(markings, toolname = "RankProd")
+
+  # MA-Plots with significant DEGs
+  # Find Axis Limits
+  log_info("Finding axis limits...")
+  max.M.value = max(sapply(DEGs.rankprod, \(data){max(abs(data$logFC))} ))
+  max.A.value = max(sapply(DEGs.rankprod, \(data){max(data$AveExpr)} ))
+  min.A.value = min(sapply(DEGs.rankprod, \(data){min(data$AveExpr)} ))
+  min.P.value = min(sapply(DEGs.rankprod, \(data){min(c(data$P.value.DOWN, data$P.value.UP))} ))
+
+  # MA-Plot with DEGs
+  log_info("Making Rankprod MA-Plots...")
+  # I cannot place a progress bar here as `printPlots` logs to stdout.
+  for (i in seq_along(contrasts)) {
+    # Mark in red/blue all the up-/down- regulated genes
+    # This MA plot is made with the LogFC and estimates from the TopTables
+    printPlots(
+      \() {
+        mamaplot(
+          x = DEGs.rankprod[[i]]$AveExpr, y = DEGs.rankprod[[i]]$logFC,
+          input_is_ma = TRUE,
+          highligths = list(
+            "red" = DEGs.rankprod[[i]]$markings == 1,
+            "blue" = DEGs.rankprod[[i]]$markings == -1
+          ),
+          xrange = c(min.A.value, max.A.value),
+          yrange = c(NA, max.M.value)
+        ) |> print()
+      },
+      paste("MA-Plot with RankProd DEGs ", names(DEGs.rankprod)[i], sep = "")
+    )
+  }
+
+  # Volcano Plots
+  log_info("Making RankProd Volcano plots...")
+  for (i in seq_along(contrasts)) {
+    # Enhanced Volcano Plot
+    if ("SYMBOL" %in% colnames(DEGs.rankprod[[i]])) {
+      volcano_labels <- DEGs.rankprod$SYMBOL
+    } else {
+      volcano_labels = rownames(DEGs.rankprod[[i]])
+    }
+
+    # We need to harmonize the p-values, as we have two lists (P.value.UP and
+    # P.value.DOWN). I choose to keep the P.value.UP for genes with positive
+    # LogFC, and P.value.DOWN for negative genes.
+    harm_p_vals <- rep(NA, length(DEGs.rankprod[[i]]))
+    harm_p_vals[DEGs.rankprod[[i]]$logFC > 0] <-
+      DEGs.rankprod[[i]]$P.value.UP[DEGs.rankprod[[i]]$logFC > 0]
+    harm_p_vals[DEGs.rankprod[[i]]$logFC <= 0] <-
+      DEGs.rankprod[[i]]$P.value.DOWN[DEGs.rankprod[[i]]$logFC <= 0]
+    DEGs.rankprod[[i]]$harmonized_p_value <- harm_p_vals
+
+    # I do the same for the adj.p.values to find the critical p-value threshold
+    harm_adj_p_vals <- rep(NA, length(DEGs.rankprod[[i]]))
+    harm_adj_p_vals[DEGs.rankprod[[i]]$logFC > 0] <-
+      DEGs.rankprod[[i]]$pfp.UP[DEGs.rankprod[[i]]$logFC > 0]
+    harm_adj_p_vals[DEGs.rankprod[[i]]$logFC <= 0] <-
+      DEGs.rankprod[[i]]$pfp.DOWN[DEGs.rankprod[[i]]$logFC <= 0]
+
+    volcano_p_threshold <- find_BH_critical_p(harm_adj_p_vals)
+
+    get_h_volcano <- function() {
+      # NOTICE: When in a for loop, you have to explicitly print your
+      # resulting EnhancedVolcano object
+      suppressWarnings(
+        # This prints warnings as - I think - the internal implementation
+        # uses xlim and ylim but ggplot2 ignores them.
+        print(
+          EnhancedVolcano(
+            DEGs.rankprod[[i]],
+            x = "logFC", y = "harmonized_p_value",
+            pCutoff = volcano_p_threshold, FCcutoff = fc_threshold,
+            pointSize = 1,
+            col = c("black", "black", "black", volcano_colour),
+            lab = volcano_labels,
+            labSize = 4,
+            title = names(DEGs.rankprod)[i],
+            subtitle = "RankProd",
+            legendPosition = "none"
+          )
+        )
+      )
+    }
+    printPlots(get_h_volcano, paste("Volcano with RankProd DEGs ", names(DEGs.rankprod)[i], sep = ""))
+  }
+}
+
 
 GATTACA <- function(options.path, input.file, output.dir) {
   # This function is so long, a description wouldn't fit here.
   # Refer to the project's README.
 
+  set.seed(1) # Rank Prod needs randomness.
+
   # ---- Option parsing ----
-  opts <- yaml.load_file(options.path)
-  
+  # If we get passed a list, it is for testing purposes.
+  if (!is.list(options.path)) {
+    opts <- yaml.load_file(options.path)
+  } else {
+    log_warn(
+      "I was given a list as input. I assume this is a testing run. ",
+      "You should never see this message."
+    )
+    opts <- options.path
+  }
+
   # ---- Making static functions ----
   pitstop <- pitstop.maker(opts$general$slowmode)
   printdata <- printif.maker(opts$general$show_data_snippets, topleft.head)
-  
-  # Setup logging facilities
-  start.timedate <- gsub(" ", "_", date())
-  log.target <- if (is.null(opts$general$log_name)) {
-    file.path(output.dir, paste0("GATTACA_", start.timedate, ".log"))
-  } else {
-    file.path(output.dir, opts$general$log_name)
-  }
-  file.create(log.target)
-  log_appender(appender_tee(log.target))
-  
+
   log_info("Parsed options.")
-  
+
   # ---- Move to output.dir ----
   setwd(output.dir)
 
   # ---- Variable setup ----
   # To reuse as-is the script, I unpack the variables from the yaml file here
   # TODO : Improvement - These should be checked here for basic validity, so
-  #        we crash sooner rather than later. 
+  #        we crash sooner rather than later.
   log_info("Inputting variables...")
 
   user_colours <- opts$design$group_colors
-  
+
   # Log2 expression threshold
   min_log2_expression = opts$design$filters$log2_expression
-  
+
   # Fold Change Threshold
   thrFC = opts$design$filters$fold_change
-  
+
   # Flags for script-wide IFs
   write_data_to_disk = !opts$switches$dryrun # The ! is important.
   if (opts$switches$dryrun & opts$general$save_png) {
@@ -111,8 +1040,8 @@ GATTACA <- function(options.path, input.file, output.dir) {
     log_warn("save_pdf forced to be FALSE as this is a dryrun")
     opts$general$save_pdf <- FALSE
   }
-  
-  # Global options suitable for STALKER_Functions
+
+  # Global options suitable for PrintPlots
   options(
     scriptName = "GATTACA",
     save.PNG.plot = opts$general$save_png,
@@ -120,77 +1049,119 @@ GATTACA <- function(options.path, input.file, output.dir) {
     use.annotations = !is.null(opts$general$annotation_chip_id),
     plot.width = opts$general$plot_width,
     plot.height = opts$general$plot_height,
-    png_ppi = opts$general$png_resolution
+    png_ppi = opts$general$png_resolution,
+    enumerate.plots = opts$general$enumerate_plots
   )
-  
+
   if (getOption("use.annotations")) {
     # If we need to use annotations, we need to load the annotation data
     source(file.path(ROOT, "src", "annotator.R"))
     annotation_data <- get_remote_annotations(
       CHIP_TO_DB[[opts$general$annotation_chip_id]], "SYMBOL"
     )
-    log_info("Loaded annotations")
+    log_info("Annotations loaded.")
   } else {
-    log_info("No annotations loaded")
+    log_info("No annotations loaded.")
   }
 
   # ---- Data Loading ----
   # Gene Expression Matrix - log2-Intensity-Values
   log_info("Loading data...")
 
-  expression_set <- read.csv(input.file, header = TRUE, row.names = "probe_id")
-  log_info(paste(
-    "Loaded expression_set dimensions:", paste0(dim(expression_set), collapse = ", ")
-  ))
+  expression_set <- read_expression_data(input.file)
   printdata(expression_set)
 
   pitstop("Finished loading data.")
-  
-  # ---- Load the experimental design ----
+
+  # Load the experimental design
   log_info("Loading experimental design...")
-  experimental_design <- design_parser(opts$design$experimental_design)
-  
-  # This is a list with as `groups` the groups and as `pairings` the 
-  # ID for pairing
-  experimental_design <- split_design(experimental_design)
-  
-  # Check the design
+  # This is a list containing the group sequence in `$groups` and the IDs for
+  # pairing in '$pairing'
+  design_parser(opts$design$experimental_design) |>
+    split_design() ->
+    experimental_design
+
+  # Check the design for validity
   if (length(experimental_design$groups) != ncol(expression_set)) {
     stop(paste0(
-      "The number of patients (", ncol(expression_set),
-      ") does not match the number of design groups (", length(experimental_design$groups), ")"
+      "The number of samples (", ncol(expression_set),
+      ") does not match the number of design groups (",
+      length(experimental_design$groups), ")"
     ))
   }
-  
+
   # Test if we are in paired or unpaired mode
   ..pairing_NAs <- is.na(experimental_design$pairings)
   # We need either ALL or NONE patient NAs
   if (all(..pairing_NAs)) {
     log_info("No sample pairing detected. Running in unpaired mode.")
     paired_mode <- FALSE
-  } else if (!all(..pairing_NAs)) {
+  } else if (all(!..pairing_NAs)) {
     log_info("Found sample pairings. Running in paired mode.")
     paired_mode <- TRUE
   } else {
     stop("Some samples have pairing data and some do not. Cannot proceed with pairing ambiguity.")
   }
-  
+
+  # Expand and test batch variable
+  if (!is.null(opts$design$batches)) {
+    batches <- design_parser(opts$design$batches)
+    if (length(batches) != ncol(expression_set)) {
+      stop(paste0(
+        "The number of samples (", ncol(expression_set),
+        ") does not match the number of batches (", length(batches), ")"
+      ))
+    }
+  }
+
+  # The same for the technical replicates array
+  if (!is.null(opts$design$technical_replicates)) {
+    technical_replicates <- design_parser(
+      opts$design$technical_replicates, ignore_asterisk = TRUE
+    )
+    if (length(batches) != ncol(expression_set)) {
+      stop(paste0(
+        "The number of samples (", ncol(expression_set),
+        ") does not match the number of technical replicates (",
+        length(technical_replicates), ")"
+      ))
+    }
+  }
+
+  # The same for all extra variables
+  if (!is.null(opts$design$extra_limma_vars)) {
+    extra_limma_vars <- lapply(
+      opts$design$extra_limma_vars, design_parser, ignore_asterisk = TRUE
+    )
+    length_check <- lapply(extra_limma_vars, length) == ncol(expression_set)
+    if (! all(length_check)) {
+      stop(paste0(
+        "Some extra limma variables are not the same length as the number of",
+        " samples. The culprit(s) are list(s) number ",
+        paste(which(length_check == FALSE), collapse = ", "),
+        "."
+      ))
+    }
+  }
+
   log_info("Experimental desing loaded.")
 
   # Tidy Sample Names According to the Experimental Design
   # Create a new vector containing tidy group names
-  log_info("Making tidy group names using the experimental design...")
   unique_simple_groups <- unique(experimental_design$groups)
-  unique_groups <- make.unique(experimental_design$groups, sep = "_")
+  log_info(paste(length(unique_simple_groups), "groups detected:",
+                 paste0(unique_simple_groups, collapse = ", ")))
+  log_info("Making group names tidy using the experimental design...")
+  unique_groups <- make.unique_from1(experimental_design$groups, sep = "_")
   ..old_colnames <- colnames(expression_set)
   colnames(expression_set) <- unique_groups
-  
+
   if (length(user_colours) < length(unique_simple_groups)) {
     stop("Too few colors in \'user_colours\' vector!")
   }
-  # Bind colours to groups
-  names(user_colours[1:length(unique_simple_groups)]) <- unique_simple_groups
-  
+  # Bind colors to groups
+  names(user_colours) <- unique_simple_groups
+
   # Save Correspondences Table so we can check it later
   ..corrTable = cbind(..old_colnames, colnames(expression_set)) # Cast to matrix
   colnames(..corrTable) = c("Original_ID", "Group_Name")
@@ -204,770 +1175,266 @@ GATTACA <- function(options.path, input.file, output.dir) {
     )
     log_info(paste("'correspondence_table.tsv' has been saved in", output.dir))
   }
-  
+
   # Check the contrasts
   raw_contrasts <- opts$design$contrasts
-  
+
   unpack_contrasts <- function(contrasts_list) {
-    lapply(contrasts_list, strsplit, split = "-") |> 
+    lapply(contrasts_list, strsplit, split = "-") |>
       lapply(unlist) ->
       unpacked
     return(unpacked)
   }
-  
+
   raw_contrasts |> unpack_contrasts() -> group_contrasts
-  
+
   # Check if the contrasts groups are actually in the data
   ..check <- unlist(group_contrasts) %in% unique_simple_groups
-  if (! all(..check)) {
+  if (!all(..check)) {
     stop(paste0(
       "Some groups defined in the contrasts are not present in the data. ",
       "Conflicting groups: ", paste0(group_contrasts[!..check])
     ))
   }
-  
+
   log_info("Design loaded and approved.")
   pitstop("")
 
 
-  # ---- Preliminary Boxplots ----
-  # Distribution Inspection to Spot Non-Logarithmic Data
-  printPlots(\() {boxplot(expression_set, las = 2)}, "Raw boxpot")
-  printPlots(\() {plotDensities(expression_set, legend = FALSE)}, "Raw density")
-  
-
   # ---- Normalization ----
   # After-RMA 2nd Quantile Normalization
   if (opts$switches$renormalize) {
-    log_info("Renormalizing data...")
-    ..renormalized_data = normalize.quantiles(as.matrix(expression_set))
-    ..renormalized_data = as.data.frame(..renormalized_data)
-    # We need to restore the labels as before
-    rownames(..renormalized_data) = rownames(expression_set)
-    colnames(..renormalized_data) = colnames(expression_set)
+    # Print boxplot before normalixation
+    printPlots(\() {
+      boxplot(
+        expression_set, las = 2, col = user_colours,
+        main = "Expression values per sample", ylab = "log2 (intesity)"
+      )
+    }, "Pre-normalization boxpot")
+    printPlots(\() {
+      plotDensities(
+        expression_set, legend = FALSE, main = "Expression values per sample"
+      )
+    }, "Pre-normalization density")
 
-    expression_set <- ..renormalized_data
-    rm(..renormalized_data)
-    log_info("Renormalization complete.")
+    log_info("Running quantile-quantile normalization...")
+    expression_set <- qq_normalize(expression_set)
   }
-  
+
 
   # ---- MA-Plot & Box-Plot ----
   # Normalization Final Check with Figure Production
-  printPlots(function() {
+  printPlots(\() {
     boxplot(
       expression_set,
-      las = 2, col = user_colours,
+      las = 2, col = user_colours[experimental_design$groups],
       main = "Expression values per sample", ylab = "log2 (intesity)"
       )
     },
     "Final Boxplot"
   )
-  printPlots(function() {
+  printPlots(\() {
     plotDensities(expression_set, legend = FALSE, main = "Expression values per sample")
   }, "Final Density")
-  
-  pitstop("Maybe check the plots and come back?")
-  
-  # MA-Plot for bias detection
-  # From limma package: array 'column' vs the average of all the arrays other than that
-  printPlots(function(){plotMD(expression_set, column = 1)}, "Mean-Difference Plot")
-  
-  for (combo in combn(unique_simple_groups, 2, simplify = FALSE)) {
-    expression_set |> group_by(across(starts_with(combo[[1]]))) |>
-      rowMeans() -> group1
-    expression_set |> group_by(across(starts_with(combo[[2]]))) |>
-      rowMeans() -> group2
 
-    p <- function() {
-      maplot(
-        group1, group2, 
-        xlab = "A (Average log-expression)", ylab = "M (Expression log-ratio)",
-        n = 5e4,
-        curve.add = TRUE, curve.col = user_colours[2], curve.lwd = 1.5, curve.n = 1e4,
-        pch = 20, cex = 0.1
-      )
-      title(main = paste(combo[[1]], "vs", combo[[2]]))
-      abline(h = 0, col = user_colours[1], lty = 2) # lty = line type
-      abline(h = c(1,-1), col = user_colours[1])
-      abline(v = min_log2_expression, col = user_colours[1]) # Platform-specific log2-expression threshold
-    }
-    printPlots(p, paste0("MA-Plot", combo[[1]], "_vs_", combo[[2]]))
+  pitstop("Maybe check the plots and come back?")
+
+  # MA-Plot for bias detection - Make all the possible group pairs
+  for (combo in combn(unique_simple_groups, 2, simplify = FALSE)) {
+    expression_set |> dp_select(starts_with(combo[1])) |> rowMeans() -> group1
+    expression_set |> dp_select(starts_with(combo[2])) |> rowMeans() -> group2
+
+    matitle <- paste0("MA_Plot_", combo[[1]], "_vs_", combo[[2]])
+    printPlots(\(){
+      suppressMessages(print(mamaplot(group1, group2, title = matitle)))
+    }, matitle)
   }
 
 
   # ---- Clustering ----
-  log_info("Starting sample-wise hierarchical clustering for batch-effect detection...")
-  # Matrix Transpose t() is used because dist() computes the distances between
-  # the ROWS of a matrix
-  # Distance matrix (NOTE: t(expression_set) is coerced to matrix)
-  expression_set |> t() |> dist() |> hclust(method = "ward.D2") ->
-    hierarchical_clusters
-
-  printPlots(\(){plot(hierarchical_clusters)}, "Dendrogram")
-  # Desired number of clusters
-  # TODO : Should this be an option?
-  nr_shown_clusters = 6
-
-  p <- function() {
-    plot(hierarchical_clusters)
-    # Red borders around the kNum clusters 
-    rect.hclust(
-      hierarchical_clusters, k = nr_shown_clusters, border = user_colours[2]
-    )
-  }
-  printPlots(p, "Dendrogram and Clusters")
-  
-  log_info("Finished with hierarchical clustering.")
-  pitstop("Maybe check the plots and come back?")
-  
-
-  # ---- PCA ----
-  # Performed on Samples for Batch-Effect Detection
-  log_info("Performing PCA to detect batch sampling...")
-  # Bundle some metadata in the PCA object for later.
-  # Strictly enforced that rownames(metadata) == colnames(expression_set)
-  metadata = data.frame(
-    groups = experimental_design$groups,
-    row.names = unique_groups
+  diagnose_batch_effects(
+    expression_set, experimental_design$groups, user_colours,
+    title_mod = "original"
   )
 
-  # Do the PCA (centering the data before performing PCA, by default)
-  PCA_object = pca(expression_set, metadata = metadata)
-  log_info("Finished running PCA. Plotting results...")
-  # Plot results
-  printPlots(\(){print(screeplot(PCA_object))}, "Scree Plot")
+  if (!is.null(batches)) {
+    log_info("Correcting batch effects for visualization...")
+    batch_corrected_expr_set <- removeBatchEffect(
+      expression_set, batch = batches
+    )
+    log_info("Diagnosing batch effects again...")
+    diagnose_batch_effects(
+      batch_corrected_expr_set, experimental_design$groups, user_colours,
+      title_mod = "Unbatched"
+    )
+  }
+  pitstop("The PCA and cluster plots should show no obvious cluster.")
 
-  p <- function() {
-    suppressMessages(print(biplot(PCA_object, colby = "groups", colkey = user_colours)))
-  }
-  printPlots(p, "PCA")
-  p <- function() {
-    suppressMessages(print(pairsplot(PCA_object, colby = "groups", colkey = user_colours)))
-  }
-  printPlots(p, "PCA Pairs")
-  pitstop(paste0(
-    "Take a look at the PCA results.",
-    " If there are some batched samples, remove them and re-run GATTACA."
-    ))
-  
   # ---- SD vs Mean Plot ----
   # Poisson Hypothesis Check
-  log_info("Using Poisson to produce a SD vs Mean plot...")
-  
+  log_info("Building SD_vs_Mean plot...")
+
   # Un-log intensity values
   log_info("Returning to linear intensities...")
   unlogged_expression_set = 2 ^ expression_set
   printdata(unlogged_expression_set)
   pitstop("Did the 'unlogging' mess anything up?")
-  
+
   # Store values using matrices
   log_info("Making matrices...")
   ..nr_unique_simple_groups <- length(unique_simple_groups)
-  
+
   matrix(nrow = nrow(expression_set), ncol = ..nr_unique_simple_groups + 1) |>
     as.data.frame() -> ..means_frame
   colnames(..means_frame) <- c(unique_simple_groups, "Global")
-  
+
   # Make a copy in memory
-  ..sd_matrix <- data.frame(..means_frame) 
+  ..sd_matrix <- data.frame(..means_frame)
 
   ..correlation_vector <- as.vector(rep(NA, length(unique_simple_groups) + 1))
   names(..correlation_vector) <- c(unique_simple_groups, "Global")
-  
+
   # Statistics for each group...
   log_info("Calculating groupwise statistics...")
   for (group in unique_simple_groups) {
     unlogged_expression_set |> dp_select(starts_with(group)) |>
       rowMeans(na.rm = TRUE) ->
       ..means_frame[[group]]
-    
+
     unlogged_expression_set |> dp_select(starts_with(group)) |>
       apply(1, sd, na.rm = TRUE) ->
       ..sd_matrix[[group]]
-    
+
     cor(..means_frame[[group]], ..sd_matrix[[group]]) ->
       ..correlation_vector[[group]]
   }
-  
+
   # ...and for the whole experiment
   log_info("Calculating global statistics...")
 
   ..means_frame[["Global"]] = rowMeans(unlogged_expression_set, na.rm = TRUE)
   ..sd_matrix[["Global"]] = apply(unlogged_expression_set, 1, sd, na.rm = TRUE)
   ..correlation_vector[["Global"]] = cor(..means_frame[,"Global"], ..sd_matrix[,"Global"])
-  
+
   # Scatter plot
   log_info("Making plots...")
-  p <- function() {
-    par(mfrow = c(1, length(unique_simple_groups)+1))
-    X.max = max(..means_frame, na.rm = TRUE)
-    Y.max = max(..sd_matrix, na.rm = TRUE)
-    for (group in unique_simple_groups) {
-      
-      plot(..means_frame[[group]], ..sd_matrix[[group]],
-           xlab = "Mean", ylab = "SD",
-           xlim = c(0, X.max), ylim = c(0, Y.max),
-           pch = 20, cex = 0.1)
-      title(main = group)
-      mtext(side = 3, paste("Corr =", toString(round(..sd_matrix[[group]], digits = 5))))
-    }
-    par(mfrow = c(1, 1))
-  }
-  printPlots(p, "SD_vs_Mean Plot") # Save just the 'Global' one
-  
+  printPlots(
+    \() {
+      par(mfrow = c(1, length(unique_simple_groups)+1))
+      X.max = max(..means_frame, na.rm = TRUE)
+      Y.max = max(..sd_matrix, na.rm = TRUE)
+      for (group in c(unique_simple_groups, "Global")) {
+        plot(..means_frame[[group]], ..sd_matrix[[group]],
+             xlab = "Mean", ylab = "SD",
+             xlim = c(0, X.max), ylim = c(0, Y.max),
+             pch = 20, cex = 0.5)
+        title(main = group)
+        mtext(side = 3, paste("Corr =", toString(round(..correlation_vector[[group]], digits = 5))))
+      }
+      par(mfrow = c(1, 1))
+    },
+    "SD_vs_Mean Plot"
+  )
+
   # ---- Filtering ----
-  # Eliminate Low-Intensity Probes
-  log_info("Startig filtering steps...")
-  # Minimum gene presence per group - Default=0.80
-  ..min_groupwise_presence = opts$design$filters$min_groupwise_presence
-  ..group_sizes <- table(experimental_design$groups)
-  
-  # 'ceiling' to be more stringent than 'round'
-  ..min_presences = ceiling(..group_sizes * ..min_groupwise_presence) 
-  ## NOTE :: I have NO idea why it doesn't work without the ending [1]...
-  log_info(paste0(
-    "Filtering with a minimum groupwise presence of ", ..min_groupwise_presence,
-    " and groupwise sizes of ", paste(..group_sizes, collapse = ", ") 
-  )[1])
-  
-  # Filtering Table
-  log_info("Making filtering report ...")
-  # Cast to matrix
-  ..filtering_table_report = cbind(
-    ..group_sizes, ..group_sizes * ..min_groupwise_presence,
-    ..min_presences, round(100*(..min_presences/..group_sizes), 2)
+  expression_set <- filter_expression_data(
+    expression_set, groups = experimental_design$groups,
+    min_groupwise_presence = opts$design$filters$min_groupwise_presence,
+    expression_threshold = min_log2_expression
   )
-  colnames(..filtering_table_report) = c("Group_Size", "Min_Presence", "Rounded", "Actual %")
-  rownames(..filtering_table_report) = unique_simple_groups
-  ..min_presence_msg = paste0(
-    "Minimum gene presence per group = ", ..min_groupwise_presence*100,
-    "% of the samples."
-    )
-  log_info(..min_presence_msg)
-  printdata(..filtering_table_report)
-
-  if (write_data_to_disk) {
-    log_info("Saving filtering report...")
-    filtering_report_name <- "filtering_report.txt"
-    
-    .write_to_report <- function(string, append = TRUE) {
-      write(string, append = append, filtering_report_name)
-    }
-    
-    "Filtering Summary File\n======================\n" |> .write_to_report(append = FALSE)
-    paste0("Presence threshold min_log2_expression = ", min_log2_expression) |>
-      .write_to_report()
-    ..min_presence_msg |> .write_to_report()
-
-    suppressWarnings(
-      write.table(
-        ..filtering_table_report, filtering_report_name,
-        sep = "\t", append = TRUE,
-        col.names = TRUE, row.names = TRUE,
-        quote = FALSE
-      )
-    )
-  
-    log_info(paste0("'Filtering Report.txt' has been saved in", output.dir))
-  }
-  pitstop("Does the filtering report look ok? If so, continue.")
-
-  log_info("Running Filtering...")
-  # Above min_log2_expression value in at least kSize samples out of grSize (kFac*100 % - Default=80%)...
-  # Store values using matrices
-
-  ..truth_dataframe <- data.frame(row.names = rownames(expression_set))
-  for (group in unique_simple_groups) {
-    # I cannot use "filter" as we first need to compare all cols to see if
-    # the rowwise test passes, and only then we can filter.
-    filter_fun <- function(frame) {
-      kOverA_filter <- kOverA(..min_presences[[group]], min_log2_expression)
-      frame |> apply(MARGIN = 1, FUN = kOverA_filter) ->
-        filter_key
-      return(filter_key)
-    }
-    
-    expression_set |> dp_select(starts_with(group)) |> filter_fun() ->
-      ..truth_dataframe[[group]]
-  }
-  
-  # truth_dataframe has FALSE where the genes need to be dropped,
-  # so we need to use `complete_cases` later.
-  
-  ..truth_dataframe |> apply(2, sum) -> ..nr_kept_genes
-
-  report = paste(
-    "Filtering Report:", "=================", "Surviving Genes:",
-    paste0(capture.output(print(..nr_kept_genes)), collapse = "\n"),
-    "Percentage:",
-    paste0(capture.output(print(..nr_kept_genes / nrow(expression_set) * 100)), collapse = "\n"),
-    sep = "\n"
-  )
-
-  # We keep all rows where the gene passed the test in at least one group
-  ..truth_dataframe |> apply(1, any) -> ..truth_key
-  
-  ..old_dims <- dim(expression_set)
-  expression_set <- expression_set[..truth_key, ]
-  
-  report <- paste(
-    report, "\nOriginal size (row, col):",
-    paste(..old_dims, collapse = ", "),
-    "Final size (row, col):", 
-    paste(dim(expression_set), collapse = ", "),
-    "% obs retained: ",
-    round(nrow(expression_set) / ..old_dims[1] * 100, 3), "%"
-    )
-  
-  log_info(report)
-  if (write_data_to_disk) {
-    paste("\n", report, sep = "") |> .write_to_report()
-  }
 
   log_info("Done filtering.")
 
-
   # ---- DE by Limma ----
   if (opts$switches$limma) {
-    log_info("Running DEA with `limma`...")
-    pitstop("")
+    additional_limma_vars <- c(
+      if (paired_mode) {list(pairings = experimental_design$pairings)} else {NULL},
+      if (! is.null(opts$design$extra_limma_vars)) {extra_limma_vars} else {NULL}
+    )
 
-    # Differential Expression Assessment and Figure Production
-    log_info("Running differential expression analysis in paired mode.")
+    DEGs.limma <- run_limma(
+      expression_set, groups = experimental_design$groups, contrasts = raw_contrasts,
+      technical_replicates = technical_replicates,
+      other_vars = additional_limma_vars,
+      fc_threshold = thrFC
+    )
 
-    log_info("Making limma design matrix...")
-    
-    if (paired_mode) {
-      ..factor_pairings <- as.factor(experimental_design$pairings)
-      ..pairings_levels <- levels(..factor_pairings)
-      ..pairings_levels <- ..pairings_levels[1:length(..pairings_levels)-1]
-      ..pairings_levels <- make.names(..pairings_levels)
-      ..groups_levels <- sort(unique_simple_groups)
-      ..limma_design <- model.matrix(
-        ~ 0 + experimental_design$groups + ..factor_pairings
-      )
-      colnames(..limma_design) <- c(..groups_levels, ..pairings_levels)
-    } else {
-      ..limma_design <- model.matrix(~ 0 + experimental_design$groups)
-      colnames(..limma_design) <- unique_simple_groups
-    }
-
-    log_info(paste0("Design matrix:\n", paste(
-      capture.output(print(..limma_design)), collapse = "\n"
-    )))
-
-    log_info("Making contrasts matrix...")
-    makeContrasts(
-      contrasts = raw_contrasts,
-      levels = ..limma_design
-    ) -> ..contrast_matrix
-
-    log_info(paste0("Contrasts matrix:\n", paste(
-      capture.output(print(..contrast_matrix)), collapse = "\n"
-    )))
-
-    log_info("Computing contrasts...")
-    lmFit(expression_set, ..limma_design) -> ..limma_fit
-    ..limma_fit |> contrasts.fit(..contrast_matrix) |> eBayes() -> ..limma_Bayes
-
-    # Print Results (Top-Ten genes) for all the contrasts of interest
-    # This is only useful in slowmode.
-    if (opts$general$slowmode) {
-      for (i in seq_along(raw_contrasts)) {
-        # 'print' because automatic printing is turned off in loops (and functions)
-        # `cat` is also OK here as we are in slowmode.
-        cat("\nDEG Top-List for contrast: ", raw_contrasts[i], "\n", sep = "")
-        print(topTable(..limma_Bayes, coef = i, adjust.method = "BH", sort.by = "B"))
-        cat("\n") # The one time I like a bit more space.
+    if (getOption("use.annotations")) {
+      log_info("Annotating limma results...")
+      for (i in seq_along(DEGs.limma)) {
+        DEGs.limma[[i]] <- merge_annotations(DEGs.limma[[i]], annotation_data)
       }
     }
-    pitstop("Next: Save all DEGs.")
 
-    log_info("Getting Differential expressions...")
-    progress <- txtProgressBar(min = 0, max = length(raw_contrasts))
-    DEGs.limma = list() # Create an empty list
-    for (i in seq_along(raw_contrasts)) {
-      DEGs.limma[[i]] = topTable(
-        ..limma_Bayes, coef = i, number = Inf,
-        adjust.method = "BH", sort.by = "B"
-      ) # this is a list of Data Frames
-      setTxtProgressBar(progress, i)
-    }
-    close(progress)
+    # Make diagnostic plots for Limma
+    diagnose_limma_data(
+      DEGs.limma = DEGs.limma, fc_threshold = thrFC,
+      volcano_colour = user_colours[2]
+    )
 
     # Save full DEG Tables
     if (write_data_to_disk) {
       log_info("Saving Differential expression tables...")
-      progress <- txtProgressBar(min = 0, max = length(raw_contrasts))
-      ..limma_output_expression <- DEGs.limma[[i]]
-      ..limma_output_expression$probe_id <- rownames(..limma_output_expression)
-      rownames(..limma_output_expression) <- NULL
+      pb <- progress_bar$new(
+        format = "Saving... [:bar] :percent (:eta)",
+        total = length(raw_contrasts), clear = FALSE, width= 80)
+      pb$tick(0)
       for (i in seq_along(raw_contrasts)) {
-        degTabName = paste("Limma - DEG Table ", raw_contrasts[i], ".csv", sep = "")
-        write.csv(..limma_output_expression, degTabName, row.names = FALSE, quote = FALSE)
-        setTxtProgressBar(progress, i)
+        write_expression_data(
+          DEGs.limma[[i]], paste0("Limma - DEG Table ", raw_contrasts[i], ".csv"))
+        pb$tick()
       }
-      close(progress)
-      log_info(paste0("Saved tables in ", output.dir))
     }
-    
-    # Summary of DEGs (you can change the Log2-Fold-Change Threshold lfc...)
-    results.limma = decideTests(
-      ..limma_Bayes, adjust.method = "BH", p.value = 0.05,
-      lfc = opts$design$filters$fold_change
-    )
-    p <- function() {
-      vennDiagram(results.limma)
-    }
-    printPlots(p, "Limma Venn")
-    
-    # Show Hyperparameters
-    d0 = ..limma_Bayes$df.prior           # prior degrees of freedom
-    dg = mean(..limma_fit$df.residual)    # original degrees of freedom
-    hyp = cbind(
-      c(..limma_Bayes$s2.prior,     # prior variance
-      mean(..limma_fit$sigma^2),    # mean sample residual variance
-      mean(..limma_Bayes$s2.post),  # mean posterior residual variance
-      d0, dg, d0/(d0+dg))   # Shrinkage degree
-    )
-    rownames(hyp) = c(
-      "Prior Var",
-      "Sample Residual Mean Var",
-      "Posterior Residual Mean Var",
-      "Prior df",
-      "Original df",
-      "Shrinkage degree"
-    )
-    colnames(hyp) = "Hyperparameters"
-    log_info(paste0("Hyperparameters:: \n", get.print.str(hyp)))
 
-    pitstop("Finished running DEA.")
-
-    # ---- Limma Plot ----
-    log_info("Making DEG plots...")
-    # MA-Plots with significant DEGs and Volcano plots
-    
-    # Find Axis Limits
-    log_info("Finding axis limits...")
-    max.M.value = 0
-    for (i in seq_along(raw_contrasts)) {
-      temp = max(abs(DEGs.limma[[i]]$logFC))
-      if (temp > max.M.value) {
-        max.M.value = temp
-      }
-    }
-    max.A.value = 0
-    for (i in seq_along(raw_contrasts)) {
-      temp = max(DEGs.limma[[i]]$AveExpr)
-      if (temp > max.A.value) {
-        max.A.value = temp
-      }
-    }
-    min.A.value = Inf
-    for (i in seq_along(raw_contrasts)) {
-      temp = min(DEGs.limma[[i]]$AveExpr)
-      if (temp < min.A.value) {
-        min.A.value = temp
-      }
-    }
-    min.P.value = 1
-    for (i in seq_along(raw_contrasts)) {
-      temp = min(DEGs.limma[[i]]$P.Value)
-      if (temp < min.P.value) {
-        min.P.value = temp
-      }
-    }
-    
-    # MA-Plot with DEGs
-    log_info("Making Limma MA plots...")
-    # I cannot place a progress bar here as `printPlots` logs to stdout.
-    for (i in seq_along(raw_contrasts)) {
-      # Mark in red/blue all the up-/down- regulated genes (+1/-1 in 'results.limma' matrix)
-      p <- function() {
-        plotMD(
-          expression_set, status = results.limma[,i],
-          values = c(1,-1), hl.col = user_colours[c(2,1)],
-          xlab = "A (Average log-expression)",
-          ylab = "M (log2-Fold-Change)"
-        )
-        abline(h = 0, col = user_colours[1], lty = 2) # lty = line type
-        abline(h = c(thrFC,-thrFC), col = user_colours[1])
-        abline(v = min_log2_expression, col = user_colours[1]) # Platform-specific log2-expression threshold
-      }
-      printPlots(p, paste("MA-Plot with Limma DEGs ", raw_contrasts[i], sep = ""))
-    }
-    
-    # Volcano Plots
-    log_info("Making Limma Volcano plots...")
-    for (i in seq_along(raw_contrasts)) {
-      tot.DEG = sum(DEGs.limma[[i]]$adj.P.Val < 0.05) # Total number of significant DEGs (without any FC cutoff)
-      high.DEG = min(c(5,tot.DEG)) # To highlight no more than 5 genes per plot
-      
-      # Significance Threshold
-      # TODO : Discuss if this is right
-      # Find that p-value corresponding to BH-adj.p-value ~ 0.05 (or Bonferroni point when tot.DEG = 0)
-      thrP = (0.05/nrow(expression_set))*(tot.DEG + 1)
-      # TODO : Implement this?
-      # Alternative approach - Suitable also for correction methods other than BH
-      # WARNING: DEG list has to be sorted by p-value or B statistics!
-      #if (tot.DEG > 0) {
-      #  thrP = DEGs.limma[[i]][tot.DEG + 1, "P.Value"] # This is the p-value of the first non-DEG
-      #} else {
-      #  thrP = (0.05/filtSize) # Bonferroni point
-      #}
-      # Check the threshold p-value
-      log_info(
-        paste0(
-          "\n", raw_contrasts[i], " - Threshold Report:\n",
-          "--------------------------------------\n",
-          "  p-value threshold  =  ", thrP, "\n",
-          "  -log10(p-value)    =  ", -log10(thrP), "\n",
-          "  Gene Ranking       =  ", tot.DEG, ":", tot.DEG + 1, "\n\n", sep = ""
-        )
-      )
-      
-      # Enhanced Volcano Plot
-      if (getOption("use.annotations")) {
-        ..annotation_data <- merge_annotations(DEGs.limma[[i]], annotation_data)
-        ..volcano_labels <- ..annotation_data$SYMBOL
-      } else {
-        ..volcano_labels = rownames(DEGs.limma[[i]])
-      }
-      p <- function() {
-        # NOTICE: When in a for loop, you have to explicitly print your
-        # resulting EnhancedVolcano object
-        suppressWarnings(
-          # This prints warnings as - I think - the internal implementation
-          # uses xlim and ylim but ggplot2 ignores them.
-          print(
-            EnhancedVolcano(
-              DEGs.limma[[i]],
-              x = "logFC", y = "P.Value",
-              pCutoff = thrP, FCcutoff = thrFC,
-              pointSize = 1,
-              col = c("black", "black", "black", user_colours[2]),
-              lab = ..volcano_labels,
-              #selectLab = myLabels[1:high.DEG],
-              labSize = 4,
-              title = raw_contrasts[i],
-              subtitle = "Limma",
-              legendPosition = "none"
-            )
-          )
-        )
-      }
-      printPlots(p, paste("Volcano with Limma DEGs ", raw_contrasts[i], sep = ""))
-
-    }
   }
-  
+
   # ---- DE by RankProduct ----
   if (opts$switches$rankproduct) {
-    log_info("Running differential expression analysis with rankproduct...")
-    log_info("Running in unpaired mode.")
-    # Differential Expression Assessment and Figure Production
-    results.RP = matrix(
-      data = 0,
-      nrow = nrow(expression_set), ncol = length(raw_contrasts)
+    DEGs.rankprod <- run_rankprod(
+      expression_set, groups = experimental_design$groups, contrasts = raw_contrasts,
+      technical_replicates = technical_replicates,
+      pairings = if (paired_mode) {experimental_design$pairings} else {NULL},
+      fc_threshold = thrFC
     )
-    rownames(results.RP) = rownames(expression_set)
-    colnames(results.RP) = raw_contrasts
 
-    for (i in seq_along(raw_contrasts)) {
-      log_info(paste0("Running analysis ", i, " of ", length(raw_contrasts)))
-      
-      log_info("Finding control and case groups...")
-      ..unpacked_groups = strsplit(raw_contrasts[i], split = "-", fixed = TRUE)[[1]]
-      
-      ..control_group <- ..unpacked_groups[1]
-      ..treated_group <- ..unpacked_groups[2]
-      
-      expression_set |> dp_select(
-        starts_with(..control_group) | starts_with(..treated_group)
-        ) -> ..sub_expression_set
-      
-      # The above filter rearranges the columns. This crashes later as the
-      # column order is needed to match the pairings for subtraction.
-      # So we return to the original one here.
-      ..original_col_order <- colnames(expression_set)[
-        colnames(expression_set) %in% colnames(..sub_expression_set)
-      ] 
-      ..sub_expression_set <- ..sub_expression_set[, ..original_col_order]
-      
-      # Make the cl array, representing class labels of the sample
-      colnames(..sub_expression_set) |> startsWith(..treated_group) |> as.numeric() ->
-        ..rp_class_labels
-      
-      if (paired_mode) {
-        # To make a paired run, we need to subtract the matching paired sets.
-        # First, we need to get the pairings that survived the filtering
-        colnames(expression_set) %in% colnames(..sub_expression_set) ->
-          ..surviving_cols
-        ..sub_parings <- experimental_design$pairings[..surviving_cols]
-
-        # We make an empty dataframe to hold the subtraction result
-        ..subtracted_expression_set <- data.frame(row.names = rownames(..sub_expression_set))
-        for (pairing in unique(..sub_parings)) {
-
-          ..paired_expression_set <- ..sub_expression_set[..sub_parings == pairing]
-          
-          ..paired_expression_set |> dp_select(starts_with(..control_group)) ->
-            ..control_set
-          ..paired_expression_set |> dp_select(starts_with(..treated_group)) ->
-            ..treated_set
-          
-          if (ncol(..control_set) != 1) {
-            log_warn(
-              paste0(
-                "There are more than 1 '", ..control_group, 
-                "' paired samples (",
-                paste(colnames(..control_set), collapse = ", "), ").",
-                " The average of them will be used instead."
-              )
-            )
-            ..control_set <- rowMeans(..control_set)
-            colnames(..control_set) <- paste0("averaged_", ..control_group)
-          } else if (ncol(..control_set) == 0) {
-            stop(
-              paste0(
-                "There are no paired columns for group '", ..control_group,
-                "' for pairing ", pairing
-              )
-            )
-          }
-          
-          if (ncol(..treated_set) != 1) {
-            log_warn(
-              paste0(
-                "There are more than 1 '", ..treated_group, 
-                "' paired samples (",
-                paste(colnames(..treated_set), collapse = ", "), ").",
-                " The average of them will be used instead."
-              )
-            )
-            ..treated_set <- rowMeans(..treated_set)
-            colnames(..treated_set) <- paste0("averaged_", ..treated_group)
-          } else if (ncol(..treated_set) == 0) {
-            stop(
-              paste0(
-                "There are no paired columns for group '", ..treated_group,
-                "' for pairing ", pairing
-              )
-            )
-          }
-          
-          # Now, control and treated sets can be subtracted as they are one
-          # and only one column.
-          ..subtracted_partial_set <- ..control_set - ..treated_set
-          
-          ..subtracted_expression_set <- merge(
-            ..subtracted_expression_set, ..subtracted_partial_set,
-            all = TRUE, by = 0
-          )
-          # the merge makes the rownames into their own col
-          rownames(..subtracted_expression_set) <- ..subtracted_expression_set$Row.names
-          ..subtracted_expression_set$Row.names <- NULL
-        }
-        log_info("Finished pairing dataset.")
-        ..sub_expression_set <- ..subtracted_expression_set
-        ..rp_class_labels <- rep(1, ncol(..subtracted_expression_set))
+    if (getOption("use.annotations")) {
+      log_info("Annotating RankProd results...")
+      for (i in seq_along(DEGs.rankprod)) {
+        DEGs.rankprod[[i]] <- merge_annotations(DEGs.rankprod[[i]], annotation_data)
       }
-
-      # invisible(capture.output()) is to suppress automatic output to console
-      # WARNING: therein <- (instead of =) is mandatory for assignment!
-      log_info("Running RankProduct...")
-      RP.out <- RP.advance(
-        ..sub_expression_set,
-        ..rp_class_labels, origin = rep(1, ncol(..sub_expression_set)),
-        gene.names = rownames(expression_set),
-        logged = TRUE, na.rm = FALSE, plot = FALSE, rand = 123
-      )
-      cat("\n")
-      p <- function() {
-        invisible(capture.output(plotRP(RP.out, cutoff = 0.05)))
-      }
-      printPlots(p, paste("Rankprod ", raw_contrasts[i]))
-      
-      # Compute full DEG Tables (returns a list of 2 matrices, not data frames)
-      log_info("Computing DEG table...")
-      invisible(
-        capture.output(
-          # The Inf cutoff is to print all genes
-          DEGs.RP <- topGene(RP.out, logged = TRUE, logbase = 2, cutoff = Inf)
-        )
-      )
-      for (j in 1:2) {
-         # Invert FC to get Case vs Ctrl and take the log2 values
-        DEGs.RP[[j]][,3] = log2(1/DEGs.RP[[j]][,3])
-        colnames(DEGs.RP[[j]])[3] = "Log2FC" # Correct column name
-      }
-      
-      # Print Results (Top-Ten genes) for all the contrasts of interest
-      log_info("Getting top contrasts...")
-      log_info(paste0("DEG Top-List for contrast: ", raw_contrasts[i]))
-      tops = rbind(DEGs.RP$Table1[1:10,], DEGs.RP$Table2[1:10,])
-      printdata(tops) # just on-Screen
-      pitstop("")
-      
-      # Save full DEG Tables
-      if (write_data_to_disk) {
-        log_info("Saving full DEG tables...")
-        upDegTabName = paste0("RP_Up - DEG Table ", raw_contrasts[i], ".csv")
-        dwnDegTabName = paste0("RP_Down - DEG Table ", raw_contrasts[i], ".csv")
-        ..rpd_DEGs_up <- DEGs.RP[[1]]
-        ..rpd_DEGs_up$probe_id <- rownames(..rpd_DEGs_up)
-        rownames(..rpd_DEGs_up) <- NULL
-        write.csv(..rpd_DEGs_up, upDegTabName, row.names = FALSE, quote = FALSE)
-        ..rpd_DEGs_down <- DEGs.RP[[2]]
-        ..rpd_DEGs_down$probe_id <- rownames(..rpd_DEGs_down)
-        rownames(..rpd_DEGs_down) <- NULL
-        write.csv(..rpd_DEGs_down, dwnDegTabName, row.names = FALSE, quote = FALSE)
-        log_info(paste0(
-          upDegTabName, "' and '", dwnDegTabName,
-          "' have been saved in ", output.dir
-        ))
-      }
-      
-      # Fetch indexes of significant DEGs
-      log_info("Finding DEGs of interest...")
-      ups.Index = which(DEGs.RP$Table1[,4] < 0.05 & DEGs.RP$Table1[,3] > thrFC)
-      dwn.Index = which(DEGs.RP$Table2[,4] < 0.05 & DEGs.RP$Table2[,3] < -thrFC)
-      log_info(
-        paste(
-          "Found", length(ups.Index), "upregulated and",
-          length(dwn.Index), "downregulated genes."
-        )
-      )
-      
-      # Here 'results.RP' is filled in analogy to 'results.limma':
-      # (-1,0,+1) for (Down, NotSig, Up)-regulated genes
-      # Accessing matrix rows by row name: matrix[rowname, col_i]
-      results.RP[rownames(DEGs.RP$Table1)[ups.Index],i] = 1
-      results.RP[rownames(DEGs.RP$Table2)[dwn.Index],i] = -1
-      
     }
-    
-    log_info("Calculating summary statistics...")
-    summary.RP = rbind(
-      colSums(results.RP == -1), # Cast to matrix
-      colSums(results.RP == 0),
-      colSums(results.RP == 1)
+
+    # Make diagnostic plots for RankProd
+    diagnose_rankprod_data(
+      DEGs.rankprod = DEGs.rankprod, fc_threshold = thrFC,
+      volcano_colour = user_colours[2]
     )
-    rownames(summary.RP) = c("Down", "NotSig", "Up")
-    print(summary.RP)
-    
-    log_info("Finished DEA.")
-    pitstop("")
+
+    # Save full DEG Tables
+    if (write_data_to_disk) {
+      log_info("Saving Differential expression tables...")
+      pb <- progress_bar$new(
+        format = "Saving... [:bar] :percent (:eta)",
+        total = length(raw_contrasts), clear = FALSE, width= 80)
+      pb$tick(0)
+      for (i in seq_along(raw_contrasts)) {
+        write_expression_data(
+          DEGs.rankprod[[i]], paste0("RankProd - DEG Table ", raw_contrasts[i], ".csv"))
+        pb$tick()
+      }
+    }
   }
-  
+
+  # ---- Comparison Plots - Limma vs RankProd ----
   if (opts$switches$limma & opts$switches$rankproduct) {
     log_info("Making comparison plots between limma and rankproduct...")
-    # Venn diagrams of DEGs from Limma and RP methods
-    
+
     # To suppress 'venn.diagram()' logging
     futile.logger::flog.threshold(futile.logger::ERROR, name = "VennDiagramLogger")
-    
+
+    results.limma <- extract_markings(DEGs.limma)
+    results.RP <- extract_markings(DEGs.rankprod)
+
     # Plot Venn diagrams
     log_info("Plotting Venn diagrams...")
     for (i in seq_along(raw_contrasts)) {
@@ -975,18 +1442,18 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
         DEG.id.limma = rownames(results.limma)[which(results.limma[,i] == j)]
         DEG.id.RP = rownames(results.RP)[which(results.RP[,i] == j)]
-        
+
         if (j == 1) {
           venn.sub = "UP-regulated DEGs"
         } else {
           venn.sub = "DOWN-regulated DEGs"
         }
-        
+
         if (length(DEG.id.limma) == 0 & length(DEG.id.RP) == 0) {
           log_warn("Both the sets are empty in the contrast: ", raw_contrasts[i], " (", venn.sub, ")")
           next # Skip the current iteration of the for loop without terminating it
         }
-        
+
         venn.plot = venn.diagram(
           x = list(DEG.id.limma, DEG.id.RP),
           filename = NULL, # to print just on screen
@@ -1003,14 +1470,10 @@ GATTACA <- function(options.path, input.file, output.dir) {
           cat.dist = c(0.055, 0.055),
           cat.fontfamily = "sans"
         )
-        
+
         # Create a new canvas and draw the Venn
-        p <- function() {
-          grid.newpage()
-          grid.draw(venn.plot)
-        }
         printPlots(
-          p,
+          \() {grid.newpage(); grid.draw(venn.plot)},
           paste0(
             "Comparison Venn ", raw_contrasts[i], "_",
             strsplit(venn.sub, split = "-")[[1]][1]
@@ -1019,6 +1482,6 @@ GATTACA <- function(options.path, input.file, output.dir) {
       }
     }
   }
-  
+
   log_info("GATTACA finished")
 }

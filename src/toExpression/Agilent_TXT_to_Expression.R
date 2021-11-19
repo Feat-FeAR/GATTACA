@@ -1,4 +1,4 @@
-# Header Info ----------------------------------------------------------------------------------------------------------
+# Header Info ------------------------------------------------------------------
 #
 # Agilent TXT file + Target File -> Expression matrix
 #
@@ -21,211 +21,160 @@
 #   - Save expression matrix
 #
 
+log_debug("Sourcing the 'Agilent_TXT_to_Expression.R' file.")
 
+agil2expression <- function (
+  input_dir, output_file, analysis_program,
+  grep_pattern="*.txt",
+  remove_controls = TRUE,
+  plot.width = 16,
+  plot.height = 9,
+  use.pdf = TRUE,
+  n_plots = Inf
+) {
 
+  set.seed(1) # This module uses random sampling
 
+  paste0(
+    "Call (input_dir, output_file, analysis_program, grep_pattern, remove_controls, plot.width, plot.heigth, use.pdf): ",
+    paste(input_dir, output_file, analysis_program, grep_pattern, remove_controls, plot.width, plot.height, use.pdf, sep = " :: ")
+  ) |>
+    log_debug()
 
-# Load Packages --------------------------------------------------------------------------------------------------------
+  # Options for printPlots
+  # Set options for printPlots
+  options(
+    "scriptName" = "prepagil",
+    "save.PNG.plot" = !use.pdf,
+    "save.PDF.plot" = use.pdf,
+    "plot.width" = plot.width,
+    "plot.height" = plot.height
+  )
 
-library(limma)      # Empirical Bayes Method for Differential Expression (here used for low-level analysis only)
-#library(openxlsx)   # Read, Write, and Edit .xlsx (Excel) Files
+  # Inputting data
+  output_dir <- dirname(output_file)
+  setwd(output_dir)
 
+  log_info("Finding input files matching pattern...")
+  raw_files <- list.files(path = input_dir, pattern = grep_pattern)
 
+  log_info(
+    paste("Found", length(raw_files), "input files:", paste(raw_files, collapse = ", "))
+  )
+  log_info("Reading in input files...")
+  expression_data <- read.maimages(
+    files = file.path(input_dir, raw_files),
+    source = analysis_program,
+    green.only = TRUE
+  )
 
-
-
-# Variable Definition --------------------------------------------------------------------------------------------------
-
-system.root = "D:\\UniUPO Drive\\" # SilverLife @ Home
-system.root = "D:\\Drive UniUPO\\" # SkyLake2   @ DBIOS
-
-k = 4 # Experiment to analyze
-endName = c("Exp 2017-10-27", # 1
-            "Exp 2017-11-04", # 2
-            "Exp 2018-01-12", # 3
-            "Exp 2018-01-15", # 4
-            "Exp 2018-05-18", # 5
-            "Exp 2018-06-07", # 6
-            "Exp 2018-10-12") # 7
-
-save.PNG.plot = TRUE
-save.PDF.plot = FALSE
-
-
-
-
-
-# Function Definition --------------------------------------------------------------------------------------------------
-# User-Defined Functions
-
-# Save a graphical output to 'Output Figures' sub-directory
-#   figureName  = output file name (without extension)
-#   PNG.bool    = T to print the currently displayed figure in PNG format
-#   PDF.bool    = T to print the currently displayed figure in PDF format
-printPlots = function(figureName, PNG.bool = save.PNG.plot, PDF.bool = save.PDF.plot)
-{
-  figSubFolder = "Output Figures"
-  fullName = file.path(figSubFolder, figureName, fsep = .Platform$file.sep) # OS-independent path separator
-  
-  if (!file.exists(figSubFolder) & (PNG.bool | PDF.bool)) {
-    dir.create(figSubFolder)
-    cat("\nNew folder '", figSubFolder, "' has been created in the PWD...\n\n", sep = "")
+  # Print MA plots to diagnose the data.
+  print_data <- as.data.frame(expression_data$E)
+  colnames(print_data) <- raw_files
+  print_data <- log(print_data, 2)
+  if (nrow(print_data) > 100000) {
+    log_info("Reducing raw dataset...")
+    print_data <- reservoir_sample(print_data, 100000)
+    print_data <- as.data.frame(print_data)
   }
-  if (PNG.bool) { # invisible(capture.output()) to suppress automatic output to console
-    invisible(capture.output(
-      dev.print(device = png, filename = paste(fullName, ".png", sep = ""), width = 820, height = 600)))
+  ma.plots <- get_better_mas(print_data, title = "Raw probes MA plot - {x} vs Median of other samples")
+
+  if (n_plots != Inf) {
+    stopifnot(
+      "Invalid amount of plots to display"={is.wholenumber(n_plots)},
+      "Number of plots to display is too high."={length(ma.plots) > n_plots}
+    )
+    ma.plots <- ma.plots[1:n_plots]
   }
-  if (PDF.bool) {
-    invisible(capture.output(
-      dev.print(device = pdf, paste(fullName, ".pdf", sep = ""))))
+
+  for (i in seq_along(ma.plots)) {
+    maplot <- ma.plots[[i]]
+    printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
   }
+
+  log_info("Making overall boxplot")
+  p <- function(){
+    bplot <- ggplot(data = melt(print_data), aes(y = value, x = variable)) +
+      geom_boxplot(outlier.alpha = 0.5, outlier.size = 1) +
+      theme_bw() +
+      scale_x_discrete(
+        labels = 1:length(print_data)
+      ) +
+      ylab("Expression") + xlab("Sample") +
+      ggtitle("Unnormalized Boxplots")
+    print(bplot)
+  }
+  printPlots(suppressMessages(p), "Unnormalized Boxplots")
+
+  rm(print_data)
+
+  log_info("Finished inputting data.")
+
+  # Normalization
+  log_info("Running Normalization")
+  log_info("Background correcting...")
+  expression_data <- limma::backgroundCorrect(expression_data, method = "normexp")
+
+  # This step also log2s the data
+  log_info("Running interarray normalization...")
+  expression_data = limma::normalizeBetweenArrays(expression_data, method = "quantile")
+
+  expression_set <- expression_data$E
+  log_info(paste("Final dataset dimensions - Cols:", ncol(expression_set), "Rows:", nrow(expression_set)))
+
+  # Print MA plots to diagnose the data.
+  colnames(expression_set) <- make.names(raw_files)
+  ma.plots <- get_better_mas(as.data.frame(expression_set), title = "Normalized MA plot - {x} vs Median of other samples")
+
+  if (n_plots != Inf) {
+    ma.plots <- ma.plots[1:n_plots]
+  }
+
+  for (i in seq_along(ma.plots)) {
+    maplot <- ma.plots[[i]]
+    printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
+  }
+
+  log_info("Making overall boxplot")
+  p <- function(){
+    bplot <- ggplot(data = melt(as.data.frame(expression_set)), aes(y = value, x = variable)) +
+      geom_boxplot(outlier.alpha = 0.5, outlier.size = 1) +
+      theme_bw() +
+      scale_x_discrete(
+        labels = 1:length(as.data.frame(expression_set))
+      ) +
+      ylab("Expression") + xlab("Sample") +
+      ggtitle("Normalized Boxplots")
+    print(bplot)
+  }
+  printPlots(suppressMessages(p), "Normalized Boxplots")
+
+  if (remove_controls) {
+    log_info("Filtering out control probes...")
+    control_probes <- abs(expression_data$genes$ControlType) == 1
+    control_probes_percent <- round(sum(control_probes) / nrow(expression_set) * 100, 4)
+    log_info(paste(
+      "Found", sum(control_probes), "control probes,", control_probes_percent,
+      "% of total probes. Removing them..."
+    ))
+
+    expression_data <- expression_data[!control_probes, ]
+    expression_set <- expression_data$E
+    log_info(paste("Filtered dataset dimensions - Cols:", ncol(expression_set), "Rows:", nrow(expression_set)))
+  }
+
+  log_info("Finding replicate probes and collapsing them...")
+  # Replace value of replicate probes with their mean - Probe_ID is used to identify the replicates
+  expression_data = avereps(expression_data,  ID = expression_data$genes$ProbeName)
+
+  expression_set <- expression_data$E
+  log_info(paste("Final dataset dimensions - Cols:", ncol(expression_set), "Rows:", nrow(expression_set)))
+
+  expression_set <- as.data.frame(expression_set)
+  colnames(expression_set) <- make.names(raw_files)
+
+  log_info("Saving output file...")
+
+  write_expression_data(expression_set, output_file)
+
 }
-
-
-
-
-
-# Load TXt files and read raw data -------------------------------------------------------------------------------------
-
-myFolder = paste(system.root, "WORKS\\202x - Article - Colon\\Data\\1 - Raw Data\\", endName[k], sep = "")
-setwd(myFolder)
-
-# Load target files - 'readTargets()' will by default look for the 'FileName' column in the specified file
-targets = readTargets("Targets.txt", row.names = "SampleNumber")
-targets
-m = dim(targets)[1]
-
-# Convert the data to an EListRaw object (data object for single-channel arrays)
-# Specify green.only=TRUE for one-channel data and retain information about background via gIsWellAboveBG
-raw = read.maimages(targets, source = 'agilent.median', green.only = TRUE, other.columns = 'gIsWellAboveBG')
-
-# Generate QC plots
-boxplot(log2(as.matrix(raw)), names = c(1:m), las = 1, # las = style of axis labels
-        main = "Raw Expression", xlab = "Sample Index", ylab = "log2(intensity)") # Raw data to be logged
-printPlots("1 - BoxPlot - Raw")
-plotDensities(log2(as.matrix(raw)), legend = FALSE)
-printPlots("1 - Densities - Raw")
-# MA-plots from limma package (without trend curve)
-samp = c(11,12) # One sample vs one sample (by sample indexes)
-plotMD(log2(as.matrix(raw)[,samp]), main = paste("Raw Expression: ", samp[1], " vs ", samp[2], sep = ""),
-       xlab = "A (Average log-expression)", ylab = "M (Expression log-ratio)")
-printPlots(paste("1 - MAPlot - Raw", samp[1], "vs", samp[2], sep = ""))
-
-
-
-
-
-# Background subtraction and interarray normalization ------------------------------------------------------------------
-
-# Subtract the background signal
-ofst = 50 # Offset to shrunk towards zero log-ratios at the lower intensities (see 'anti-fanning' in MA-Plot)
-raw_BGcorrected = backgroundCorrect(raw, method = "normexp", offset = ofst)
-
-# Generate QC plots
-boxplot(log2(as.matrix(raw_BGcorrected)), names = c(1:m), las = 1, # las = style of axis labels
-        main = "Unnormalized Expression", xlab = "Sample Index", ylab = "log2(intensity)") # Data still to be logged
-printPlots("2 - BoxPlot - BGcorrected")
-plotDensities(log2(as.matrix(raw_BGcorrected)), legend = FALSE)
-printPlots("2 - Densities - BGcorrected")
-samp = c(11,12) # One sample vs one sample (by sample indexes)
-plotMD(log2(as.matrix(raw_BGcorrected)[,samp]),
-       main = paste("Unnormalized Expression: ", samp[1], " vs ", samp[2], sep = ""),
-       xlab = "A (Average log-expression)", ylab = "M (Expression log-ratio)")
-printPlots(paste("2 - MAPlot - BGcorrected", samp[1], "vs", samp[2], sep = ""))
-
-# Quantile-normalize and log-transform the data
-raw_BGandNormalized = normalizeBetweenArrays(raw_BGcorrected, method = "quantile")
-
-# Generate QC plots
-boxplot(as.matrix(raw_BGandNormalized), names = c(1:m), las = 1, # las = style of axis labels
-        main = "Normalized Expression", xlab = "Sample Index", ylab = "log2(intensity)") # Already logged data
-printPlots("3 - BoxPlot - BGandNormalized")
-plotDensities(as.matrix(raw_BGandNormalized), legend = FALSE)
-printPlots("3 - Densities - BGandNormalized")
-samp = c(11,12) # One sample vs one sample (by sample indexes)
-plotMD(as.matrix(raw_BGandNormalized)[,samp],
-       main = paste("Normalized Expression: ", samp[1], " vs ", samp[2], sep = ""),
-       xlab = "A (Average log-expression)", ylab = "M (Expression log-ratio)")
-printPlots(paste("3 - MAPlot - BGandNormalized", samp[1], "vs", samp[2], sep = ""))
-
-# Extract the expression matrix from EListRaw object
-expressionMatrix = raw_BGandNormalized$E
-d = dim(expressionMatrix)
-cat("\nDataset dimensions:", d, "\n\n", sep = " ")
-# Create a new vector containing tidy group names
-if(sum(colnames(targets) == "BarCode") == 1) {
-  grpName = paste("Sample_", targets$BarCode, ".", c(1:m), sep = "")
-} else {
-  grpName = paste("Sample_", c(1:m), sep = "")
-}
-colnames(expressionMatrix) = grpName
-expressionMatrix[1:10,]
-
-
-
-
-
-# Optional - Remove invalid probes -------------------------------------------------------------------------------------
-
-# Filter out control probes (and those that fail the 'gIsWellAboveBG' check)
-ctrlProbes = abs(raw_BGandNormalized$genes$ControlType) == 1 # abs() to include also the NegativeControl probe (-)3xSLv1
-cat("\n", sum(ctrlProbes), " control probes detected\n\n", sep = "")
-#as.data.frame(raw_BGandNormalized)[ctrlProbes, 7] # Get names of Control Probes detected
-isExpr = rep(TRUE, dim(raw_BGandNormalized)[1]) # No second filter - Default
-if (FALSE) {
-  # Well above BG in at least 50% of the samples
-  isExpr = rowSums(raw_BGandNormalized$other$gIsWellAboveBG > 0) >= dim(targets)[1]/2
-  sum(isExpr)
-}
-raw_BGandNormalized_filt = raw_BGandNormalized[!ctrlProbes & isExpr, ]
-
-# Replace value of replicate probes with their mean - Probe_ID is used to identify the replicates
-raw_BGandNormalized_filt_mean = avereps(raw_BGandNormalized_filt,  ID = raw_BGandNormalized_filt$genes$ProbeName)
-
-# Generate QC plots
-pre = dim(raw_BGandNormalized_filt)
-post = dim(raw_BGandNormalized_filt_mean)
-cat("\n", (pre - post)[1], " replicate probes have been averaged\n\n", sep = "")
-cat("\nFinal dataset dimensions:", post, "\n\n", sep = " ")
-samp = c(11,12) # One sample vs one sample (by sample indexes)
-plotMD(as.matrix(raw_BGandNormalized_filt_mean)[,samp],
-       main = paste("Normalized Expression - Filtered: ", samp[1], " vs ", samp[2], sep = ""),
-       xlab = "A (Average log-expression)", ylab = "M (Expression log-ratio)")
-abline(h = 0, col = "cornflowerblue", lty = 2) # lty = line type
-abline(h = c(1,-1), col = "red3")
-abline(v = 7, col = "cornflowerblue") # Platform-specific log2-expression threshold
-printPlots(paste("4 - MAPlot - Final", samp[1], "vs", samp[2], sep = ""))
-
-# Extract the expression matrix from EListRaw object
-expressionMatrix = raw_BGandNormalized_filt_mean$E
-colnames(expressionMatrix) = grpName
-expressionMatrix[1:10,]
-
-
-
-
-
-# Adding Gene Annotation -----------------------------------------------------------------------------------------------
-# TO BE DONE
-
-
-
-
-
-# Save expression matrix -----------------------------------------------------------------------------------------------
-
-# Fix headings for subsequent import
-expressionMatrix = as.data.frame(expressionMatrix) # Cast to Data Frame
-expressionMatrix = cbind(rownames(expressionMatrix), expressionMatrix) # Add Probe_IDs as the first column
-colnames(expressionMatrix)[1] = "ProbeID"
-
-# Save the matrix without annotation
-write.table(expressionMatrix, file = paste("Quantile-norm_logExpr - ", endName[k] ,".txt", sep = ""),
-            sep = "\t", col.names = TRUE, row.names = FALSE)
-cat("\nExpression matrix (without annotations) has been saved in\n", myFolder, "\n\n", sep = "")
-
-# Save the matrix with annotations
-#write.table(joined, file = "RMA-normalized_logExpression_U133Plus2_Annotated.txt",
-#            sep = "\t", col.names = TRUE, row.names = FALSE)
-#cat("\nExpression matrix (with annotations) has been saved in\n", myFolder, "\n\n", sep = "")
-

@@ -53,11 +53,11 @@ To run GATTACA, you must provide an options file encoded in [yaml](https://yaml.
 - General options:
     - `slowmode` (bool): If set to `true`, stops the execution of the script at various points of the analysis, allowing you to stop the analysis if you detect something has gone terribly wrong. If set to `false`, these checkpoints are silently ignored.
     - `show_data_snippets` (bool): If set to `true`, prints out small snippets of data at and around `slowmode` checkpoints. This is useful to check if something has gone terribly wrong. Pretty useless when `slowmode` is `false`, as these data snippets are not logged.
-    - `log_path` (str | `null`): If set to `null`, spawn a logfile in the output folder named `gattaca_(current time).log`. Otherwise, a string with the filename (that will be overwritten) of the log file, always created in the output folder.
     - `save_pdf` (bool): If `true`, saves plots to `pdf` files in a subfolder in the output directory. If neither `save_pdf` nor `save_png` are set to `true`, the script will not save any plots. Usually only one of the two are set.
     - `save_png` (bool): If `true`, saves plots to `png` files in a subfolder in the output directory. If neither `save_pdf` nor `save_png` are set to `true`, the script will not save any plots. Usually only one of the two are set.
     - `plot_width` (int) and `plot_height` (int): Plot sizes in inches.
     - `png_ppi` (int): The pixels per inch resolution for `png` plots.
+    - `enumerate_plots` (bool): If `true`, the plots created by GATTACA will be enumerated following the order by which they are created. This allows easier inspection of them.
     - `annotation_chip_id` (str or null): If annotation are added, some plots (like volcano plots) are more legible as they use HUGO symbols instead of probe IDs. Specify here one available annotation ID based on your chip. Leave to `null` to not annotate. Available annotations (chip_name -> `id`):
         - Affymetrix Human Genome U133 Set (A) -> `hgu133a`
         - Affymetrix Human Genome U133 Set (B) -> `hgu133b`
@@ -73,7 +73,7 @@ To run GATTACA, you must provide an options file encoded in [yaml](https://yaml.
 - Design options:
     - `experimental_design` (str): A string representing the experimental design. See the special section at the end of this list.
     - `group_colors` (list of str): A list of strings representing names of colors to be used in some plots. The list must be as long or longer than the number of `experimental_groups`.
-    - `contrasts` (list of int): This list defines which group pairs are tested against each other to find differentially expressed genes. The pairs are generated from the experimental groups as non-palindrome ordered combinations. If the `experimental_groups` are `["control", "treat1", "treat2"]` then the generated pairs are `["treat1-control", "treat2-control", "treat2-treat1"]` A `slowmode` `dryrun` is especially useful to check if this option was set correctly.
+    - `contrasts` (list of int): This is a list of strings. The strings represent the contrasts to check, in the format "difference-baseline". Each group specified must also be a group in the experimental design.
     - Filters applied to the dataset:
         - `log2_expression` (num): Filter out (mark as non-differentally-expressed) any genes that have lower log2 expression than this value. This gets rid of genes that might be detected as differentially expressed just because their low expression fluctuates a lot between samples. This value depends a lot on the experiment design. For Agilent, check the un-hybridized `(-)3xSLv1 NegativeControl` probe as a plausible value (a way to check this will be implemented in the future (maybe)). For  Affymetrix, 4 is a good baseline.
         - `fold_change` (num): Fold Change Threshold. Usually, `|log2FC| > 0.5` or `|log2FC| > 1`. The reasoning behind this filter is the same as `log2_expression`.
@@ -132,8 +132,13 @@ The options are straightforward to understand (use `GATTACA prepaffy -h` to see 
 
 The `.CEL` files in the input folder are found by looking at their file extension, and are not found recursively.
 
+
+### Command: `prepagil`
+Convert a collection of files from a variety of scanners for Agilent microarrays to an expression matrix. The command uses `limma` to parse the input files. As the format of these files is varied, they are found by `grep`-ping files in the target folder. See `./GATTACA prepaffy --help` for more information.
+
+
 ### Command: `annotate`
-Annotate data created by these commands with annotations from a variety of databases present in bioconductor. The databases are downloaded at runtime to have the latest annotations.
+Annotate data created by these commands with annotations from a variety of databases present in bioconductor. The databases are downloaded at runtime to have the latest annotations. All bioconductor databases support the following fields: `ACCNUM`, `CHR`, `CHRLOC`, `CHRLOCEND`, `ENSEMBL`, `ENTREZID`, `ENZYME`, `GENENAME`, `GO`, `MAP`, `OMIM`, `PATH`, `PMID`, `REFSEQ`, `SYMBOL` and `UNIPROT`.
 
 The options are straightforward to understand (use `GATTACA annotate -h` to see them).
 

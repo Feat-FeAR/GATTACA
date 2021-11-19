@@ -25,6 +25,7 @@
 #
 # ------------------------------------------------------------------------------
 
+log_debug("Sourcing the 'annotations.R' file.")
 
 # This list maps shortcodes representing chips to their respective databases.
 CHIP_TO_DB <- list(
@@ -84,8 +85,9 @@ merge_annotations <- function(gene.stat, annotation, sort.by = 1) {
 #' @author MrHedmad 
 get_db_names <- function(db_namespace) {
   suppressWarnings({
+    stopifnot("Invalid database name - cannot be empty"=db_namespace==character(0))
     if (!require(db_namespace, character.only = TRUE)) {
-      BiocManager::install(db_namespace)
+      BiocManager::install(db_namespace, update = FALSE)
       suppressPackageStartupMessages(library(db_namespace, character.only = TRUE))
     }
   })
@@ -130,7 +132,6 @@ get_db_names <- function(db_namespace) {
 get_remote_annotations <- function(
   db_name, selections = c("ACCNUM", "SYMBOL", "GENENAME")
 ) {
-  library(logger)
   library(purrr)
   # get_db_names also loads the db in memory, so I don't do it here.
   possible_selections <- get_db_names(db_name)
@@ -139,7 +140,7 @@ get_remote_annotations <- function(
     stop(
       paste0(
         "Invalid selection(s): ",
-        paste(selection[!selections %in% possible_selections], collapse = ", "),
+        paste(selections[!selections %in% possible_selections], collapse = ", "),
         ". Possible selections: ",
         paste(possible_selections, collapse = ", "),
         "."
@@ -156,9 +157,7 @@ get_remote_annotations <- function(
   for (selection in selections) {
     # This raises deprecation warnings for no reason.
     suppressWarnings(
-      {
-        data[selection] <- get(paste0(db_clean_name, selection))
-      }
+      { data[selection] <- get(paste0(db_clean_name, selection)) }
     )
   }
   
@@ -263,47 +262,24 @@ annotate_data <- function(expression_set, chip_id, selections) {
 #' @param chip_id A str representing the chip used by the experiment.
 #' @param selections A vector of str with valid annotation names to use to
 #'   annotate the data.
-#' @param log_name Name of the logfile written in the same directory as the 
-#'   output file.
 annotate_to_file <- function(
   expression_data_path, output_path,
-  chip_id, selections,
-  log_name = NULL
+  chip_id, selections
 ) {
   paste0(
-    "Call: (exprpath/outputpath/chip/selections/logname):\n",
-    paste(expression_data_path, output_path, chip_id, paste(selections, collapse = ", "), log_name,
-    sep = " :: ")
+    "Call (expression_data_path, output_path, chip_id, selections): ",
+    paste(expression_data_path, output_path, chip_id, paste(selections, sep = ", "), sep = " :: ")
   ) |>
-    print()
-  
-  # Setup logging facilities
-  output.dir <- dirname(output_path)
-  start.timedate <- gsub(" ", "_", date())
-  
-  library(logger)
-  
-  # I don't know if log_name was passed as a string or NULL, so in the call
-  # made by entry I have to wrap the input in "" to make it a valid string.
-  # This causes NULL to become "NULL", and therefore I have to do this badness
-  log_name <- if (log_name == "NULL") {NULL} else {log_name}
-  log.target <- if (is.null(log_name)) {
-    file.path(output.dir, paste0("affy2expression_", start.timedate, ".log"))
-  } else {
-    file.path(output.dir, log_name)
-  }
-  file.create(log.target)
-  log_appender(appender_tee(log.target))
+    log_debug()
+
+  source(file.path(ROOT, "src", "STALKER_Functions.R"))
   
   log_info("Loading input data...")
-  expression_set <- read.csv(file = expression_data_path, row.names = "probe_id")
+  expression_set <- read_expression_data(expression_data_path)
  
   log_info("Annotating data...")
   annotated_set <- annotate_data(expression_set, chip_id, selections)
   
-  log_info("Extracting probe ids...")
-  annotated_set$probe_id <- row.names(annotated_set)
-  
-  write.csv(annotated_set, file = output_path, row.names = FALSE)
+  write_expression_data(annotated_set, output_path)
   log_info("Written annotations.")
 }

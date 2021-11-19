@@ -1,11 +1,9 @@
+# Personal notes
+notes.txt
+
 # VsCode junk
 .vscode
-
-# Accidental test files
-tests.*
-test.*
-test
-tests
+*.code-workspace
 
 # RENV things
 renv/
