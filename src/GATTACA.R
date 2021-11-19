@@ -660,6 +660,7 @@ diagnose_limma_data <- function(
 run_rankprod <- function(
   expression_set, groups, contrasts,
   technical_replicates = NULL,
+  batches = NULL,
   pairings = NULL, fc_threshold = 0.5
 ) {
   log_info("Running differential expression analysis with rankproduct...")
@@ -786,10 +787,25 @@ run_rankprod <- function(
 
     # invisible(capture.output()) is to suppress automatic output to console
     # WARNING: therein <- (instead of =) is mandatory for assignment!
+    if (!is.null(batches)) {
+      log_info("Setting batches...")
+      if (length(batches) != length(groups)) {
+        stop("Length of batches vector is not the same as the groups.")
+      }
+      if (any(table(paste(batches, groups)) == 1)) {
+        log_warn("Some batches have only one sample per group. Rankprod cannot correct such a batch effect")
+        batches <- rep(1, length(groups))
+      }
+
+      batches |> as.factor() |> as.numeric() -> batches
+    } else {
+      batches <- rep(1, length(groups))
+    }
+
     log_info("Running RankProduct...")
     RP.out <- RP.advance(
       sub_expression_set,
-      rp_class_labels, origin = rep(1, ncol(sub_expression_set)),
+      rp_class_labels, origin = batches,
       gene.names = rownames(expression_set),
       logged = TRUE, na.rm = FALSE, plot = FALSE, rand = 123
     )
