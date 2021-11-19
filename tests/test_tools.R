@@ -322,10 +322,6 @@ test_that("split_design() gives expected output and errors", {
   )
 
   expect_error(
-    split_design(c("")),
-    list(
-      groups = c(""),
-      pairings = c(NA)
-    )
+    split_design(c(""))
   )
 })

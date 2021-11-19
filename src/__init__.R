@@ -37,7 +37,7 @@ if (!interactive()) {
   ROOT <- "/GATTACA" # The root in the docker
 } else {
   ROOT <- getwd()
-  if (! getOption("running_tests") == TRUE) {
+  if (! getOption("running_tests", FALSE) == TRUE) {
     log_threshold(TRACE)
   }
 }

@@ -26,7 +26,6 @@ log_debug("Sourcing the 'Agilent_TXT_to_Expression.R' file.")
 agil2expression <- function (
   input_dir, output_file, analysis_program,
   grep_pattern="*.txt",
-  offset = 0,
   remove_controls = TRUE,
   plot.width = 16,
   plot.height = 9,
@@ -37,8 +36,8 @@ agil2expression <- function (
   set.seed(1) # This module uses random sampling
 
   paste0(
-    "Call (input_dir, output_file, analysis_program, grep_pattern, offset, remove_controls, plot.width, plot.heigth, use.pdf): ",
-    paste(input_dir, output_file, analysis_program, grep_pattern, offset, remove_controls, plot.width, plot.height, use.pdf, sep = " :: ")
+    "Call (input_dir, output_file, analysis_program, grep_pattern, remove_controls, plot.width, plot.heigth, use.pdf): ",
+    paste(input_dir, output_file, analysis_program, grep_pattern, remove_controls, plot.width, plot.height, use.pdf, sep = " :: ")
   ) |>
     log_debug()
 
@@ -114,11 +113,11 @@ agil2expression <- function (
   # Normalization
   log_info("Running Normalization")
   log_info("Background correcting...")
-  expression_data <- backgroundCorrect(expression_data, method = "normexp", offset = offset)
+  expression_data <- limma::backgroundCorrect(expression_data, method = "normexp")
 
   # This step also log2s the data
   log_info("Running interarray normalization...")
-  expression_data = normalizeBetweenArrays(expression_data, method = "quantile")
+  expression_data = limma::normalizeBetweenArrays(expression_data, method = "quantile")
 
   expression_set <- expression_data$E
   log_info(paste("Final dataset dimensions - Cols:", ncol(expression_set), "Rows:", nrow(expression_set)))

@@ -2,7 +2,7 @@
 
 order=$3
 
-if [ $order != "testall" ]; then
+if [ $order != "testall" ] && [ $order != "versions" ]; then
     # We need the host UID/GID to give permissions back when we're done.
     # This is a bit of a hack, but I cannot find a better way to do it.
     host_uid=$(stat -c "%u" /GATTACA/target)
@@ -13,7 +13,7 @@ if [ $order != "testall" ]; then
     log_level=$2
     shift 3 # This gets rid of the order too
 else
-    # We dont need the lognames and so on, as we're testing.
+    # We dont need the lognames and so on, as we're testing o getting versions.
     shift
 fi
 
@@ -80,6 +80,16 @@ case "$order" in
         Rscript --vanilla \
             -e "source('/GATTACA/src/__init__.R')" \
             -e "source('/GATTACA/tests/test_all.R')"
+            exit 0
+        ;;
+    versions)
+        Rscript --vanilla \
+            -e "ip = as.data.frame(installed.packages()[,c(1,3:4)])" \
+            -e "ip = ip[is.na(ip$Priority),1:2,drop=FALSE]" \
+            -e "rownames(ip) <- NULL" \
+            -e "cat('List of installed packages:\n')" \
+            -e "print(ip)"
+            exit 0
         ;;
     *)
         echo "Unrecognized order: '${order}'"
@@ -87,6 +97,5 @@ case "$order" in
         ;;
 esac
 
-if [ order != "testall" ]; then
-  chown -R $host_uid:$host_gid /GATTACA/target
-fi
+# If we get to here we have to do this.
+chown -R $host_uid:$host_gid /GATTACA/target
