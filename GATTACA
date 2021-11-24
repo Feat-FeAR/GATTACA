@@ -384,12 +384,11 @@ function _gattaca_run_prepagil {
         esac
     done
 
-    if test $# -eq 3; then
+    if test $# -eq 2; then
         input_dir=$(realpath "$1")
         target_path="$2"
-        analysis_program="$3"
     else
-        >&2 echo "Wrong number of arguments: ${#} (expected 3)"
+        >&2 echo "Wrong number of arguments: ${#} (expected 2)"
         exit 1
     fi
 
@@ -407,7 +406,7 @@ function _gattaca_run_prepagil {
         --mount type=bind,source="$input_dir",target=/GATTACA/input,readonly \
         mrhedmad/gattaca:"$version" \
         "$log_name" "$log_level" \
-        "prepagil" "$output_filename" "$analysis_program" "$grep_pattern" "$remove_controls" "$plot_size" "$use_pdf"  "$plot_number"
+        "prepagil" "$output_filename" "$grep_pattern" "$remove_controls" "$plot_size" "$use_pdf"  "$plot_number"
 }
 
 function _gattaca_run_tests {

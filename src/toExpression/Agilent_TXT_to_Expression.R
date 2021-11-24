@@ -24,7 +24,7 @@
 log_debug("Sourcing the 'Agilent_TXT_to_Expression.R' file.")
 
 agil2expression <- function (
-  input_dir, output_file, analysis_program,
+  input_dir, output_file,
   grep_pattern="*.txt",
   remove_controls = TRUE,
   plot.width = 16,
@@ -34,12 +34,6 @@ agil2expression <- function (
 ) {
 
   set.seed(1) # This module uses random sampling
-
-  paste0(
-    "Call (input_dir, output_file, analysis_program, grep_pattern, remove_controls, plot.width, plot.heigth, use.pdf): ",
-    paste(input_dir, output_file, analysis_program, grep_pattern, remove_controls, plot.width, plot.height, use.pdf, sep = " :: ")
-  ) |>
-    log_debug()
 
   # Options for printPlots
   # Set options for printPlots
@@ -64,7 +58,7 @@ agil2expression <- function (
   log_info("Reading in input files...")
   expression_data <- read.maimages(
     files = file.path(input_dir, raw_files),
-    source = analysis_program,
+    source = "agilent.median",
     green.only = TRUE
   )
 

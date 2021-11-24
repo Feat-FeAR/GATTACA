@@ -64,7 +64,7 @@ case "$order" in
             -e "annotate_to_file(expression_data_path = '/GATTACA/input/${1}', output_path = '${outputfile}', chip_id = '${3}', selections = selections)"
         ;;
     prepagil)
-        # "$output_filename" $analysis_program $grep_pattern $green_only $remove_controls $log_filename
+        # "$output_filename" $grep_pattern $green_only $remove_controls $log_filename
         outputfile="/GATTACA/target/$1"
 
         Rscript \
@@ -73,8 +73,8 @@ case "$order" in
             -e "source('/GATTACA/src/toExpression/Agilent_TXT_to_Expression.R')" \
             -e "setup_file_logging('/GATTACA/target', '${log_name}')" \
             -e "logger::log_threshold(${log_level})" \
-            -e "strsplit('${5}', ',')[[1]] |> as.numeric() -> sizes" \
-            -e "agil2expression('/GATTACA/input', '${outputfile}', '${2}', grep_pattern='${3}', remove_controls=${4}, plot.width = sizes[1], plot.height = sizes[2], use.pdf = ${6}, n_plots = ${7})"
+            -e "strsplit('${4}', ',')[[1]] |> as.numeric() -> sizes" \
+            -e "agil2expression('/GATTACA/input', '${outputfile}', grep_pattern='${2}', remove_controls=${3}, plot.width = sizes[1], plot.height = sizes[2], use.pdf = ${5}, n_plots = ${6})"
         ;;
     testall)
         Rscript --vanilla \

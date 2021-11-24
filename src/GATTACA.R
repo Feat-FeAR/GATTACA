@@ -128,14 +128,20 @@ diagnose_batch_effects <- function(
 #'   - A `pairings` slot with the new pairings;
 #'
 #' @author Hedmad
-fix_replicates <- function(data, groups, technical_replicates, pairings = NULL) {
+fix_replicates <- function(
+  data, groups, technical_replicates,
+  pairings = NULL,
+  batches = NULL
+) {
   stopifnot(
     "Length of groups is not the length of the data" =
       {length(groups) == ncol(data)},
     "Length of technical_replicates is not the length of the data" =
       {length(technical_replicates) == ncol(data)},
     "Length of pairings is not the length of the data" =
-      {is.null(pairings) | length(pairings) == ncol(data)}
+      {is.null(pairings) | length(pairings) == ncol(data)},
+    "Length of batches is not the length of the data" =
+      {is.null(batches) | length(batches) == ncol(data)}
   )
 
   technical_replicates <- factor(technical_replicates)
@@ -147,6 +153,7 @@ fix_replicates <- function(data, groups, technical_replicates, pairings = NULL) 
   new_data <- data.frame(row.names = rownames(data))
   new_groups <- c()
   new_pairings <- c()
+  new_batches <- c()
 
   for (level in levels(technical_replicates)) {
     # Check that the labels of a replicate are identical
@@ -166,9 +173,18 @@ fix_replicates <- function(data, groups, technical_replicates, pairings = NULL) 
         ), "."
       ))
     }
+    if (!is.null(batches) & ! all_identical(batches[technical_replicates == level])) {
+      stop(paste0(
+        "The batch inside one or more technical replicates is different. ",
+        "Replicate: '", level, "', Pairings:", paste(
+          unique(pairings[technical_replicates == level]), collapse = ", "
+        ), "."
+      ))
+    }
 
     new_groups <- c(new_groups, groups[technical_replicates == level][1])
     new_pairings <- c(new_pairings, pairings[technical_replicates == level][1])
+    new_batches <- c(new_batches, batches[technical_replicates == level][1])
 
     if (ncol(data[, technical_replicates == level, drop = FALSE]) > 1) {
       new_data[level] <- apply(data[, technical_replicates == level], 1, mean)
@@ -183,7 +199,8 @@ fix_replicates <- function(data, groups, technical_replicates, pairings = NULL) 
   return(list(
     data = new_data,
     groups = new_groups,
-    pairings = new_pairings
+    pairings = new_pairings,
+    batches = new_batches
   ))
 }
 
@@ -671,12 +688,22 @@ run_rankprod <- function(
   if (!is.null(technical_replicates)) {
     log_info("Correcting data to collapse technical replicates...")
     corrected_data <- fix_replicates(
-      expression_set, groups, technical_replicates, pairings = pairings
+      expression_set, groups, technical_replicates,
+      pairings = pairings, batches = batches
     )
     expression_set <- corrected_data$data
     groups <- corrected_data$groups
     pairings <- corrected_data$pairings
+    batches <- corrected_data$batches
   }
+
+  log_info(paste(
+    "Rankprod Parameters:",
+    paste("Groups:", paste(groups, collapse = ", ")),
+    paste("Pairings:", paste(pairings, collapse = ", ")),
+    paste("Batches:", paste(batches, collapse = ", ")),
+    sep = "\n"
+  ))
 
   for (i in seq_along(contrasts)) {
     log_info(paste0("Running analysis ", i, " of ", length(contrasts)))
@@ -790,6 +817,7 @@ run_rankprod <- function(
     if (!is.null(batches)) {
       log_info("Setting batches...")
       if (length(batches) != length(groups)) {
+        print(batches); print(groups)
         stop("Length of batches vector is not the same as the groups.")
       }
       if (any(table(paste(batches, groups)) == 1)) {
