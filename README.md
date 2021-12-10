@@ -42,7 +42,7 @@ These are the currently available subcommands:
 - `GATTACA annotate`: Annotates expression data created by other commands with annotations from a variety of bioconductor packages.
 - `GATTACA prepaffy`: Generates expression matrices from a collection of affymetrix .CEL files.
 
-The full GATTACA manual, which covers installation, usage and result interpretation can be downloaded [here](https://github.com/Feat-FeAR/GATTACA/tree/main/docs/GATTACA_manual.pdf), from this repository, inside the `/docs` folder.
+The full GATTACA manual, which covers installation, usage and result interpretation can be downloaded [here](https://github.com/Feat-FeAR/GATTACA/blob/main/docs/GATTACA_Manual.pdf), from this repository, inside the `/docs` folder.
 
 ## Building the image
 If you wish to rebuild the Docker container, simply clone the repo, and run `docker build .`. More information on the [docker build documentation page](https://docs.docker.com/engine/reference/commandline/build/).
