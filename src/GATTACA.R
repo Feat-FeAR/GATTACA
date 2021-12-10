@@ -1214,12 +1214,12 @@ GATTACA <- function(options.path, input.file, output.dir) {
   printdata(..corrTable)
 
   if (write_data_to_disk) {
-    write.table(
+    write.csv(
       ..corrTable,
-      "Corresp Table.tsv", sep = "\t",
-      col.names = TRUE, row.names = TRUE, quote = FALSE
+      "correspondence_table.csv",
+      col.names = TRUE, row.names = FALSE, quote = TRUE
     )
-    log_info(paste("'correspondence_table.tsv' has been saved in", output.dir))
+    log_info(paste("'correspondence_table.csv' has been saved in", output.dir))
   }
 
   # Check the contrasts

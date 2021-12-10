@@ -60,19 +60,16 @@ switches:
 # DESIGN - Experimental design
 design:
   # Define the experimental design.
-  # The experimental design describes which samples are of which group of
-  # interest, such as being a control or a treated/tumor sample.
-  # Read the README or the manual for a guide on how to define this.
+  # The experimental design describes which samples are of which group, and if
+  # any samples are paired (such as being from the same patient).
+  # NOTE :: The groups must NOT contain numbers. Sorry!
+  # Read the README for a guide on how to define this.
   experimental_design: "[treated, control]:2" # str
 
   # Select which experimental group pairs should be analysed.
   # Pass strings of the type "<group1>-<group2>" to see group1 vs group2
   # (group2 will be the reference).
   contrasts: ["treated-control"] # list of str
-
-  # Specify in any samples are paired, such as coming from the same patient.
-  # Set to `null` if there are no pairings in the samples.
-  pairings: null # `null` or str
 
   # Specify if there are any technical replicates in the data. Each sample must
   # be related to a single, unique technical replicate level.
@@ -85,8 +82,7 @@ design:
   batches: null # `null` or str
 
   # Specify any extra grouping variables. These are considered by limma when
-  # running the analysis. Enter each variable as a experimental design string in
-  # a list.
+  # running the analysis. Enter each variable as a experimental design string.
   # Set to `null` if there are no extra variables to account for.
   extra_limma_vars: null # `null` or list of str
 
