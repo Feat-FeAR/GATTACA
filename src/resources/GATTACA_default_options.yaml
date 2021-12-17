@@ -71,11 +71,6 @@ design:
   # (group2 will be the reference).
   contrasts: ["treated-control"] # list of str
 
-  # Specify if there are any technical replicates in the data. Each sample must
-  # be related to a single, unique technical replicate level.
-  # Set to `null` if there are no technical replicates.
-  technical_replicates: null # `null` or str
-
   # Specify from which batch each sample comes from. Used to correct the batch
   # effect on the data.
   # Set to `null` if all samples come from the same batch.
