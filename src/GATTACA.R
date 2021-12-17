@@ -109,102 +109,6 @@ diagnose_batch_effects <- function(
 }
 
 
-#' Average technical replicates in an expression set.
-#'
-#' As limma can use `duplicateCorrelation`, this is only useful for RankProd.
-#'
-#' This function has to replace the colnames. It does so by running
-#' `make.unique_from1` on the new colnames (after averaging the data).
-#'
-#' @param data The expression set to fix.
-#' @param groups The groups associated with the expression set.
-#' @param pairings The pairings associated with the expression set.
-#' @param technical_replicates A vector of labels, where identical labels
-#'   represent technical replicates.
-#'
-#' @returns A list with the following entries:
-#'   - A `data` slot with the averaged data;
-#'   - A `groups` slot with the new groupings;
-#'   - A `pairings` slot with the new pairings;
-#'
-#' @author Hedmad
-fix_replicates <- function(
-  data, groups, technical_replicates,
-  pairings = NULL,
-  batches = NULL
-) {
-  stopifnot(
-    "Length of groups is not the length of the data" =
-      {length(groups) == ncol(data)},
-    "Length of technical_replicates is not the length of the data" =
-      {length(technical_replicates) == ncol(data)},
-    "Length of pairings is not the length of the data" =
-      {is.null(pairings) | length(pairings) == ncol(data)},
-    "Length of batches is not the length of the data" =
-      {is.null(batches) | length(batches) == ncol(data)}
-  )
-
-  technical_replicates <- factor(technical_replicates)
-
-  if (length(levels(technical_replicates)) == 1) {
-    stop("The whole experiment is just one technical replicate. Cannot proceed.")
-  }
-
-  new_data <- data.frame(row.names = rownames(data))
-  new_groups <- c()
-  new_pairings <- c()
-  new_batches <- c()
-
-  for (level in levels(technical_replicates)) {
-    # Check that the labels of a replicate are identical
-    if (! all_identical(groups[technical_replicates == level])) {
-      stop(paste0(
-        "The group inside one or more technical replicates is different. ",
-        "Replicate: '", level, "', Groups:", paste(
-          unique(groups[technical_replicates == level]), collapse = ", "
-        ), "."
-      ))
-    }
-    if (!is.null(pairings) & ! all_identical(pairings[technical_replicates == level])) {
-      stop(paste0(
-        "The pairing inside one or more technical replicates is different. ",
-        "Replicate: '", level, "', Pairings:", paste(
-          unique(pairings[technical_replicates == level]), collapse = ", "
-        ), "."
-      ))
-    }
-    if (!is.null(batches) & ! all_identical(batches[technical_replicates == level])) {
-      stop(paste0(
-        "The batch inside one or more technical replicates is different. ",
-        "Replicate: '", level, "', Pairings:", paste(
-          unique(pairings[technical_replicates == level]), collapse = ", "
-        ), "."
-      ))
-    }
-
-    new_groups <- c(new_groups, groups[technical_replicates == level][1])
-    new_pairings <- c(new_pairings, pairings[technical_replicates == level][1])
-    new_batches <- c(new_batches, batches[technical_replicates == level][1])
-
-    if (ncol(data[, technical_replicates == level, drop = FALSE]) > 1) {
-      new_data[level] <- apply(data[, technical_replicates == level], 1, mean)
-    } else {
-      # This sample has no replicate counterparts.
-      new_data[level] <- data[, technical_replicates == level]
-    }
-  }
-
-  colnames(new_data) <- make.unique_from1(new_groups)
-
-  return(list(
-    data = new_data,
-    groups = new_groups,
-    pairings = new_pairings,
-    batches = new_batches
-  ))
-}
-
-
 #' Run groupwise filtering on expression data.
 #'
 #' The expression data *must* be named with colnames starting with the same
@@ -382,6 +286,8 @@ make_limma_design <- function(groups, ...) {
 #' @param pairings A vector describing the pairings of the data or NULL if no
 #'   pairings are present. Must be the same length as the columns of the
 #'   expression_set.
+#' @param other_vars Other variables to include in the analysis as a list.
+#'   Leave to `null` if no other vars are included.
 #' @param fc_threshold The absolute Fold-change threshold to use to consider
 #'   a gene as differentially expressed, regardless of the P-value or FDR.
 #'
@@ -392,7 +298,6 @@ make_limma_design <- function(groups, ...) {
 #' @author FeAR, Hedmad
 run_limma <- function(
   expression_set, groups, contrasts,
-  technical_replicates = NULL,
   other_vars = NULL,
   fc_threshold = 0.5
 ) {
@@ -407,18 +312,6 @@ run_limma <- function(
 
   log_info("Design matrix:\n", get.print.str(limma_design))
 
-  if (!is.null(technical_replicates)) {
-    log_info("Calculating technical replicates intra-correlation...")
-    corr_correction <- duplicateCorrelation(
-      expression_set, design = limma_design,
-      block = as.factor(technical_replicates)
-    )
-
-    if (corr_correction$consensus.correlation < 0) {
-      log_warn("Consensus of technical replicates is negative. This shouldn't happen.")
-    }
-  }
-
   log_info("Making contrasts matrix...")
   makeContrasts(
     contrasts = contrasts,
@@ -428,15 +321,7 @@ run_limma <- function(
   log_info("Contrasts matrix:\n", get.print.str(contrast_matrix))
 
   log_info("Computing contrasts...")
-  if (!is.null(technical_replicates)) {
-    lmFit(
-      expression_set, limma_design,
-      block = as.factor(technical_replicates),
-      correlation = corr_correction$consensus.correlation
-    ) -> limma_fit
-  } else {
-    lmFit(expression_set, limma_design) -> limma_fit
-  }
+  lmFit(expression_set, limma_design) -> limma_fit
 
   limma_fit |> contrasts.fit(contrast_matrix) |> eBayes() -> limma_Bayes
 
@@ -621,7 +506,7 @@ diagnose_limma_data <- function(
 
     # Enhanced Volcano Plot
     if ("SYMBOL" %in% colnames(DEGs.limma[[i]])) {
-      volcano_labels <- DEGs.limma$SYMBOL
+      volcano_labels <- DEGs.limma[[i]]$SYMBOL
     } else {
       volcano_labels = rownames(DEGs.limma[[i]])
     }
@@ -663,9 +548,11 @@ diagnose_limma_data <- function(
 #' @param groups A vector describing the groups of the data, in the same order
 #'   as the columns.
 #' @param contrasts A character vector describing contrasts.
+#' @param batches The batches the samples fall in. Leave to `null` if none.
+#'   Setting both this and `pairings` is unsupported.
 #' @param pairings A vector describing the pairings of the data or NULL if no
 #'   pairings are present. Must be the same length as the columns of the
-#'   expression_set.
+#'   expression_set. Setting both this and `batches` is unsupported.
 #' @param fc_threshold The absolute Fold-change threshold to use to consider
 #'   a gene as differentially expressed, regardless of the P-value or FDR.
 #'
@@ -676,26 +563,19 @@ diagnose_limma_data <- function(
 #' @author FeAR, Hedmad
 run_rankprod <- function(
   expression_set, groups, contrasts,
-  technical_replicates = NULL,
   batches = NULL,
   pairings = NULL, fc_threshold = 0.5
 ) {
   log_info("Running differential expression analysis with rankproduct...")
 
+  # Handling batches AND pairings is currently not supported.
+  if (!is.null(batches) & !is.null(pairings)) {
+    log_warn("Cannot handle both batches and pairings. Setting BATCHES to `null`.")
+    batches <- NULL
+  }
+
   # Make a container for the rankprod results
   DEGs.rankprod = list()
-
-  if (!is.null(technical_replicates)) {
-    log_info("Correcting data to collapse technical replicates...")
-    corrected_data <- fix_replicates(
-      expression_set, groups, technical_replicates,
-      pairings = pairings, batches = batches
-    )
-    expression_set <- corrected_data$data
-    groups <- corrected_data$groups
-    pairings <- corrected_data$pairings
-    batches <- corrected_data$batches
-  }
 
   log_info(paste(
     "Rankprod Parameters:",
@@ -816,8 +696,7 @@ run_rankprod <- function(
     # WARNING: therein <- (instead of =) is mandatory for assignment!
     if (!is.null(batches)) {
       log_info("Setting batches...")
-      if (length(batches) != length(groups)) {
-        print(batches); print(groups)
+      if (length(batches) != ncol(sub_expression_set)) {
         stop("Length of batches vector is not the same as the groups.")
       }
       if (any(table(paste(batches, groups)) == 1)) {
@@ -827,7 +706,7 @@ run_rankprod <- function(
 
       batches |> as.factor() |> as.numeric() -> batches
     } else {
-      batches <- rep(1, length(groups))
+      batches <- rep(1, ncol(sub_expression_set))
     }
 
     log_info("Running RankProduct...")
@@ -982,7 +861,7 @@ diagnose_rankprod_data <- function(
   for (i in seq_along(contrasts)) {
     # Enhanced Volcano Plot
     if ("SYMBOL" %in% colnames(DEGs.rankprod[[i]])) {
-      volcano_labels <- DEGs.rankprod$SYMBOL
+      volcano_labels <- DEGs.rankprod[[i]]$SYMBOL
     } else {
       volcano_labels = rownames(DEGs.rankprod[[i]])
     }
@@ -1098,8 +977,6 @@ GATTACA <- function(options.path, input.file, output.dir) {
   )
 
   if (getOption("use.annotations")) {
-    # If we need to use annotations, we need to load the annotation data
-    source(file.path(ROOT, "src", "annotator.R"))
     annotation_data <- get_remote_annotations(
       CHIP_TO_DB[[opts$general$annotation_chip_id]], "SYMBOL"
     )
@@ -1160,20 +1037,6 @@ GATTACA <- function(options.path, input.file, output.dir) {
     batches <- NULL
   }
 
-  # The same for the technical replicates array
-  if (!is.null(opts$design$technical_replicates)) {
-    technical_replicates <- design_parser(
-      opts$design$technical_replicates, ignore_asterisk = TRUE
-    )
-    if (length(batches) != ncol(expression_set)) {
-      stop(paste0(
-        "The number of samples (", ncol(expression_set),
-        ") does not match the number of technical replicates (",
-        length(technical_replicates), ")"
-      ))
-    }
-  }
-
   # The same for all extra variables
   if (!is.null(opts$design$extra_limma_vars)) {
     extra_limma_vars <- lapply(
@@ -1188,6 +1051,8 @@ GATTACA <- function(options.path, input.file, output.dir) {
         "."
       ))
     }
+  } else {
+    extra_limma_vars <- NULL
   }
 
   log_info("Experimental desing loaded.")
@@ -1217,7 +1082,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
     write.csv(
       ..corrTable,
       "correspondence_table.csv",
-      col.names = TRUE, row.names = FALSE, quote = TRUE
+      row.names = FALSE, quote = TRUE
     )
     log_info(paste("'correspondence_table.csv' has been saved in", output.dir))
   }
@@ -1401,7 +1266,6 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
     DEGs.limma <- run_limma(
       expression_set, groups = experimental_design$groups, contrasts = raw_contrasts,
-      technical_replicates = technical_replicates,
       other_vars = additional_limma_vars,
       fc_threshold = thrFC
     )
@@ -1439,7 +1303,6 @@ GATTACA <- function(options.path, input.file, output.dir) {
   if (opts$switches$rankproduct) {
     DEGs.rankprod <- run_rankprod(
       expression_set, groups = experimental_design$groups, contrasts = raw_contrasts,
-      technical_replicates = technical_replicates,
       batches = batches,
       pairings = if (paired_mode) {experimental_design$pairings} else {NULL},
       fc_threshold = thrFC
