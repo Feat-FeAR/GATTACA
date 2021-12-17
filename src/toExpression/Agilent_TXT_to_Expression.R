@@ -116,6 +116,16 @@ agil2expression <- function (
   expression_set <- expression_data$E
   log_info(paste("Final dataset dimensions - Cols:", ncol(expression_set), "Rows:", nrow(expression_set)))
 
+  # Check the negative control probes to estimate the log2_intensity of
+  # unhybridized spots, to be used as the threshold value for filtering in GATTACA
+  neg.ctrl = expression_data$genes$ControlType == -1
+  neg.id = unique(expression_data$genes$ProbeName[neg.ctrl])
+  
+  log_info(paste(sum(neg.ctrl), "Negative-Control probes have been found,\n",
+      "corresponding to", length(neg.id), "unique probe(s):", neg.id, "\n",
+      "Mean value from", length(expression_set[neg.ctrl,]), "unhybridized spots:",
+      mean(expression_set[neg.ctrl,])))
+  
   # Print MA plots to diagnose the data.
   colnames(expression_set) <- make.names(raw_files)
   ma.plots <- get_better_mas(as.data.frame(expression_set), title = "Normalized MA plot - {x} vs Median of other samples")
