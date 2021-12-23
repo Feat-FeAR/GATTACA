@@ -161,7 +161,7 @@ function _gattaca_run_init {
     docker run \
         --rm \
         --mount type=bind,source="$target_mountpoint",target=/GATTACA/target \
-        mrhedmad/gattaca:"$version" \
+        cmalabscience/gattaca:"$version" \
         "unnamed", "INFO" \
         "init" "$target_name"
 
@@ -218,7 +218,7 @@ function _gattaca_run_run {
         -it --rm \
         --mount type=bind,source="$target_mountpoint",target=/GATTACA/target \
         --mount type=bind,source="$input_mountpoint",target=/GATTACA/input,readonly \
-        mrhedmad/gattaca:"$version" \
+        cmalabscience/gattaca:"$version" \
         "$log_name" "$log_level" \
         "gattaca" "$input_filename" "$options_filename"
 
@@ -286,7 +286,7 @@ function _gattaca_run_prepaffy {
         -it --rm \
         --mount type=bind,source="$output_mountpoint",target=/GATTACA/target \
         --mount type=bind,source="$input_mountpoint",target=/GATTACA/input,readonly \
-        mrhedmad/gattaca:"$version" \
+        cmalabscience/gattaca:"$version" \
         "$log_name" "$log_level" \
         "prepaffy" "$output_filename" "$remove_controls" "$plot_size" "$use_pdf" "$plot_number"
 }
@@ -337,7 +337,7 @@ function _gattaca_run_annotate {
         -it --rm \
         --mount type=bind,source="$target_mountpoint",target=/GATTACA/target \
         --mount type=bind,source="$input_mountpoint",target=/GATTACA/input,readonly \
-        mrhedmad/gattaca:"$version" \
+        cmalabscience/gattaca:"$version" \
         "$log_name" "$log_level" \
         "annotate" "$input_filename" "$output_filename" "$chip_id" "$selections"
 }
@@ -404,7 +404,7 @@ function _gattaca_run_prepagil {
         -it --rm \
         --mount type=bind,source="$target_mountpoint",target=/GATTACA/target \
         --mount type=bind,source="$input_dir",target=/GATTACA/input,readonly \
-        mrhedmad/gattaca:"$version" \
+        cmalabscience/gattaca:"$version" \
         "$log_name" "$log_level" \
         "prepagil" "$output_filename" "$grep_pattern" "$remove_controls" "$plot_size" "$use_pdf"  "$plot_number"
 }
@@ -412,7 +412,7 @@ function _gattaca_run_prepagil {
 function _gattaca_run_tests {
   docker run \
       --rm \
-      mrhedmad/gattaca:"$version" \
+      cmalabscience/gattaca:"$version" \
       "NULL" "NULL" \
       "testall"
 }
@@ -420,7 +420,7 @@ function _gattaca_run_tests {
 function _gattaca_get_version {
   docker run \
       --rm \
-      mrhedmad/gattaca:"$version" \
+      cmalabscience/gattaca:"$version" \
       "NULL" "NULL" \
       "versions"
 }
