@@ -121,10 +121,10 @@ agil2expression <- function (
   neg.ctrl = expression_data$genes$ControlType == -1
   neg.id = unique(expression_data$genes$ProbeName[neg.ctrl])
   
-  log_info(paste(sum(neg.ctrl), "Negative-Control probes have been found,\n",
-      "corresponding to", length(neg.id), "unique probe(s):", neg.id, "\n",
-      "Mean value from", length(expression_set[neg.ctrl,]), "unhybridized spots:",
-      mean(expression_set[neg.ctrl,])))
+  log_info(paste0(sum(neg.ctrl), " Negative-Control probes have been found, corresponding to ",
+                  length(neg.id), " unique probe(s) [", neg.id, "]. Mean value of ",
+                  length(expression_set[neg.ctrl,]), " unhybridized spots = ",
+                  mean(expression_set[neg.ctrl,])))
   
   # Print MA plots to diagnose the data.
   colnames(expression_set) <- make.names(raw_files)
