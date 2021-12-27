@@ -1,31 +1,33 @@
 # Header Info ------------------------------------------------------------------
 #
-# Agilent TXT file + Target File -> Expression matrix
+# Agilent TXT raw data --to--> expression matrix
 #
-# a FeAR R-script - 24-Mar-2021
-# based on: "Mannheimia MiniTutorial - Processing Agilent Arrays"
-# see pdf for more info
+# a FeAR R-script - 27-Dec-2021
 #
-# NOTE:
-# The "target file" is just a tab-delimited text file created by the user,
-# containing the experimental design and featuring a column called 'FileName'.
+# NOTE
+# read.maimages() function from limma requires as its first argument a data frame
+# containing (at least) a column called 'FileName' with the names of the raw-data
+# files to be used for the analysis. For Agilent arrays such a list is usually
+# given in the form of a tab-delimited file named "Targets.txt", possibly
+# containing other kind of information about the experimental design. However,
+# this script ignores any Targets.txt file found within the input directory and
+# builds its own target list run-time.
 #
-# General Script for Agilent-file normalization through normexp+quantile algorithm
-#
-#   - TXT-target file loading
-#   - Raw data reading
-#   - 'normexp' background correcting
+# Script outline:
+#   - Raw data loading
+#   - 'normexp' background correction
 #   - Quantile-Quantile interarray normalization
-#   - Remove invalid probes
+#   - Negative control probe evaluation
+#   - Invalid probes removal
 #   - Add annotation
-#   - Save expression matrix
+#   - Expression matrix saving
 #
 
 log_debug("Sourcing the 'Agilent_TXT_to_Expression.R' file.")
 
 agil2expression <- function (
   input_dir, output_file,
-  grep_pattern="*.txt",
+  grep_pattern="*.(txt|TXT)",
   remove_controls = TRUE,
   plot.width = 16,
   plot.height = 9,
@@ -51,7 +53,13 @@ agil2expression <- function (
 
   log_info("Finding input files matching pattern...")
   raw_files <- list.files(path = input_dir, pattern = grep_pattern)
-
+  
+  # Remove possible "Targets.txt" file from row_files list
+  target.index <- grep("targets.txt", raw_files, ignore.case = TRUE)
+  if (length(target.index) > 0) {
+    raw_files = raw_files[-target.index]
+  }
+  
   log_info(
     paste("Found", length(raw_files), "input files:", paste(raw_files, collapse = ", "))
   )
@@ -107,7 +115,7 @@ agil2expression <- function (
   # Normalization
   log_info("Running Normalization")
   log_info("Background correcting...")
-  expression_data <- limma::backgroundCorrect(expression_data, method = "normexp")
+  expression_data <- limma::backgroundCorrect(expression_data, method = "normexp", offset = 50)
 
   # This step also log2s the data
   log_info("Running interarray normalization...")
