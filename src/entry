@@ -64,8 +64,8 @@ case "$order" in
             -e "annotate_to_file(expression_data_path = '/GATTACA/input/${1}', output_path = '${outputfile}', chip_id = '${3}', selections = selections)"
         ;;
     prepagil)
-        # "$output_filename" $grep_pattern $green_only $remove_controls $log_filename
-        outputfile="/GATTACA/target/$1"
+        # "$output_filename" "$grep_pattern" "$remove_controls" "$plot_size" "$use_pdf" "$plot_number"
+        outputfile="/GATTACA/target/${1}"
 
         Rscript \
             --vanilla \

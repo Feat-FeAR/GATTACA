@@ -27,7 +27,7 @@ log_debug("Sourcing the 'Agilent_TXT_to_Expression.R' file.")
 
 agil2expression <- function (
   input_dir, output_file,
-  grep_pattern="*.(txt|TXT)",
+  grep_pattern = "*.(txt|TXT)",
   remove_controls = TRUE,
   plot.width = 16,
   plot.height = 9,
@@ -51,7 +51,8 @@ agil2expression <- function (
   output_dir <- dirname(output_file)
   setwd(output_dir)
 
-  log_info("Finding input files matching pattern...")
+  log_info(paste0("Finding input files matching the pattern \'",
+                  grep_pattern, "\'..."))
   raw_files <- list.files(path = input_dir, pattern = grep_pattern)
   
   # Remove possible "Targets.txt" file from row_files list
@@ -94,7 +95,7 @@ agil2expression <- function (
     printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
   }
 
-  log_info("Making overall boxplot")
+  log_info("Making overall boxplot...")
   p <- function(){
     bplot <- ggplot(data = melt(print_data), aes(y = value, x = variable)) +
       geom_boxplot(outlier.alpha = 0.5, outlier.size = 1) +
@@ -122,7 +123,7 @@ agil2expression <- function (
   expression_data = limma::normalizeBetweenArrays(expression_data, method = "quantile")
 
   expression_set <- expression_data$E
-  log_info(paste("Final dataset dimensions - Cols:", ncol(expression_set), "Rows:", nrow(expression_set)))
+  log_info(paste("Dataset dimensions - Cols:", ncol(expression_set), "Rows:", nrow(expression_set)))
 
   # Check the negative control probes to estimate the log2_intensity of
   # unhybridized spots, to be used as the threshold value for filtering in GATTACA
@@ -147,7 +148,7 @@ agil2expression <- function (
     printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
   }
 
-  log_info("Making overall boxplot")
+  log_info("Making overall boxplot...")
   p <- function(){
     bplot <- ggplot(data = melt(as.data.frame(expression_set)), aes(y = value, x = variable)) +
       geom_boxplot(outlier.alpha = 0.5, outlier.size = 1) +

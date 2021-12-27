@@ -60,7 +60,7 @@ function _gattaca_help_prepaffy {
     echo "                              expression set."
     echo "  --plot-size <x,y>           Plot sizes (in inches) to use for the diagnostic PDF"
     echo "                              plots. Defaults to '12,5'. Note: Using the '--png'"
-    echo "                              produces PNG files at a resolution of 300 ppi."
+    echo "                              flag produces PNG files at a resolution of 300 ppi."
     echo "  --png                       Produce PNG files instead of PDF files."
     echo "  --plot-number <int>         Print only top <int> plots, sorted by distortion."
 }
@@ -83,28 +83,21 @@ function _gattaca_help_annotate {
 
 function _gattaca_help_prepagil {
     echo "Usage: GATTACA prepagil [-h | --help] [-r | --remove-controls] [-p | --grep-pattern <pattern>]"
-    echo "       [--plot-number <int>] <input_dir> <output_file> <analysis_program>"
+    echo "       [--plot-number <int>] [--plot-size <x,y>] [--png] <input_dir> <output_file>"
     echo
-    echo "This command prepares normalized, log2 transformed expression matrices from agilent files."
-    echo "Runs on all files in <input_dir> that end in a '.txt' (or <pattern>) to get an expression"
+    echo "This command prepares normalized, log2 transformed expression matrices from Agilent files."
+    echo "Runs on all files in <input_dir> that end in a '.txt' (or <pattern>) to get a CSV expression"
     echo "matrix, saved as <output_file>."
-    echo "Diagnostic plots will be saved alongside the output file, in a folder named 'diagnostics'."
-    echo
-    echo "The encoding of the input files cannot be known automatically, so the analysis program used"
-    echo "to prepare the input files has to be explicitly given as <analysis_program>."
-    echo "Possible values are: 'agilent', 'agilent.median', 'agilent.mean', 'arrayvision',"
-    echo "'arrayvision.ARM', 'arrayvision.MTM', 'bluefuse', 'genepix', 'genepix.custom',"
-    echo "'genepix.median', 'imagene', 'imagene9', 'quantarray', 'scanarrayexpress', 'smd.old', 'smd',"
-    echo "'spot', 'spot.close.open'."
+    echo "Diagnostic plots will be saved alongside the output file, in a folder named 'prepagil Figures'."
     echo
     echo "Options:"
     echo "  -r | --remove-controls            If set, removes control probes from the expression data."
     echo "  -p | --grep-pattern <pattern>     The RegEx pattern to match input files with."
+    echo "  --plot-number <int>               Print only top <int> plots, sorted by distortion score."
     echo "  --plot-size <x,y>                 Plot sizes (in inches) to use for the diagnostic PDF"
     echo "                                    plots. Defaults to '12,5'. Note: Using the '--png'"
     echo "                                    flag produces PNG files at a resolution of 300 ppi."
     echo "  --png                             Produce PNG files instead of PDF files."
-    echo "  --plot-number <int>               Print only top <int> plots, sorted by distortion."
 }
 
 
@@ -343,7 +336,7 @@ function _gattaca_run_annotate {
 }
 
 function _gattaca_run_prepagil {
-    grep_pattern="*.txt"
+    grep_pattern="*.(txt|TXT)"
     remove_controls="FALSE"
     plot_size="12,5"
     use_pdf="TRUE"
@@ -406,7 +399,7 @@ function _gattaca_run_prepagil {
         --mount type=bind,source="$input_dir",target=/GATTACA/input,readonly \
         cmalabscience/gattaca:"$version" \
         "$log_name" "$log_level" \
-        "prepagil" "$output_filename" "$grep_pattern" "$remove_controls" "$plot_size" "$use_pdf"  "$plot_number"
+        "prepagil" "$output_filename" "$grep_pattern" "$remove_controls" "$plot_size" "$use_pdf" "$plot_number"
 }
 
 function _gattaca_run_tests {
