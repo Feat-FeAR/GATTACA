@@ -38,7 +38,7 @@ case "$order" in
         ;;
     prepaffy)
         ## Again, we know the order of the inputs:
-        # "$output_file_clean $logname $useAffy $removeControls"
+        # "$output_filename" "$remove_controls" "$plot_size" "$use_pdf" "$plot_number"
         outputfile="/GATTACA/target/${1}"
 
         Rscript \

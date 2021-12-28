@@ -48,21 +48,20 @@ function _gattaca_help_run {
 
 
 function _gattaca_help_prepaffy {
-    echo "Usage: GATTACA prepaffy [-h | --help] [-r | --remove-controls] [--plot-size <x,y>]"
-    echo "       [--png] [--plot-number <int>] <input_dir> <output_file>"
+    echo "Usage: GATTACA prepaffy [-h | --help] [-r | --remove-controls] [--plot-number <int>]"
+    echo "       [--plot-size <x,y>] [--png] <input_dir> <output_file>"
     echo
-    echo "Run preprocessing on all .CEL files present in <input_dir> to get an expression matrix,"
+    echo "Run preprocessing on all .CEL files present in <input_dir> to get a CSV expression matrix,"
     echo "saved as <output_file>."
-    echo "Diagnostic plots will be saved alongside the output file, in a folder named 'diagnostics'."
+    echo "Diagnostic plots will be saved alongside the output file, in a folder named 'prepaffy Figures'."
     echo
     echo "Options:"
-    echo "  -r | --remove-controls      If set, will remove control probes from the final"
-    echo "                              expression set."
+    echo "  -r | --remove-controls      If set, removes control probes from the expression data."
+    echo "  --plot-number <int>         Print only top <int> plots, sorted by distortion score."
     echo "  --plot-size <x,y>           Plot sizes (in inches) to use for the diagnostic PDF"
     echo "                              plots. Defaults to '12,5'. Note: Using the '--png'"
     echo "                              flag produces PNG files at a resolution of 300 ppi."
     echo "  --png                       Produce PNG files instead of PDF files."
-    echo "  --plot-number <int>         Print only top <int> plots, sorted by distortion."
 }
 
 
