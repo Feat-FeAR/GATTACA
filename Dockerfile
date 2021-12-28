@@ -22,7 +22,10 @@ RUN install2.r -n $(nproc --all) \
     tidyverse logger progress yaml statmod VennDiagram gplots UpSetR \
     testthat BiocManager && \
     /usr/local/lib/R/site-library/littler/examples/installBioc.r \
-    preprocessCore PCAtools limma RankProd oligo affycoretools EnhancedVolcano org.Hs.eg.db \
+    preprocessCore PCAtools limma RankProd oligo affycoretools EnhancedVolcano org.Hs.eg.db
+
+# Install the databases supported by the tool
+RUN /usr/local/lib/R/site-library/littler/examples/installBioc.r \
     hgu133a.db hgu133b.db hgu133plus2.db HsAgilentDesign026652.db hugene10sttranscriptcluster.db \
     pd.hg.u133a pd.hg.u133b pd.hg.u133.plus.2 pd.hugene.1.0.st.v1 pd.drosophila.2
 
