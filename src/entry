@@ -84,8 +84,7 @@ case "$order" in
         ;;
     versions)
         Rscript --vanilla \
-            -e "ip = as.data.frame(installed.packages()[,c(1,3:4)])" \
-            -e "ip = ip[is.na(ip$Priority),1:2,drop=FALSE]" \
+            -e "ip = as.data.frame(installed.packages())[,c('Package', 'Version')]" \
             -e "rownames(ip) <- NULL" \
             -e "cat('List of installed packages:\n')" \
             -e "print(ip)"

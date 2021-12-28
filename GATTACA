@@ -409,7 +409,7 @@ function _gattaca_run_tests {
       "testall"
 }
 
-function _gattaca_get_version {
+function _gattaca_run_versions {
   docker run \
       --rm \
       cmalabscience/gattaca:"$version" \
