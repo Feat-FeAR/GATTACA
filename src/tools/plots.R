@@ -79,7 +79,7 @@ printPlots = function(
 
 #' Print a MA plot. A bit better than other implementations.
 #'
-#' The "M" parameter is calculated as `m <- y - x`. The "A" parameter as
+#' The "M" parameter is calculated as `m <- x - y`. The "A" parameter as
 #' `a <- (x + y) / 2`.
 #'
 #' @param x A vector of positive numeric values.
@@ -121,7 +121,7 @@ mamaplot <- function(
     m <- y
     a <- x
   } else {
-    m <- y - x
+    m <- x - y
     a <- (x + y) / 2
   }
 
