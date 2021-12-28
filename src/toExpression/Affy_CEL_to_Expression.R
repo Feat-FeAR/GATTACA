@@ -27,12 +27,12 @@
 
 # Header Info ------------------------------------------------------------------
 #
-# From CEL file to Expression matrix
-# For Affymetrix 3'IVT OR Gene/Exon ST Arrays
+# Affymetrix CEL files --to--> expression matrix
+# For Affymetrix 3'IVT and Gene/Exon ST Arrays
 #
-# a FeAR R-script - 14-Sep-2021
+# a FeAR R-script - 28-Dec-2021
 #
-# NOTE:
+# NOTE
 # On both Gene 1.0 ST and Exon 1.0 ST Arrays a probe set is more or less an exon.
 # Doing the analysis on probe set level means to analyze signals for each exon.
 # On the contrary, a 'transcript cluster' contains all the probe sets of a gene,
@@ -45,8 +45,8 @@
 #
 #   - CEL file loading
 #   - RMA normalization
-#       1 - Background correcting
-#       2 - Normalizing
+#       1 - Background correcting (normexp)
+#       2 - Normalizing (Quantile-Quantile)
 #       3 - Calculating expression (ProbeSet Summarization)
 #   - Remove invalid probes
 #   - Save expression matrix
@@ -228,7 +228,7 @@ affy2expression <- function(
     pb$tick()
   }
 
-  log_info("Making overall boxplot")
+  log_info("Making overall boxplot...")
   p <- function(){
     bplot <- ggplot(data = melt(transposed), aes(y = value, x = variable)) +
       geom_boxplot(outlier.alpha = 0.5, outlier.size = 1) +
