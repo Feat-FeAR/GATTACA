@@ -585,6 +585,9 @@ run_rankprod <- function(
     sep = "\n"
   ))
 
+  log_info("Renaming columns according to groups input...")
+  colnames(expression_set) <- make.unique_from1(groups)
+
   for (i in seq_along(contrasts)) {
     log_info(paste0("Running analysis ", i, " of ", length(contrasts)))
 

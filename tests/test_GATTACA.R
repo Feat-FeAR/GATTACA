@@ -7,7 +7,6 @@ get_test_data("previous_limma_out")
 limma_out <- run_limma(
   platinum_expr_set, c(rep("A", 9), rep("B", 9)),
   contrasts = c("A-B", "B-A"),
-  technical_replicates = c(1,1,1,2,2,2,3,3,3,4,4,4,5,5,5,6,6,6),
   fc_threshold = 0.5
 )
 
@@ -290,7 +289,6 @@ get_test_data("previous_rankprod_out")
   rankprod_out <<- run_rankprod(
     platinum_expr_set, c(rep("A", 9), rep("B", 9)),
     contrasts = c("A-B", "B-A"),
-    technical_replicates = c(1,1,1,2,2,2,3,3,3,4,4,4,5,5,5,6,6,6),
     fc_threshold = 0.5
   )
   sink()
