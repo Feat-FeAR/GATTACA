@@ -1,0 +1,209 @@
+\documentclass{article}
+% Use `report` for longer reports
+
+% Borders
+    \usepackage{geometry}
+    \geometry{
+        a4paper,
+        total={170mm,257mm},
+        left=20mm,
+        top=20mm,
+    }
+
+% Fonts
+    \usepackage[no-math]{fontspec}
+    \usepackage{unicode-math}
+    \defaultfontfeatures{
+        Scale=1.22
+    }
+    % Setting custom fonts
+    \setmainfont{Atkinson-Hyperlegible}[
+    Path = resources/fonts/,
+    Extension = .ttf,
+    UprightFont = *-Regular-102,
+    BoldFont = *-Bold-102,
+    ItalicFont = *-Italic-102,
+    BoldItalicFont = *-BoldItalic-102
+    ]
+    \setmonofont{FiraCode}[
+    Path = resources/fonts/,
+    Extension = .ttf,
+    UprightFont = *-Regular,
+    BoldFont = *-Bold,
+    Scale = MatchLowercase
+    ]
+
+    %\setmathfont{Latin Modern Math}[Scale=MatchLowercase]
+    %\setmathrm{Latin Modern Roman}[Scale=MatchLowercase]
+
+    \setlength{\parskip}{0.75em}
+    \renewcommand{\baselinestretch}{1.35}
+
+    \usepackage[scaled=1.22]{helvet}
+
+% Remove a bit of the space after headings
+    \usepackage{titlesec}
+
+    \titlespacing\section{0pt}{12pt plus 4pt minus 2pt}{0pt plus 2pt minus 2pt}
+    \titlespacing\subsection{0pt}{12pt plus 4pt minus 2pt}{0pt plus 2pt minus 2pt}
+    \titlespacing\subsubsection{0pt}{12pt plus 4pt minus 2pt}{0pt plus 2pt minus 2pt}
+
+% Glossary
+    \usepackage[acronym,toc]{glossaries}
+    \makeglossaries
+    \loadglsentries{resources/glossary}
+    % Give a bit of colour to the glossary entries.
+    \renewcommand{\glstextformat}[1]{{\color{glossary} #1}}
+
+% Add dots to the TOC
+    \usepackage{tocloft}
+    \renewcommand{\cftsecleader}{\cftdotfill{\cftdotsep}}
+
+% Support for hyperlinks
+    \usepackage[hyphens]{url}
+    \usepackage{hyperref}
+    \hypersetup{
+    colorlinks=true,
+    linkcolor=exturlblue,
+    urlcolor=urlblue,
+    breaklinks=true,
+    citecolor=citations,
+    }
+    \urlstyle{same}
+
+% Bibliograpy
+    \usepackage[
+        backend=biber,
+        style=nature
+        ]{biblatex}
+    \addbibresource{resources/Transcriptomics.bib}
+
+% Support for colors
+    \usepackage{xcolor}
+    \definecolor{listingback}{RGB}{225, 235, 252}
+    \definecolor{commentgreen}{RGB}{24, 153, 76}
+    \definecolor{numbergray}{RGB}{133, 133, 133}
+    \definecolor{keywordorange}{RGB}{199, 86, 10}
+    \definecolor{urlblue}{RGB}{35, 68, 107}
+    \definecolor{exturlblue}{RGB}{0, 65, 145}
+    \definecolor{glossary}{RGB}{0, 107, 18}
+    \definecolor{mono}{RGB}{204, 71, 0}
+    \definecolor{citations}{RGB}{123, 12, 179}
+
+% Code listings
+    \usepackage{listings}
+    \lstdefinestyle{RStyle} {
+        language=R,
+        otherkeywords={!,!=,~,\$,*,\&,\%/\%,\%*\%,\%\%,<-,<<-,/,TRUE,FALSE},
+        alsoother={.\$}
+    }
+    \lstdefinestyle{PyStyle} {
+        language=Python
+    }
+    \lstdefinestyle{ShellStyle} {
+        language=bash
+    }
+    % For inline monospace font: \lstinline{insert code here}
+    \lstset{
+        style=Rstyle,
+        alsoletter=_,
+        frame=tb,
+        numbers=left,
+        showspaces=false,
+        basicstyle=\scriptsize,
+        numberstyle=\tiny\color{numbergray},
+        keywordstyle=\color{keywordorange},
+        commentstyle=\color{gray},
+        stringstyle=\color{commentgreen},
+        backgroundcolor=\color{listingback}
+    }
+    % Pretty colours in mono font
+    \newcommand{\mono}[1]{\texttt{\color{mono}#1}}
+
+% Smaller title
+    \makeatletter
+    \renewcommand\maketitle{
+        {\raggedright % Note the extra {
+        {\huge \bfseries \sffamily \@title }\\[2ex]
+        {\large \@author~-~\@date}
+        }} % Note the extra }
+    \makeatother
+
+% Images
+    \usepackage{graphicx}
+    \graphicspath{ {./resources/images/} }
+    \usepackage{float} % To use hard 'H'
+    % Style of images
+    % Set a max width to all images
+    \usepackage[export]{adjustbox}% http://ctan.org/pkg/adjustbox
+    \let\oldincludegraphics\includegraphics
+    \renewcommand{\includegraphics}[2][]{%
+        \oldincludegraphics[#1,max width=\linewidth]{#2}
+    }
+    % Support for subfigures
+    \usepackage{caption}
+    \usepackage{subcaption}
+
+% Better lists
+    \usepackage{enumitem}
+    \setlist{nosep}
+
+% Highlight boxes
+    \usepackage{awesomebox}
+
+% Pretty commits
+    \usepackage{pdftexcmds}
+    % \commit[link]{shortcode}{date}
+    \definecolor{commithash}{RGB}{128, 128, 128}
+    \definecolor{commitdate}{RGB}{4, 100, 138}
+    \makeatletter
+    \newcommand{\commit}[3][""]{
+        \ifnum\pdf@strcmp{\unexpanded{#1}}{""}=1 %
+            [\texttt{\href{#1}{\color{commithash}#2}} - {\color{commitdate}#3}]
+        \else
+            [\texttt{\color{commithash}#2} - {\color{commitdate}#3}]
+        \fi
+    }
+    \makeatother
+
+% Making appendices
+\newcommand{\printappendices}{
+    % Reset the section/figure/table counter
+    \setcounter{figure}{0}
+    \setcounter{section}{0}
+    \setcounter{table}{0}
+    % Set the figure/table counter to aleph
+    \renewcommand\thefigure{\Alph{figure}}
+    \renewcommand\thesection{Appendix \Alph{section}}
+    \renewcommand\thetable{\Alph{table}}
+    % Set the chapters to use letters
+    \appendix
+    % Set the section numberings
+    \newpage
+    % Add a large (clickable) title
+    \addcontentsline{toc}{part}{Appendices}
+    \part*{Appendices}
+    \input{appendices}
+}
+
+\title{\normalfont GATTACA Manual}
+\author{Visentin Luca and Ruffinatti A. Federico, Ph.D.}
+\date{December 2021}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+
+\input{document}
+
+\printglossaries
+
+\Urlmuskip=0mu plus 1mu\relax % This allows for better linebreaks in URLs
+\printbibliography[heading=bibintoc,title=Bibliograpy]
+
+% Uncomment this to add appendices
+\printappendices
+
+\end{document}
