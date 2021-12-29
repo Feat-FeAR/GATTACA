@@ -1,0 +1,13 @@
+\section{Mini YAML guide}
+\label{miniyamlguide}
+
+The possible \mono{yaml} types are listed here. Note that this section covers only the types used in the \gls{gattaca} options, not the whole \mono{yaml} specification.
+
+\begin{itemize}
+    \item Boolean type (\mono{bool}): \mono{true} or \mono{false}.
+    \item Strings (\mono{str}): Any character string surrounded by double or single quotes. Example: \mono{"A string"}, \mono{"12.4 is my favourite number."}.
+    \item Integers (\mono{int}): Any number without a fractional part, like \mono{1} or \mono{42}.
+    \item Floats (\mono{float}): Any number with a fractional part, like \mono{1.0} or \mono{3.14159265359}. Any number of digits after the comma are allowed.
+    \item Lists (\mono{list}): A list contains a series of other values, of any type (including lists). Lists of values with just one type are annotated with \mono{list of <type>}. It is created by square brackets, with the single values separated by commas. Example: \mono{[1, 2, 3]} would be a \mono{list of int}, \mono{["banana", "papaya"]} would be a \mono{list of str}.
+    \item Nothing (\mono{`null`}): Many options allow to be unset. This is done by specifying \mono{null}, meaning "no value".
+\end{itemize}
