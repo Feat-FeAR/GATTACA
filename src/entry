@@ -23,7 +23,7 @@ case "$order" in
     ;;
     gattaca)
         ## As this should only be run from the main GATTACA file, we can be sure that
-        # $1 is input_file_clean and $2 is option_file_clean, both in /GATTACA/input
+        # $1 is input_filename and $2 is options_filename, both in /GATTACA/input
         # We are also sure that we need to write to /GATTACA/target
         inputfile="/GATTACA/input/${1}"
         optionfile="/GATTACA/input/${2}"
@@ -51,7 +51,7 @@ case "$order" in
             -e "affy2expression('/GATTACA/input', '${outputfile}', remove.controls = ${2}, plot.width = sizes[1], plot.height = sizes[2], use.pdf = ${4}, n_plots = ${5})"
         ;;
     annotate)
-        # "$input_file_clean $output_file_clean $chip_id $selections $logname"
+        # "$input_filename" "$output_filename" "$chip_id" "$selections"
         outputfile="/GATTACA/target/${2}"
 
         Rscript \

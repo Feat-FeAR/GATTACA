@@ -4,7 +4,7 @@ echo # This random echo is to give a bit more space to the help commands.
 
 function _gattaca_print_general_help {
     echo "Usage: GATTACA [-h | --help] [-v | --version <version>] [ -l | --log_name <name> ]"
-    echo "       <command> [<args>]"
+    echo "       [--verbose] <command> [<args>]"
     echo
     echo "Options:"
     echo "    -v | --version <version>      Specify the version of the docker to run <command> in."
