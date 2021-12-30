@@ -246,7 +246,7 @@ annotate_data <- function(expression_set, chip_id, selections) {
     notMap[1,i] = sum(isNA(annotations[,i]))
     notMap[2,i] = round(notMap[1,i]/dim(annotations)[1]*1e2, digits = 2)
   }
-  log_info(paste("Missing annotations:", get.print.str(notMap), sep = "\n"))
+  log_info(paste("Missing annotations:", get.print.ind(notMap), sep = "\n``|| "))
   
   log_info("Merging annotations with the data...")
   merged_data <- merge_annotations(expression_set, annotations)

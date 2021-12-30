@@ -97,6 +97,16 @@ get.print.str <- function(data) {
   return(paste0(capture.output(print(data)), collapse = "\n"))
 }
 
+#' Just like `get.print.str()` but providing a 5-chars indentation for logging.
+#'
+#' @param data Object to be printed.
+#'
+#' @returns A single string, with indentation chars.
+#'
+#' @author FeAR - MrHedmad
+get.print.ind <- function(data) {
+  return(paste0(capture.output(print(data)), collapse = "\n  || "))
+}
 
 #' Finds all the chars in `str1` that are also in `str2`,
 #' returning a vector of unique chars.
