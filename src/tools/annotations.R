@@ -227,7 +227,7 @@ annotate_data <- function(expression_set, chip_id, selections) {
   log_info("Finding annotations...")
   annotations <- get_remote_annotations(database_name, selections = selections)
   
-  # Check how many probes have no annotations
+  # Check the matching degree between array and annotation layouts 
   missing_probes <- sum(
     ! row.names(expression_set) %in% row.names(annotations)
   )
@@ -239,8 +239,14 @@ annotate_data <- function(expression_set, chip_id, selections) {
     ))
   }
   
-  # TODO : Maybe print out the number of NAs in the annotations for each
-  # type of annotation?
+  # Print out the number of NAs in the annotations for each type of annotation
+  notMap = matrix(0, nrow = 2, ncol = dim(annotations)[2],
+                  dimnames = list(c("NA entries","%"), colnames(annotations)))
+  for (i in colnames(annotations)) {
+    notMap[1,i] = sum(isNA(annotations[,i]))
+    notMap[2,i] = round(notMap[1,i]/dim(annotations)[1]*1e2, digits = 2)
+  }
+  log_info(paste("Missing annotations:", get.print.str(notMap), sep = "\n"))
   
   log_info("Merging annotations with the data...")
   merged_data <- merge_annotations(expression_set, annotations)
