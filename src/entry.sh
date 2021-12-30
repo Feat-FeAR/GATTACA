@@ -57,7 +57,7 @@ case "$order" in
         Rscript \
             --vanilla \
             -e "source('/GATTACA/src/__init__.R')" \
-            -e "source('/GATTACA/src/annotator.R')" \
+            -e "source('/GATTACA/src/tools/annotations.R')" \
             -e "setup_file_logging('/GATTACA/target', '${log_name}')" \
             -e "logger::log_threshold(${log_level})" \
             -e "selections <- strsplit('${4}', ',')[[1]]" \
