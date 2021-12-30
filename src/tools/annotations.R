@@ -272,7 +272,7 @@ annotate_to_file <- function(
   ) |>
     log_debug()
 
-  source(file.path(ROOT, "src", "STALKER_Functions.R"))
+  source(file.path(ROOT, "src", "tools", "tools.R"))
   
   log_info("Loading input data...")
   expression_set <- read_expression_data(expression_data_path)
