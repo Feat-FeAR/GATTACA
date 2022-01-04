@@ -34,4 +34,4 @@ RUN /usr/local/lib/R/site-library/littler/examples/installBioc.r \
 COPY ./ ./
 
 # Setup the entrypoint
-ENTRYPOINT [ "./src/entry" ]
+ENTRYPOINT [ "./src/entryswitch.sh" ]

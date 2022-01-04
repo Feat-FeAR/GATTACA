@@ -1,3 +1,5 @@
 **/renv
 */.Rprofile
 */*.Rproj
+
+.git
