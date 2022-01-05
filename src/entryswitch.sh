@@ -14,4 +14,4 @@ fi
 # Note: Echo-ing is fine from now on.
 
 # If we get to here, this is a normal call.
-/usr/bin/env bash ./src/entry.sh $@
+/usr/bin/env bash ./src/entry.sh "$@"

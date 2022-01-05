@@ -317,8 +317,8 @@ function _gattaca_run_annotate {
     input_mountpoint="$(dirname "$input_path")"
     target_mountpoint="$(dirname "$target_path")"
 
-    output_filename=$(basename -- "$target_path")
-    input_filename=$(basename -- "$input_path")
+    output_filename=$(basename "$target_path")
+    input_filename=$(basename "$input_path")
 
     _gattaca_assert_is_file "$input_path"
 

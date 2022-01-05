@@ -53,6 +53,7 @@ case "$order" in
     annotate)
         # "$input_filename" "$output_filename" "$chip_id" "$selections"
         outputfile="/GATTACA/target/${2}"
+        inputfile="/GATTACA/input/${1}"
 
         Rscript \
             --vanilla \
@@ -61,7 +62,7 @@ case "$order" in
             -e "setup_file_logging('/GATTACA/target', '${log_name}')" \
             -e "logger::log_threshold(${log_level})" \
             -e "selections <- strsplit('${4}', ',')[[1]]" \
-            -e "annotate_to_file(expression_data_path = '/GATTACA/input/${1}', output_path = '${outputfile}', chip_id = '${3}', selections = selections)"
+            -e "annotate_to_file(expression_data_path = '${inputfile}', output_path = '${outputfile}', chip_id = '${3}', selections = selections)"
         ;;
     prepagil)
         # "$output_filename" "$grep_pattern" "$remove_controls" "$plot_size" "$use_pdf" "$plot_number"
