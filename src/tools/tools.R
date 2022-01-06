@@ -98,6 +98,55 @@ get.print.str <- function(data) {
 }
 
 
+#' Create a function to push to a data log.
+#'
+#' The function creates the path to the data log when making a new
+#' function, and also overwrites the contents of identically-named files.
+#' The created log pusher does NOT check if the paths are still valid, however.
+#'
+#' A data log is a weird log where snippets of data are saved for future
+#' inspection. The log therefore has to log multi-line strings without any
+#' log levels. This function makes functions that can push multi-line strings
+#' to such logs.
+#'
+#' @param path The path to the log file
+#' @param prefix The prefix to give to every log entry, either as a string or
+#'   a function that returns a string. "<m>" Is replaced with the contents of
+#'   the optional "message" parameter passed to the resulting log pusher.
+#' @param suffix The suffix to give to every log entry, either as a string or
+#'   a function that returns a string.
+#' @param padding If set, prefixes every line pushed to the log (detected by
+#'   newline characters) with the padding. Useful if some indentation is
+#'   wanted for the pushed data.
+#'
+#' @returns A function that takes a mandatory `string_data` parameter with the
+#'   data to log, and an optional `message` to describe the data.
+make_data_log_pusher <- function(
+    path,
+    prefix = \(){paste("[", date(), "] <m> >>>>", sep = "")},
+    suffix = "<<<<",
+    padding = "    "
+  ) {
+
+  log_debug("Creating new data log pusher with target '", path, "'")
+  log_folder <- dirname(path)
+  dir.create(log_folder, showWarnings = FALSE, recursive = TRUE)
+
+  file.create(path, showWarnings = TRUE)
+
+  configured_push <- function(string_data, message = ""){
+    sprefix <- if (is.function(prefix)) {prefix()} else {prefix}
+    sprefix <- gsub("<m>", message, sprefix)
+    ssuffix <- if (is.function(suffix)) {suffix()} else {suffix}
+
+    string_data <- paste0(padding, gsub("\\n", paste0("\n", padding), string_data))
+
+    pushed_string <- paste(sprefix, string_data, ssuffix, sep = "\n")
+
+    write(pushed_string, file = path, append = TRUE)
+  }
+}
+
 #' Finds all the chars in `str1` that are also in `str2`,
 #' returning a vector of unique chars.
 #'

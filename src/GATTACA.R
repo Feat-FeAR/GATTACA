@@ -937,6 +937,19 @@ GATTACA <- function(options.path, input.file, output.dir) {
   pitstop <- pitstop.maker(opts$general$slowmode)
   printdata <- printif.maker(opts$general$show_data_snippets, topleft.head)
 
+  getOption("gattaca.log.path") |> # This comes from __init__.R
+    gsub(pattern = ".log", replacement = ".data.log") -> data_log_path
+  if (!is.null(data_log_path)) {
+    push_to_data_log <- make_data_log_pusher(data_log_path)
+    log_data <- function(data, message = "", shorten = TRUE) {
+      sdata <- if (shorten) {get.print.str(topleft.head(data))} else {get.print.str((data))}
+      push_to_data_log(sdata, message = message)
+    }
+  } else {
+    log_error("Cannot istantiate log_data function. Setting it to nothing.")
+    log_data <- \(...) {}
+  }
+
   log_info("Parsed options.")
 
   # ---- Move to output.dir ----
@@ -994,6 +1007,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
   expression_set <- read_expression_data(input.file)
   printdata(expression_set)
+  log_data(expression_set, "Raw expression set")
 
   pitstop("Finished loading data.")
 
@@ -1080,6 +1094,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   ..corrTable = cbind(..old_colnames, colnames(expression_set)) # Cast to matrix
   colnames(..corrTable) = c("Original_ID", "Group_Name")
   printdata(..corrTable)
+  log_data(..corrTable, "Correspondence Table", FALSE)
 
   if (write_data_to_disk) {
     write.csv(
@@ -1118,7 +1133,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   # ---- Normalization ----
   # After-RMA 2nd Quantile Normalization
   if (opts$switches$renormalize) {
-    # Print boxplot before normalixation
+    # Print boxplot before normalization
     printPlots(\() {
       boxplot(
         expression_set, las = 2, col = user_colours,
@@ -1133,6 +1148,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
     log_info("Running quantile-quantile normalization...")
     expression_set <- qq_normalize(expression_set)
+    log_data(expression_set, "Post-normalization data")
   }
 
 
@@ -1192,6 +1208,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   log_info("Returning to linear intensities...")
   unlogged_expression_set = 2 ^ expression_set
   printdata(unlogged_expression_set)
+  log_data(unlogged_expression_set, "Unlogged expression set")
   pitstop("Did the 'unlogging' mess anything up?")
 
   # Store values using matrices
@@ -1249,6 +1266,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
     },
     "SD_vs_Mean Plot"
   )
+  log_data(..correlation_vector, "Poisson Correlation Vector", FALSE)
 
   # ---- Filtering ----
   expression_set <- filter_expression_data(

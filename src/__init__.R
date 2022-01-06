@@ -29,6 +29,9 @@ setup_file_logging <- function (log_dir, log_name = NULL) {
   log_path <- file.path(log_dir, log_name)
   file.create(log_path)
   log_appender(appender_tee(log_path))
+
+  # I save the set log path for later
+  options(gattaca.log.path = log_path)
 }
 
 if (!interactive()) {
