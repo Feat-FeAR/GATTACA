@@ -64,7 +64,7 @@ fi
 
 echo "Getting latest tag..."
 RELEASES_INFO=$(curl --silent https://api.github.com/repos/feat-fear/GATTACA/releases)
-LATEST_TAG=$($RELEASES_INFO | jq ".[0].tag_name")
+LATEST_TAG=$(echo $RELEASES_INFO | jq ".[0].tag_name")
 echo "Latest tag is $LATEST_TAG - Enter new tag now (remember the 'v' prefix):"
 
 read NEW_TAG
