@@ -17,6 +17,17 @@ suppressMessages(library(logger))
 
 log_layout(layout_glue_generator(format = '{time} <{fn}> [{level}]: {msg}'))
 
+if (!interactive()) {
+  # This is wrapped in an interactive call to not run it when sourcing this
+  # while working in rstudio and the like.
+  ROOT <- "/GATTACA" # The root in the docker
+} else {
+  ROOT <- getwd()
+  if (! getOption("running_tests", FALSE) == TRUE) {
+    log_threshold(TRACE)
+  }
+}
+
 setup_file_logging <- function (log_dir, log_name = NULL) {
   # Setup logging facilities to save to file.
   if (log_name == "NULL" | log_name == "") { log_name <- NULL }
@@ -41,17 +52,9 @@ setup_file_logging <- function (log_dir, log_name = NULL) {
   }
   file.create(data_log_path)
   options(gattaca.datalog.path = data_log_path)
-}
 
-if (!interactive()) {
-  # This is wrapped in an interactive call to not run it when sourcing this
-  # while working in rstudio and the like.
-  ROOT <- "/GATTACA" # The root in the docker
-} else {
-  ROOT <- getwd()
-  if (! getOption("running_tests", FALSE) == TRUE) {
-    log_threshold(TRACE)
-  }
+  # Log the version of the docker to the file log. For posterity.
+  log_info(paste("Version of current GATTACA container:", readLines(file.path(ROOT, "VERSION"))))
 }
 
 setwd(ROOT)
