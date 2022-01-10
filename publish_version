@@ -80,14 +80,14 @@ git commit -am "Staging new release - $NEW_TAG"
 
 LATEST_HASH=$(git rev-parse --short HEAD)
 echo "Tagging current commit ($LATEST_HASH) on main branch with tag $NEW_TAG)"
-git tag $NEW_TAG
+git tag $NEW_TAG HEAD
 
 echo "Done tagging. New current commit tag:"
-git describe HEAD
+git describe --tags HEAD
 pause
 
-echo "Pushing to remote..."
-git push
+echo "Pushing tag to remote..."
+git push origin $NEW_TAG
 
 echo "Building docker instances..."
 docker build -t cmalabscience/gattaca:latest .
