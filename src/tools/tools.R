@@ -146,8 +146,12 @@ make_data_log_pusher <- function(
 
 push_to_data_log <- make_data_log_pusher()
 
-log_data <- function(data, message = "", shorten = TRUE) {
-      sdata <- if (shorten) {get.print.str(topleft.head(data))} else {get.print.str((data))}
+log_data <- function(data, message = "", shorten = TRUE, is.string = FALSE) {
+      if (is.string) {
+        sdata <- data
+      } else {
+        sdata <- if (shorten) {get.print.str(topleft.head(data))} else {get.print.str((data))}
+      }
       push_to_data_log(sdata, message = message)
     }
 

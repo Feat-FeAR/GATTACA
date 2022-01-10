@@ -200,7 +200,7 @@ filter_expression_data <- function(
     sep = "\n"
     )
 
-  log_info(report)
+  log_data(report, "Data filtering report", shorten = FALSE, is.string = TRUE)
   return(expression_set)
 }
 
@@ -310,7 +310,7 @@ run_limma <- function(
     limma_design <- make_limma_design(groups = groups)
   }
 
-  log_info("Design matrix:\n", get.print.str(limma_design))
+  log_data(limma_design, "Limma design matrix", shorten = FALSE)
 
   log_info("Making contrasts matrix...")
   makeContrasts(
@@ -318,7 +318,7 @@ run_limma <- function(
     levels = limma_design
   ) -> contrast_matrix
 
-  log_info("Contrasts matrix:\n", get.print.str(contrast_matrix))
+  log_data(contrast_matrix, "Contrast Matrix", shorten = FALSE)
 
   log_info("Computing contrasts...")
   lmFit(expression_set, limma_design) -> limma_fit
@@ -382,7 +382,7 @@ run_limma <- function(
     "Shrinkage degree"
   )
   colnames(hyp) = "Hyperparameters"
-  log_info(paste0("Hyperparameters:: \n", get.print.str(hyp)))
+  log_data(hyp, "Limma Hyperparameters", shorten = FALSE)
 
   return(DEGs.limma)
 }
@@ -581,8 +581,7 @@ run_rankprod <- function(
     "Rankprod Parameters:",
     paste("Groups:", paste(groups, collapse = ", ")),
     paste("Pairings:", paste(pairings, collapse = ", ")),
-    paste("Batches:", paste(batches, collapse = ", ")),
-    sep = "\n"
+    paste("Batches:", paste(batches, collapse = ", "))
   ))
 
   log_info("Renaming columns according to groups input...")
