@@ -32,4 +32,8 @@ echo "Running with version '$version'."
 # and runs it as code, so that this script will (almost) never have to be
 # updated by the user.
 GATTACA_CLI="$(docker run --rm cmalabscience/gattaca:"$version" getcli)"
+if [ $? -ne 0 ]; then
+    echo "$GATTACA_CLI"
+    exit 1
+fi
 eval "$GATTACA_CLI"
