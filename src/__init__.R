@@ -32,6 +32,15 @@ setup_file_logging <- function (log_dir, log_name = NULL) {
 
   # I save the set log path for later
   options(gattaca.log.path = log_path)
+
+  # Setup the data log
+  data_log_path <- gsub(pattern = "\\.log", replacement = ".data.log", log_path)
+  if (data_log_path == log_path) {
+    # The user did not end the log with `.log`. WE FORCE IT - MUHAHAHA
+    data_log_path <- paste0(data_log_path, ".data")
+  }
+  file.create(data_log_path)
+  options(gattaca.datalog.path = data_log_path)
 }
 
 if (!interactive()) {

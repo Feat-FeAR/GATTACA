@@ -937,19 +937,6 @@ GATTACA <- function(options.path, input.file, output.dir) {
   pitstop <- pitstop.maker(opts$general$slowmode)
   printdata <- printif.maker(opts$general$show_data_snippets, topleft.head)
 
-  getOption("gattaca.log.path") |> # This comes from __init__.R
-    gsub(pattern = ".log", replacement = ".data.log") -> data_log_path
-  if (!is.null(data_log_path)) {
-    push_to_data_log <- make_data_log_pusher(data_log_path)
-    log_data <- function(data, message = "", shorten = TRUE) {
-      sdata <- if (shorten) {get.print.str(topleft.head(data))} else {get.print.str((data))}
-      push_to_data_log(sdata, message = message)
-    }
-  } else {
-    log_error("Cannot istantiate log_data function. Setting it to nothing.")
-    log_data <- \(...) {}
-  }
-
   log_info("Parsed options.")
 
   # ---- Move to output.dir ----
