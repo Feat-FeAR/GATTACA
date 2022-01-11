@@ -29,6 +29,7 @@ renv/
 *.cb
 *.cb2
 .*.lb
+*.ist
 
 ## Intermediate documents:
 *.dvi

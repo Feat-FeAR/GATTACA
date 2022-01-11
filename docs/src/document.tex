@@ -2,7 +2,7 @@
 
 \notebox{\textbf{About the formatting of this document}: \mono{Monospace} text refers to a package, command, programming language or other programming-related concept. Text in {\color{glossary}green} refers to an entry in the glossary. Text in {\color{urlblue}this blue} is a link to an external source. Text in {\color{exturlblue}this blue} is a link to a section inside this document. Square brackets with {\color{citations}violet numbers} are citations.}
 
-\importantbox{This document covers \mono{GATTACA} version \mono{0.3.2}.}
+\importantbox{This document covers \mono{GATTACA} version \mono{0.4.2}.}
 
 \newpage
 
@@ -38,7 +38,7 @@ Assuming that the folder where the script is placed is in your \mono{PATH}, the 
 \section{General options}
 \gls{gattaca} can be called in the following way:
 \begin{lstlisting}[style=ShellStyle]
-GATTACA [-h | --help] [-v | --version <version>] [-l | --log_name <name>] <command> [<args>]
+GATTACA [-v | --version <version>] [-h | --help] [-l | --log_name <name>] <command> [<args>]
 \end{lstlisting}
 
 \begin{itemize}
@@ -46,6 +46,8 @@ GATTACA [-h | --help] [-v | --version <version>] [-l | --log_name <name>] <comma
     \item The \mono{-v | --version <version>} optional parameter specifies the version of the docker to run. To see a list of the available containers, refer to the \href{https://github.com/Feat-FeAR/GATTACA/releases}{Github release page}. If unset, the \mono{latest} docker release is used instead.
     \item The \mono{-l | --log\_name <name>} parameter specifies the filename of the log file that is always created in the output folder. If unset, the filename is generated with the current date and time, and is therefore unique for each run.
 \end{itemize}
+
+\importantbox{NOTE: The \mono{-v | --version} flag must be passed as the first parameter, if specified. Passing it in any other position results in an error.}
 
 The following sections describe the possible \mono{command}s and their respective \mono{args}.
 
