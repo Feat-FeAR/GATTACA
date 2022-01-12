@@ -33,7 +33,7 @@ setup_file_logging <- function (log_dir, log_name = NULL) {
   if (log_name == "NULL" | log_name == "") { log_name <- NULL }
 
   if (is.null(log_name)) {
-    start.timedate <- gsub(" ", "_", date())
+    start.timedate <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
     log_name <- paste0("GATTACA_", start.timedate, ".log")
   }
 

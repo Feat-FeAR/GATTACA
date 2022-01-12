@@ -676,7 +676,7 @@ run_rankprod <- function(
 
         # Now, control and treated sets can be subtracted as they are one
         # and only one column.
-        subtracted_partial_set <- control_set - treated_set
+        subtracted_partial_set <- control_set - treated_set 
 
         subtracted_expression_set <- merge(
           subtracted_expression_set, subtracted_partial_set,
@@ -693,9 +693,8 @@ run_rankprod <- function(
       # The class labels are now identical as the set is paired
       rp_class_labels <- rep(1, ncol(subtracted_expression_set))
     }
-
-    # invisible(capture.output()) is to suppress automatic output to console
-    # WARNING: therein <- (instead of =) is mandatory for assignment!
+    
+    # Handle batches
     if (!is.null(batches)) {
       log_info("Setting batches...")
       if (length(batches) != ncol(sub_expression_set)) {
@@ -711,6 +710,8 @@ run_rankprod <- function(
       batches <- rep(1, ncol(sub_expression_set))
     }
 
+    # invisible(capture.output()) is to suppress automatic output to console
+    # WARNING: therein <- (instead of =) is mandatory for assignment!
     log_info("Running RankProduct...")
     RP.out <- RP.advance(
       sub_expression_set,
@@ -727,12 +728,15 @@ run_rankprod <- function(
         DEGs.RP <- topGene(RP.out, logged = TRUE, logbase = 2, cutoff = Inf)
       )
     )
+    
+    # Ameliorate original output
     for (j in 1:2) {
-      # Invert FC to get Case vs Ctrl and take the log2 values
-      DEGs.RP[[j]][,3] = log2(1/DEGs.RP[[j]][,3])
-      colnames(DEGs.RP[[j]])[3] = "Log2FC" # Correct column name
+      # Take the log2 values and invert FCs to get the 'Case vs Ctrl' measure
+      # Doing so, DEGs.RP[[1]] are the up-DEGs and DEGs.RP[[2]] are the downs
+      DEGs.RP[[j]][,3] = -log2(DEGs.RP[[j]][,3])
+      colnames(DEGs.RP[[j]])[3] = "logFC" # Change column name
     }
-
+    
     # Condense the data from the two matrices into a single dataframe to
     # be stored in the output
     partial_data_up <- as.data.frame(DEGs.RP[[1]])
@@ -740,35 +744,42 @@ run_rankprod <- function(
 
     # The colname order is always known
     colnames(partial_data_up) <- c(
-      "gene.index", "RP/Rsum.UP", "Log2FC", "pfp.UP", "P.value.UP"
+      "gene.index", "RP/Rsum.UP", "logFC", "pfp.UP", "P.value.UP"
     )
     colnames(partial_data_dw) <- c(
-      "gene.index", "RP/Rsum.DOWN", "Log2FC", "pfp.DOWN", "P.value.DOWN"
+      "gene.index", "RP/Rsum.DOWN", "logFC", "pfp.DOWN", "P.value.DOWN"
     )
 
     partial_data <- merge(
-      partial_data_up, partial_data_dw, by = c("row.names", "gene.index", "Log2FC")
+      partial_data_up, partial_data_dw, by = c("row.names", "gene.index", "logFC")
     )
+    # Merging by multiple columns including logFC can be risky if small (order
+    # of magnitude 1e-8) random differences between up- and down- DEG tables are
+    # introduced during topGene() calculation. In this case we would loose those
+    # genes when merging... it's an unlucky event, but better safe than sorry.
+    if (nrow(partial_data) != nrow(expression_set)) {
+      log_warn(
+        paste(
+          nrow(expression_set) - nrow(partial_data),
+          "entries have been lost in merging partial_data_up with _down!"
+        )
+      )
+    }
     # Restore the rownames to actual rownames
     rownames(partial_data) <- partial_data$Row.names
     partial_data$Row.names <- NULL
-
-    # Reorder the cols with the magic of dplyr
-    partial_data |>
-      dp_select(gene.index, Log2FC, everything()) ->
-      partial_data
-
+    
     # We add the "markings" column, with 1 for upregulated, 0 for not significant
     # and -1 for downregulated DEGs.
     # Initialize the array
     markings <- rep(0, length(partial_data$gene.index))
 
     markings[
-      partial_data$Log2FC > fc_threshold &
+      partial_data$logFC > fc_threshold &
         partial_data$pfp.UP < 0.05
     ] <- 1
     markings[
-      partial_data$Log2FC < -fc_threshold &
+      partial_data$logFC < -fc_threshold &
         partial_data$pfp.DOWN < 0.05
     ] <- -1
     partial_data$markings <- markings
@@ -785,12 +796,12 @@ run_rankprod <- function(
     # Restore the rownames to actual rownames
     rownames(partial_data) <- partial_data$Row.names
     partial_data$Row.names <- NULL
-
-    # RankProd uses "Log2FC" as col name, while limma uses "logFC".
-    # I make it so it is the same as limma.
-    dplyr::rename -> dp_rename
-    partial_data |> dp_rename("logFC" = "Log2FC") -> partial_data
-
+    
+    # Reorder the cols with the magic of dplyr
+    partial_data |>
+      dp_select(gene.index, logFC, AveExpr, everything()) ->
+      partial_data
+    
     # Put the data in the list
     DEGs.rankprod[[contrasts[i]]] <- partial_data
 
