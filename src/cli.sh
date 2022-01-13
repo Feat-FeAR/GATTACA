@@ -21,8 +21,9 @@ function _gattaca_print_general_help {
     echo "    annotate          Annotate an expression file with remote annotations."
     echo "    versions          Get a list of R packages installed in the docker and their versions."
     echo "    test              Run the tests associated with the code."
+    echo "    parse             Return the parsed-and-expanded preview of an experimental design."
     echo
-    echo "Use '-h' or '--help' in any subcommand to get additional help and possible options"
+    echo "Use '-h' or '--help' in any subcommand to get additional help and possible options."
 }
 
 
@@ -30,7 +31,8 @@ function _gattaca_help_init {
     echo "Usage: GATTACA init [-h | --help] <file_path>"
     echo
     echo "Create a configuration file for 'GATTACA run' at <file_path>."
-    echo "Note: This command does not produce a log file."
+    echo
+    echo "NOTE: This command does not produce a log file."
 }
 
 
@@ -99,6 +101,14 @@ function _gattaca_help_prepagil {
     echo "  --png                             Produce PNG files instead of PDF files."
 }
 
+function _gattaca_help_parse {
+    echo "Usage: GATTACA parse [-h | --help] \"<unparsed>\""
+    echo
+    echo "Return the parsed-and-expanded preview of <unparsed> experimental design."
+    echo
+    echo "NOTE: The <unparsed> expression needs to be enclosed in quotation marks."
+    echo "This command does not produce a log file."
+}
 
 function _gattaca_assert_is_file {
     # Assert if a certain path is pointing to a file that exists
@@ -417,6 +427,37 @@ function _gattaca_run_versions {
       "versions"
 }
 
+function _gattaca_run_parser {
+    
+    while test $# -gt 0; do
+        case "$1" in
+            -h | --help)
+                _gattaca_help_parse
+                exit 0
+            ;;
+            * )
+                break
+            ;;
+        esac
+    done
+
+    if test $# -eq 1; then
+        design="$1"
+    elif test $# -eq 0; then
+        >&2 echo "Missing required argument '<unparsed>'"
+        exit 1
+    else
+        >&2 echo "Wrong number of arguments: ${#} (expected 1)"
+        exit 1
+    fi
+
+    docker run \
+        --rm \
+        cmalabscience/gattaca:"$version" \
+        "NULL" "NULL" \
+        "parser" "$design"
+}
+
 if [ $# == 0 ]; then
     _gattaca_print_general_help
 fi
@@ -479,6 +520,11 @@ while test $# -gt 0; do
         versions)
             shift
             _gattaca_run_versions
+            exit 0
+        ;;
+        parse)
+            shift
+            _gattaca_run_parser "$@"
             exit 0
         ;;
         *)
