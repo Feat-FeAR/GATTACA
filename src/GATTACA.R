@@ -676,11 +676,10 @@ run_rankprod <- function(
 
         # Now, control and treated sets can be subtracted as they are one
         # and only one column.
-        subtracted_partial_set <- control_set - treated_set 
+        subtracted_partial_set <- control_set - treated_set
 
         subtracted_expression_set <- merge(
-          subtracted_expression_set, subtracted_partial_set,
-          all = TRUE, by = 0
+          subtracted_expression_set, subtracted_partial_set, by = 0
         )
         # The merge makes the row names into their own col. This returns them
         # to actual row names.
@@ -704,7 +703,6 @@ run_rankprod <- function(
         log_warn("Some batches have only one sample per group. Rankprod cannot correct such a batch effect")
         batches <- rep(1, length(groups))
       }
-
       batches |> as.factor() |> as.numeric() -> batches
     } else {
       batches <- rep(1, ncol(sub_expression_set))
@@ -716,7 +714,7 @@ run_rankprod <- function(
     RP.out <- RP.advance(
       sub_expression_set,
       rp_class_labels, origin = batches,
-      gene.names = rownames(expression_set),
+      gene.names = rownames(sub_expression_set),
       logged = TRUE, na.rm = FALSE, plot = FALSE, rand = 123
     )
 
@@ -1314,7 +1312,6 @@ GATTACA <- function(options.path, input.file, output.dir) {
         pb$tick()
       }
     }
-
   }
 
   # ---- DE by RankProduct ----
