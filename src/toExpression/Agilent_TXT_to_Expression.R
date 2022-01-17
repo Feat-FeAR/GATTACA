@@ -81,13 +81,13 @@ agil2expression <- function (
   log_info(paste0("Finding input files matching the pattern \'",
                   grep_pattern, "\'..."))
   raw_files <- list.files(path = input_dir, pattern = grep_pattern)
-  
+
   # Remove possible "Targets.txt" file from row_files list
   target.index <- grep("targets.txt", raw_files, ignore.case = TRUE)
   if (length(target.index) > 0) {
     raw_files = raw_files[-target.index]
   }
-  
+
   log_info(
     paste("Found", length(raw_files), "input files:", paste(raw_files, collapse = ", "))
   )
@@ -98,7 +98,6 @@ agil2expression <- function (
     green.only = TRUE
   )
 
-  # Print MA plots to diagnose the data.
   print_data <- as.data.frame(expression_data$E)
   colnames(print_data) <- raw_files
   print_data <- log(print_data, 2)
@@ -107,20 +106,34 @@ agil2expression <- function (
     print_data <- reservoir_sample(print_data, 100000)
     print_data <- as.data.frame(print_data)
   }
-  ma.plots <- get_better_mas(print_data, title = "Raw probes MA plot - {x} vs Median of other samples")
 
-  if (n_plots != Inf) {
-    stopifnot(
-      "Invalid amount of plots to display"={is.wholenumber(n_plots)},
-      "Number of plots to display is too high."={length(ma.plots) > n_plots}
-    )
-    ma.plots <- ma.plots[1:n_plots]
+  # Print MA plots to diagnose the data.
+  if (n_plots > 0) {
+    ma.plots <- get_better_mas(print_data, title = "Raw probes MA plot - {x} vs Median of other samples")
+
+    if (n_plots != Inf) {
+      stopifnot(
+        "Invalid amount of plots to display"={is.wholenumber(n_plots)}
+      )
+      if (n_plots > length(ma.plots)) {
+        log_warn(paste0(
+          "Number of plots to display (", n_plots,
+          ") is higher than the number of plots to be saved (", length(ma.plots),
+          "). Printing all of them."
+        ))
+        n_plots <- Inf
+      }
+      ma.plots <- ma.plots[1:n_plots]
+    }
+
+    for (i in seq_along(ma.plots)) {
+      maplot <- ma.plots[[i]]
+      printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
+    }
+  } else {
+    log_info("The number of plots is less or equal to 0. Skipping MA plot generation.")
   }
 
-  for (i in seq_along(ma.plots)) {
-    maplot <- ma.plots[[i]]
-    printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
-  }
 
   log_info("Making overall boxplot...")
   p <- function(){
@@ -156,24 +169,26 @@ agil2expression <- function (
   # unhybridized spots, to be used as the threshold value for filtering in GATTACA
   neg.ctrl = expression_data$genes$ControlType == -1
   neg.id = unique(expression_data$genes$ProbeName[neg.ctrl])
-  
+
   log_info(paste0(sum(neg.ctrl), " Negative-Control probes have been found, corresponding to ",
                   length(neg.id), " unique probe(s) [", neg.id, "]. Mean value of ",
                   length(expression_set[neg.ctrl,]), " unhybridized spots = ",
                   mean(expression_set[neg.ctrl,])))
-  
+
   # Print MA plots to diagnose the data.
-  colnames(expression_set) <- make.names(raw_files)
-  ma.plots <- get_better_mas(as.data.frame(expression_set), title = "Normalized MA plot - {x} vs Median of other samples")
+  if (n_plots > 0) {
+    colnames(expression_set) <- make.names(raw_files)
+    ma.plots <- get_better_mas(as.data.frame(expression_set), title = "Normalized MA plot - {x} vs Median of other samples")
 
-  if (n_plots != Inf) {
-    ma.plots <- ma.plots[1:n_plots]
-  }
+    if (n_plots != Inf) {
+      ma.plots <- ma.plots[1:n_plots]
+    }
 
-  for (i in seq_along(ma.plots)) {
-    maplot <- ma.plots[[i]]
-    printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
-  }
+    for (i in seq_along(ma.plots)) {
+      maplot <- ma.plots[[i]]
+      printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
+    }
+  } # No need to log the warning again.
 
   log_info("Making overall boxplot...")
   p <- function(){

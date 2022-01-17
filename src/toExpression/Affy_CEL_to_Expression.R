@@ -122,34 +122,38 @@ affy2expression <- function(
   }
 
   unnormalized_data |> exprs() |> as.data.frame() -> unnormalized_data
-  ma.plots <- get_better_mas(
-    unnormalized_data,
-    title = "Unnormalized MA plot - {x} vs Median of other samples"
-  )
-
-  if (n_plots != Inf) {
-    stopifnot(
-      "Invalid amount of plots to display"={is.wholenumber(n_plots)}
+  if (n_plots > 0) {
+    ma.plots <- get_better_mas(
+      unnormalized_data,
+      title = "Unnormalized MA plot - {x} vs Median of other samples"
     )
-    if (length(ma.plots) > n_plots) {
-      log_warn(paste0(
-        "Number of plots to display (", n_plots,
-        ") is higher than the number of plots to be saved (", length(ma.plots),
-        "). Printing all of them."
-      ))
-      n_plots <- Inf
-    }
-    ma.plots <- ma.plots[1:n_plots]
-  }
 
-  pb <- progress_bar$new(
-    format = "Saving plots... [:bar] :percent (:eta)",
-    total = length(ma.plots), clear = FALSE, width= 80)
-  pb$tick(0)
-  for (i in seq_along(ma.plots)) {
-    maplot <- ma.plots[[i]] # This unpacking is necessary! (for some reason...)
-    printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
-    pb$tick()
+    if (n_plots != Inf) {
+      stopifnot(
+        "Invalid amount of plots to display"={is.wholenumber(n_plots)}
+      )
+      if (n_plots > length(ma.plots)) {
+        log_warn(paste0(
+          "Number of plots to display (", n_plots,
+          ") is higher than the number of plots to be saved (", length(ma.plots),
+          "). Printing all of them."
+        ))
+        n_plots <- Inf
+      }
+      ma.plots <- ma.plots[1:n_plots]
+    }
+
+    pb <- progress_bar$new(
+      format = "Saving plots... [:bar] :percent (:eta)",
+      total = length(ma.plots), clear = FALSE, width= 80)
+    pb$tick(0)
+    for (i in seq_along(ma.plots)) {
+      maplot <- ma.plots[[i]] # This unpacking is necessary! (for some reason...)
+      printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
+      pb$tick()
+    }
+  } else {
+    log_info("The number of plots is less or equal to 0. Skipping MA plot generation.")
   }
 
   log_info("Making overall boxplot...")
@@ -209,23 +213,24 @@ affy2expression <- function(
 
   expression_set |> exprs() |> as.data.frame() -> transposed
 
-  ma.plots <- get_better_mas(
-    transposed,
-    title = "Normalized MA plot - {x} vs Median of other samples"
-  )
+  if (n_plots > 0) {
+    ma.plots <- get_better_mas(
+      transposed,
+      title = "Normalized MA plot - {x} vs Median of other samples"
+    )
 
-  if (n_plots != Inf) {
-    ma.plots <- ma.plots[1:n_plots]
-  }
-
-  pb <- progress_bar$new(
-    format = "Saving plots... [:bar] :percent (:eta)",
-    total = length(ma.plots), clear = FALSE, width= 80)
-  pb$tick(0)
-  for (i in seq_along(ma.plots)) {
-    maplot <- ma.plots[[i]] # This unpacking is necessary! (for some reason...)
-    printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
-    pb$tick()
+    if (n_plots != Inf) {
+      ma.plots <- ma.plots[1:n_plots]
+    }
+    pb <- progress_bar$new(
+      format = "Saving plots... [:bar] :percent (:eta)",
+      total = length(ma.plots), clear = FALSE, width= 80)
+    pb$tick(0)
+    for (i in seq_along(ma.plots)) {
+      maplot <- ma.plots[[i]] # This unpacking is necessary! (for some reason...)
+      printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
+      pb$tick()
+    }
   }
 
   log_info("Making overall boxplot...")
