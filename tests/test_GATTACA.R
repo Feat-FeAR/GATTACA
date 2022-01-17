@@ -34,6 +34,33 @@ test_that("run_limma preserves all genes in the output", {
   )
 })
 
+test_that("run_limma does not mix up labels", {
+  # Check that pairs of rownames and logFC values are identical
+  for (frame in limma_out) {
+    processed_pairs <- cbind(rownames(frame), frame$AveExpr)
+    original_pairs <- cbind(rownames(platinum_expr_set), apply(platinum_expr_set, 1, mean))
+
+    # The `apply` call preserves rownames, so we strip them
+    # I have absolutely NO idea why I have to do this, but it's been 35 minutes
+    # of trying to figure it out and I just can't.
+    original_pairs <- as.matrix(original_pairs)
+    rownames(original_pairs) <- NULL
+
+    # push them back to dfs
+    original_pairs <- as.data.frame(original_pairs)
+    processed_pairs <- as.data.frame(processed_pairs)
+
+    original_pairs[, 2] <- as.numeric(original_pairs[, 2])
+    processed_pairs[, 2] <- as.numeric(processed_pairs[, 2])
+
+    original_pairs <- original_pairs[order(original_pairs[,1]),]
+    processed_pairs <- processed_pairs[order(processed_pairs[,1]),]
+
+    expect_true(all_equal(processed_pairs, original_pairs, ignore_row_order = TRUE))
+  }
+})
+
+
 test_that("run_limma gives the identical log fold changes", {
   # Check that the logFCs are unchanged from a previous run
   expect_equal(
@@ -323,6 +350,32 @@ test_that("run_rankprod preserves all genes in the output", {
   expect_setequal(
     rownames(rankprod_out$`B-A`), rownames(platinum_expr_set)
   )
+})
+
+test_that("run_rankprod does not mix up labels", {
+  # Check that pairs of rownames and logFC values are identical
+  for (frame in rankprod_out) {
+    processed_pairs <- cbind(rownames(frame), frame$AveExpr)
+    original_pairs <- cbind(rownames(platinum_expr_set), apply(platinum_expr_set, 1, mean))
+
+    # The `apply` call preserves rownames, so we strip them
+    # I have absolutely NO idea why I have to do this, but it's been 35 minutes
+    # of trying to figure it out and I just can't.
+    original_pairs <- as.matrix(original_pairs)
+    rownames(original_pairs) <- NULL
+
+    # push them back to dfs
+    original_pairs <- as.data.frame(original_pairs)
+    processed_pairs <- as.data.frame(processed_pairs)
+
+    original_pairs[, 2] <- as.numeric(original_pairs[, 2])
+    processed_pairs[, 2] <- as.numeric(processed_pairs[, 2])
+
+    original_pairs <- original_pairs[order(original_pairs[,1]),]
+    processed_pairs <- processed_pairs[order(processed_pairs[,1]),]
+
+    expect_true(all_equal(processed_pairs, original_pairs, ignore_row_order = TRUE))
+  }
 })
 
 test_that("run_rankprod gives the identical log fold changes", {

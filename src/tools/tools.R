@@ -108,6 +108,9 @@ get.print.str <- function(data) {
 #' log levels. This function makes functions that can push multi-line strings
 #' to such logs.
 #'
+#' If the data log path is not found, this function logs a warning and returns
+#' a function that does nothing.
+#'
 #' @param prefix The prefix to give to every log entry, either as a string or
 #'   a function that returns a string. "<m>" Is replaced with the contents of
 #'   the optional "message" parameter passed to the resulting log pusher.
@@ -127,6 +130,11 @@ make_data_log_pusher <- function(
 
   configured_push <- function(string_data, message = ""){
     path <- getOption("gattaca.datalog.path")
+
+    if (is.null(path)) {
+      log_warn("No datalog path was found. Skipping istantiating the data log.")
+      return(\(...){})
+    }
     dir <- dirname(path)
     dir.create(dir, showWarnings = FALSE)
 
