@@ -4,7 +4,7 @@
 # Everything that is echo-ed here will (or could) be captured and evaluated
 # as code.
 
-if [ $1 == "getcli" ]; then
+if [ "$1" == "getcli" ]; then
     # This is a request for the GATTACA script to be evaluated outside
     # the docker. We return it to be evaluated.
     echo "$(cat ./src/cli.sh)"
