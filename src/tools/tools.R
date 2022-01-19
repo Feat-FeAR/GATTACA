@@ -513,3 +513,14 @@ kOverA <- function (k, A = 100, na.rm = TRUE) {
     sum(x > A) >= k
   }
 }
+
+#' Ask for a yes/no prompt that keeps going until a valid input is provided.
+ask_yes_or_no <- function(prompt) {
+  ans <- ""
+  while (! tolower(ans) %in% c("yes", "ye", "y", "n", "no")) {
+    cat(paste(prompt, "(yes/no): "))
+    readLines("stdin", n=1) |> tolower() -> ans
+  }
+  return(tolower(ans) %in% c("yes", "ye", "y"))
+}
+

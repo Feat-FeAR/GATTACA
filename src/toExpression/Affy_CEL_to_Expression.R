@@ -106,7 +106,15 @@ affy2expression <- function(
   )) {
     exon.probes = TRUE
   } else {
-    stop("Invalid or unsupported platform")
+     log_error("Cannot determine type of platform automatically.")
+     cat(paste(
+       "The type of platform could not be detected automatically.",
+       "Please input manually if the chip supports exon-level probes.",
+       "Usually, newer chips work at the exon level, so 'yes' should be",
+       "the correct answer in most cases."
+     ))
+     exon.probes <- ask_yes_or_no("Set `exon.probes` flag?")
+     log_warn("`exon.probes` flag was set manually by the user to be '", as.character(exon.probes), "'")
   }
 
   # Making plots for quality control

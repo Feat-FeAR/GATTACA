@@ -90,11 +90,12 @@ echo "Pushing tag to remote..."
 git push origin $NEW_TAG
 
 echo "Building docker instances..."
+NUMBER_ONLY_TAG="${NEW_TAG:1}"
 docker build -t cmalabscience/gattaca:latest .
-docker build -t cmalabscience/gattaca:$NEW_TAG .
+docker build -t cmalabscience/gattaca:$NUMBER_ONLY_TAG .
 
 echo "Done building docker containers. Pushing to docker hub..."
 docker push cmalabscience/gattaca:latest
-docker push cmalabscience/gattaca:$NEW_TAG
+docker push cmalabscience/gattaca:$NUMBER_ONLY_TAG
 
 echo "Done publishing."
