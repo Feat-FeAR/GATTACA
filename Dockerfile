@@ -31,3 +31,4 @@ COPY ./ ./
 
 # Setup the entrypoint
 ENTRYPOINT [ "./src/entryswitch.sh" ]
+
