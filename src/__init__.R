@@ -63,6 +63,7 @@ setwd(ROOT)
 # overwrite functions (!!).
 
 # These two are backbone packages.
+log_info("Loading minimum packages...")
 suppressMessages(library(tidyverse))
 suppressMessages(library(progress))
 
@@ -72,11 +73,11 @@ suppressMessages(library(progress))
 #'
 #' @author MrHedmad
 graceful_load <- function(packages) {
-  log_info("Loading required packages...")
+  log_info("Loading additional required packages...")
   log_debug("Loading packages:", paste(packages, collapse = ", "))
 
   pb <- progress_bar$new(
-    format = "Loading... [:bar] :percent (:eta)",
+    format = "Loading... [:bar] :current/:total (:eta)",
     total = length(packages), clear = FALSE, width= 80)
   pb$tick(0)
   for (i in seq_along(packages)) {
@@ -102,8 +103,7 @@ graceful_load(c(
   "oligo",            # Prepare agilent things
   "affycoretools",    # Filter out the affy control probes
   "reshape2",         # Reshaping functions
-  "AnnotationDbi",    # Base for the annotations
-  "org.Hs.eg.db"      # Base reader for all SQL packages
+  "GEOquery"          # Retrieve data from GEO dynamically
 ))
 
 source(file.path(ROOT, "src", "tools", "tools.R"))

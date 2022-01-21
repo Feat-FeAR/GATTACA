@@ -505,8 +505,8 @@ diagnose_limma_data <- function(
     volcano_p_threshold = find_BH_critical_p(DEGs.limma[[i]]$adj.P.Val)
 
     # Enhanced Volcano Plot
-    if ("SYMBOL" %in% colnames(DEGs.limma[[i]])) {
-      volcano_labels <- DEGs.limma[[i]]$SYMBOL
+    if ("Gene Symbol" %in% colnames(DEGs.limma[[i]])) {
+      volcano_labels <- DEGs.limma[[i]]$`Gene Symbol`
     } else {
       volcano_labels = rownames(DEGs.limma[[i]])
     }
@@ -871,8 +871,8 @@ diagnose_rankprod_data <- function(
   log_info("Making RankProd Volcano plots...")
   for (i in seq_along(contrasts)) {
     # Enhanced Volcano Plot
-    if ("SYMBOL" %in% colnames(DEGs.rankprod[[i]])) {
-      volcano_labels <- DEGs.rankprod[[i]]$SYMBOL
+    if ("Gene Symbol" %in% colnames(DEGs.rankprod[[i]])) {
+      volcano_labels <- DEGs.rankprod[[i]]$`Gene Symbol`
     } else {
       volcano_labels = rownames(DEGs.rankprod[[i]])
     }
@@ -988,10 +988,14 @@ GATTACA <- function(options.path, input.file, output.dir) {
   )
 
   if (getOption("use.annotations")) {
-    annotation_data <- get_remote_annotations(
-      CHIP_TO_DB[[opts$general$annotation_chip_id]], "SYMBOL"
-    )
-    log_info("Annotations loaded.")
+    log_info("Loading annotations...")
+    annotation_data <- get_annotations_from_GEO(opts$general$annotation_chip_id)
+    if (! "Gene Symbol" %in% colnames(annotation_data)) {
+      log_warn("The 'Gene Symbol' column was not found. Cannot annotate output.")
+      options(use.annotations = FALSE)
+    } else {
+      annotation_data <- annotation_data[, "Gene Symbol", drop=FALSE]
+    }
   } else {
     log_info("No annotations loaded.")
   }

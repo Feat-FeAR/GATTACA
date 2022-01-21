@@ -49,7 +49,7 @@ case "$order" in
             -e "affy2expression('/GATTACA/input', '${outputfile}', remove.controls = ${2}, plot.width = sizes[1], plot.height = sizes[2], use.pdf = ${4}, n_plots = ${5})"
         ;;
     annotate)
-        # "$input_filename" "$output_filename" "$chip_id" "$selections"
+        # "$input_filename" "$output_filename" "$chip_id"
         outputfile="/GATTACA/target/${2}"
         inputfile="/GATTACA/input/${1}"
 
@@ -59,8 +59,7 @@ case "$order" in
             -e "source('/GATTACA/src/tools/annotations.R')" \
             -e "setup_file_logging('/GATTACA/target', '${log_name}')" \
             -e "logger::log_threshold(${log_level})" \
-            -e "selections <- strsplit('${4}', ',')[[1]]" \
-            -e "annotate_to_file(expression_data_path = '${inputfile}', output_path = '${outputfile}', chip_id = '${3}', selections = selections)"
+            -e "annotate_to_file(expression_data_path = '${inputfile}', output_path = '${outputfile}', chip_id = '${3}')"
         ;;
     prepagil)
         # "$output_filename" "$grep_pattern" "$remove_controls" "$plot_size" "$use_pdf" "$plot_number"

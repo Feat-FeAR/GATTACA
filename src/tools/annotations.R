@@ -27,30 +27,16 @@
 
 log_debug("Sourcing the 'annotations.R' file.")
 
-# This list maps shortcodes representing chips to their respective databases.
-CHIP_TO_DB <- list(
-  # Affymetrix Human Genome U133 Set (A)
-  "hgu133a" = "hgu133a.db",
-  # Affymetrix Human Genome U133 Set (B)
-  "hgu133b" = "hgu133b.db",
-  # Affymetrix Human Genome HG-U133 Plus 2.0 Array
-  "hgu133plus2" = "hgu133plus2.db",
-  # Agilent-026652 Whole Human Genome Microarray 4x44K v2
-  "HsAgilentDesign026652" = "HsAgilentDesign026652.db",
-  # Affymetrix Human Gene 1.0-ST Array
-  "hugene10st" = "hugene10sttranscriptcluster.db"
-)
-
 
 #' Merge expression matrices with annotations and sort them.
-#' 
+#'
 #' Fuses by row names.
-#' 
+#'
 #' @param gene.stat The table of genes, usually a DEG summary-statistic top-table
 #'   or an expression matrix.
 #' @param annotation the matrix containing the annotation data
 #' @param sort.by the name or index of the column used to sort the final data set
-#' 
+#'
 #' @author FeAR
 merge_annotations <- function(gene.stat, annotation, sort.by = 1) {
   # 'merge' function to merge two matrix-like objects horizontally
@@ -65,169 +51,34 @@ merge_annotations <- function(gene.stat, annotation, sort.by = 1) {
   # The merge has to convert the row names to a column. This reverts it.
   rownames(joined) = joined[,1]
   gene.stat = joined[,-1]
-  
+
   # Re-sort the data frame by the content of 'sort.by' column
   # ('sort.by' can be either a number or a column name)
   gene.stat = gene.stat[order(gene.stat[,sort.by]),]
-  
+
   return(gene.stat)
 }
 
 
-#' Get the possible annotation names of a specific database.
-#'  
-#' This also installs and loads the database package from Bioconductor.
-#' 
-#' @param db_namespace The name of the library containing the db
-#' 
-#' @returns A string vector with the names of the available annotations.
-#' 
-#' @author MrHedmad 
-get_db_names <- function(db_namespace) {
-  suppressWarnings({
-    stopifnot("Invalid database name - cannot be empty"=db_namespace==character(0))
-    if (!require(db_namespace, character.only = TRUE)) {
-      BiocManager::install(db_namespace, update = FALSE)
-      suppressPackageStartupMessages(library(db_namespace, character.only = TRUE))
-    }
-  })
-  possibilities <- ls(paste0("package:", db_namespace))
-  db_name = gsub("\\.db", "", db_namespace)
-  possibilities <- sapply(
-    possibilities, gsub,
-    pattern = db_name, replacement = ""
-  )
-  
-  # Clean out the things that start with _ or . as they are functions and junk
-  possibilities <- sapply(
-    possibilities, gsub,
-    pattern = "^[_\\.].*", replacement = "")
-  
-  possibilities <- possibilities[possibilities != ""]
-  names(possibilities) <- NULL
-  return(possibilities)
-}
-
-
-#' Get specified annotations from a certain db.
+#' Annotate a dataframe with data from GEO.
 #'
-#' Possible db_names:
-#'   hgu133a.db (Affymetrix Human Genome U133 Set (A))
-#'   hgu133b.db (Affymetrix Human Genome U133 Set (B))
-#'   hgu133plus2.db (Affymetrix Human Genome HG-U133 Plus 2.0 Array)
-#'   HsAgilentDesign026652.db (Agilent-026652 Whole Human Genome Microarray 4x44K v2)
-#'   hugene10sttranscriptcluster.db (Affymetrix Human Gene 1.0-ST Array)
-#' 
-#' All bioconductor databases can use the following possible selections:
-#'   ACCNUM, CHR, CHRLOC, CHRLOCEND, ENSEMBL, ENTREZID, ENZYME, GENENAME, GO,
-#'   MAP, OMIM, PATH, PMID, REFSEQ, SYMBOL, UNIPROT
-#' 
-#' @param db_name The id of the db. See above and the CHIP_TO_DB object.
-#' @param selections A vector of strings with the annotations to get from the db.
-#'   The available annotations can be seen above or by using the `get_db_names`
-#'   function
-#' @returns A data.frame with probe IDs as rownames and one column per annotation.
-#'  
-#' @author MrHedmad
-get_remote_annotations <- function(
-  db_name, selections = c("ACCNUM", "SYMBOL", "GENENAME")
-) {
-  library(purrr)
-  # get_db_names also loads the db in memory, so I don't do it here.
-  possible_selections <- get_db_names(db_name)
-  log_info("Checking selections...")
-  if (!all(selections %in% possible_selections)) {
-    stop(
-      paste0(
-        "Invalid selection(s): ",
-        paste(selections[!selections %in% possible_selections], collapse = ", "),
-        ". Possible selections: ",
-        paste(possible_selections, collapse = ", "),
-        "."
-      )
-    )
-  }
-
-  # Load the data
-  log_info("Loading the annotation data...")
-  db_clean_name <- gsub("\\.db", "", db_name)
-  data <- as.list(rep(NA, times = length(selections)))
-  names(data) <- selections
-
-  for (selection in selections) {
-    # This raises deprecation warnings for no reason.
-    suppressWarnings(
-      { data[selection] <- get(paste0(db_clean_name, selection)) }
-    )
-  }
-  
-  merge_genedata <- function(x, y) {
-    return(
-      merge(x, y, by = "probe_id", all = TRUE)
-    )
-  }
-  
-  collapse_to_str <- function(inputlist) {
-    sapply(
-      contents(inputlist),
-      function(x) {
-        suppressWarnings({if (is.na(x)){x} else {paste(x, collapse = " /// ")}})}
-    )
-  }
-  
-  dataframetize <- function(named_vector, name) {
-    probe_id <- names(named_vector)
-    data <- data.frame()[1:length(named_vector), ]
-    data[[name]] <- named_vector
-    data$probe_id <- probe_id
-    return(data)
-  }
-  
-  # We need dataframes to manipulate
-  log_info("Collapsing annotations...")
-  data <- map(data, collapse_to_str)
-  log_info("Casting annotations...")
-  container <- as.list(rep(NA, length(data)))
-  names(container) <- names(data)
-  for (i in seq_along(data)) {
-    container[[i]] <- dataframetize(data[[i]], name = names(data)[i])
-  }
-  data <- container
-  rm(container)
-  log_info("Collapsing annotations again...")
-  data <- purrr::reduce(data, merge_genedata)
-  
-  # The merging functions need the probe_ids as rownames
-  log_info("Cleaning up rownames...")
-  row.names(data) <- data$probe_id
-  data$probe_id <- NULL
-  
-  return(data)
-}
-
-#' Annotate a dataframe with data from a chip.
-#' 
-#' See the `get_remote_annotations` function for info on the possible chip_ids
-#' and selections.
-#' 
 #' @param expression_set A data.frame with row.names the probe ids.
-#' @param chip_id A str representing the chip used by the experiment.
-#' @param selections A vector of str with valid annotation names to use to
-#'   annotate the data.
-#'   
-#' @returns A dataframe with `selections` additional columns containing the
-#'   selections.
+#' @param chip_id The GEO accession for the platform ID.
+#'
+#' @return A dataframe with additional annotation columns.
 annotate_data <- function(expression_set, chip_id, selections) {
-  log_info("Checking chip selection...")
-  database_name <- CHIP_TO_DB[[chip_id]]
-  if (is.null(database_name)) {
-    stop(paste0("Invalid chip id: ", chip_id))
-  }
-  
   log_info("Finding annotations...")
-  annotations <- get_remote_annotations(database_name, selections = selections)
-  
-  # Check the matching degree between array and annotation layouts 
+  annotations <- get_annotations_from_GEO(chip_id)
+
+  # As annotations is a data.frame, both the is.na and the if make warnings
+  # i suppress them for a tiny little bit
+  options(warn=-1)
+  if (is.na(annotations)){
+    stop("No valid annotations found. Cannot proceed.")
+  }
+  options(warn=1)
+
+  # Check the matching degree between array and annotation layouts
   missing_probes <- sum(
     ! row.names(expression_set) %in% row.names(annotations)
   )
@@ -238,54 +89,96 @@ annotate_data <- function(expression_set, chip_id, selections) {
       round(missing_perc, 4), "% of total."
     ))
   }
-  
+
   # Print out the number of NAs in the annotations for each type of annotation
   notMap = matrix(0, nrow = 2, ncol = dim(annotations)[2],
                   dimnames = list(c("NA entries","%"), colnames(annotations)))
   for (i in colnames(annotations)) {
-    notMap[1,i] = sum(isNA(annotations[,i]))
+    notMap[1,i] = sum(is.na(annotations[, i]))
     notMap[2,i] = round(notMap[1,i]/dim(annotations)[1]*1e2, digits = 2)
   }
   log_info(paste("Missing annotations:", get.print.str(notMap), sep = "\n"))
-  
+
   log_info("Merging annotations with the data...")
   merged_data <- merge_annotations(expression_set, annotations)
-  
+
   return(merged_data)
 }
 
-#' Annotate a file containing expression data with annotations from a db.
-#' 
+#' Annotate a file containing expression data with annotations from GEO.
+#'
 #' The file needs to be in .csv format with a column named "probe_id" representing
 #' probe ids. The output file is similarly formatted.
-#' 
-#' See the `get_remote_annotations` function for info on the possible chip_ids
-#' and selections.
-#' 
+#'
 #' @param expression_data_path A str with the path to the csv file containing
 #'   the data to be annotated.
 #' @param output_path A full path to the output file.
-#' @param chip_id A str representing the chip used by the experiment.
+#' @param chip_id The GEO id of the platform to source annotations from.
 #' @param selections A vector of str with valid annotation names to use to
 #'   annotate the data.
-annotate_to_file <- function(
-  expression_data_path, output_path,
-  chip_id, selections
-) {
-  paste0(
-    "Call (expression_data_path, output_path, chip_id, selections): ",
-    paste(expression_data_path, output_path, chip_id, paste(selections, sep = ", "), sep = " :: ")
-  ) |>
-    log_debug()
-
-  source(file.path(ROOT, "src", "tools", "tools.R"))
-  
+annotate_to_file <- function(expression_data_path, output_path, chip_id) {
   log_info("Loading input data...")
   expression_set <- read_expression_data(expression_data_path)
- 
+
   log_info("Annotating data...")
   annotated_set <- annotate_data(expression_set, chip_id, selections)
-  
+
   write_expression_data(annotated_set, output_path)
   log_info("Written annotations.")
 }
+
+
+#' Get annotations directly from GEO with GEOquery
+#'
+#' This gets annotations directly from GEO with GEOquery. The data is then
+#' unpacked, info logged, and returned as a data.frame ready to be merged.
+#'
+#' The probe_id column is named just "ID".
+#'
+#' @param geo_id The Geo ID to download from. Enforced to be a GEO Platform ID
+#'          (starting with "GPL").
+#' @return A data.frame with the annotations, and at least the "ID" column.
+get_annotations_from_GEO <- function(geo_id) {
+  log_info("Getting annotations for platform ID ", as.character(geo_id), "...")
+
+  if (! startsWith(geo_id, "GPL")) {
+    log_error("Invalid GEO Platform ID. Must begin with the 'GPL' identifier.")
+    return(NA)
+  }
+
+  annotations <- tryCatch(
+    getGEO(geo_id),
+    error=\(e){
+      log_error("Cannot find an annotation for GEO id ", as.character(geo_id), ".")
+      return(NA)
+    },
+    warning=\(w){
+    log_warn(w)
+    }
+  )
+
+  if (! is(annotations, "GPL")) {
+    log_error("Downloaded wrong type of data. Expected GPL object.")
+    return(NA)
+  }
+
+  log_info("Done downloading from GEO.")
+
+  # There is a specific slot but I don't trust it 100%
+  column_names <- colnames(annotations@dataTable@table)
+  log_info("GPL-INFO - Platform name: ", annotations@header$title)
+  log_info("GPL-INFO - Manufacturer: ", annotations@header$manufacturer)
+  log_info("GPL-INFO - Available data: ", paste(column_names, collapse = ", "))
+
+  # Check if we have at least the ID column
+  if (! "ID" %in% column_names) {
+    log_error("This GPL does not come with the ID column. Cannot parse.")
+    return(NA)
+  }
+  data <- annotations@dataTable@table
+  rownames(data) <- data$ID
+  data$ID <- NULL
+
+  return(data)
+}
+

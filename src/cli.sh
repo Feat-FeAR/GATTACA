@@ -68,17 +68,11 @@ function _gattaca_help_prepaffy {
 
 
 function _gattaca_help_annotate {
-    echo "Usage: GATTACA annotate [-h | --help] [-s | --select <selections>] <input_file>"
-    echo "       <output_file> <chip_id>"
+    echo "Usage: GATTACA annotate [-h | --help] <input_file> <output_file> <chip_id>"
     echo
     echo "Annotate an expression dataset '<input_file>' with annotations for the chip <chip_id>."
+    echo "The Chip ID is the GEO accession number for the platform (e.g. GPL0000)"
     echo "Save the output in <output_file>."
-    echo "Read the README for a list of the supported chips for each container version."
-    echo
-    echo "Options:"
-    echo "  -s | --select <selections>         Comma delimited list of selections. Defaults to"
-    echo "                                     'SYMBOL,GENENAME', annotating HUGO symbols and long"
-    echo "                                     gene names."
 }
 
 
@@ -302,11 +296,6 @@ function _gattaca_run_annotate {
                 _gattaca_help_annotate
                 exit 0
             ;;
-            -s | --select)
-                shift
-                selections="$1"
-                shift
-            ;;
             * )
                 break
             ;;
@@ -341,7 +330,7 @@ function _gattaca_run_annotate {
         --mount type=bind,source="$input_mountpoint",target=/GATTACA/input,readonly \
         cmalabscience/gattaca:"$version" \
         "$log_name" "$log_level" \
-        "annotate" "$input_filename" "$output_filename" "$chip_id" "$selections"
+        "annotate" "$input_filename" "$output_filename" "$chip_id"
 }
 
 function _gattaca_run_prepagil {

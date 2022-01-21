@@ -31,13 +31,8 @@ general:
   # as they use HUGO symbols instead of probe IDs, and the output data will
   # be annotated with the related HUGO symbols.
   # Specify here one available annotation ID based on your chip.
+  # Use the GEO accession number (GPLnnnn) for the Platform you are using.
   # Leave to `null` to not annotate.
-  # Available annotations (chip_name -> id):
-  # Affymetrix Human Genome U133 Set (A) -> hgu133a
-  # Affymetrix Human Genome U133 Set (B) -> hgu133b
-  # Affymetrix Human Genome HG-U133 Plus 2.0 Array -> hgu133plus2
-  # Agilent-026652 Whole Human Genome Microarray 4x44K v2 -> HsAgilentDesign026652
-  # Affymetrix Human Gene 1.0-ST Array -> hugene10st
   annotation_chip_id: null # null OR str
 
 
