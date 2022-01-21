@@ -2,7 +2,7 @@
 
 \notebox{\textbf{About the formatting of this document}: \mono{Monospace} text refers to a package, command, programming language or other programming-related concept. Text in {\color{glossary}green} refers to an entry in the glossary. Text in {\color{urlblue}this blue} is a link to an external source. Text in {\color{exturlblue}this blue} is a link to a section inside this document. Square brackets with {\color{citations}violet numbers} are citations.}
 
-\importantbox{This document covers \mono{GATTACA} version \mono{0.4.2}.}
+\importantbox{This document covers \mono{GATTACA} version \mono{0.5.2}.}
 
 \newpage
 
@@ -19,9 +19,9 @@ One of the most widely known and used tools to perform \gls{dea} is \mono{limma}
 
 Finally, microarray scanners will label the intensities with their respective probe IDs, while an human researcher prefers Gene Symbols (or \gls{hugo} symbols). This step is called \textit{annotation}, and requires the use of one of many annotation databases that hold the correspondences between probe IDs and Gene Symbols, among other.
 
-There is currently a need for a simple tool that can analyse microarray expression data to produce a list of \glspl{deg} using an intuitive, user friendly interface. We present \gls{gattaca}, a self-contained tool to prepare, analyse and annotate microarray gene expression data. An additional benefit of \gls{gattaca} is its reproducibility. Being containerized, the tool is guaranteed to be computationally reproducible.
+There is currently a need for a simple tool that can analyse microarray expression data to produce a list of \glspl{deg} using an intuitive, user friendly interface. We present \gls{gattaca}, a self-contained tool to prepare, analyse and annotate microarray gene expression data.
 
-One of the strengths of \gls{gattaca} is its user friendliness, so that any researcher, even without a background in bioinformatics or knowledge of \mono{R}, can correctly analyze both novel and pre-existing datasets.
+One of the strengths of \gls{gattaca} is its user friendliness, so that any researcher, even without a background in bioinformatics or knowledge of \mono{R}, can correctly analyze both novel and pre-existing datasets. Additionally, GATTACA provides computational reproducibility when performing \gls{dea}. By simply sharing one key configuration file, runs can be reproduced identically on different hardware or software.
 
 \gls{gattaca} is written in \mono{R}, containerized in Docker and fully Open-Source. The source code is \href{https://github.com/Feat-FeAR/GATTACA}{hosted on GitHub}. Users are encouraged to propose enhancements and report issues on the website. \gls{gattaca} runs only on unix-like operating systems.
 
@@ -141,7 +141,7 @@ The options are divided into sections. Each section controls different aspects o
         \item \textbf{\mono{plot\_height} (\mono{int})}: The height of the plots, in inches.
         \item \textbf{\mono{png\_resolution} (\mono{int})}: The pixels per inch of the png plots.
         \item \textbf{\mono{enumerate\_plots} (\mono{bool})}: If \mono{true}, each plot is marked with a number, in the order it is created.
-        \item \textbf{\mono{annotation\_chip\_id} (\mono{str})}: The "chip id" string of the chip used to find the \gls{hugo} symbols of the respective probes. A table of the available chip ids can be seen in table \ref{tab:chipids}.
+        \item \textbf{\mono{annotation\_chip\_id} (\mono{str})}: The \gls{geo} platform ID. This can be found by searching the \gls{geo} databases for the microarray used to analyse the samples. It follows the format \mono{GPLxxxx}, where \mono{xxxx} are a variable amount of numbers. The retrieved data is used to annotate both the output and Volcano Plots with Gene Symbols.
     \end{itemize}
     \item \textbf{\mono{switches}}: The switches section contains various parameters to turn parts of the analysis on or off:
     \begin{itemize}
@@ -165,22 +165,6 @@ The options are divided into sections. Each section controls different aspects o
         \end{itemize}
     \end{itemize}
 \end{itemize}
-
-\begin{table}
-    \centering
-    \begin{tabular}{|c|c|}
-        \hline
-        Chip ID & Microarray name \\ \hline
-        \mono{hgu133a} & Affymetrix Human Genome U133 Set (A) \\
-        \mono{hgu133b} & Affymetrix Human Genome U133 Set (B) \\
-        \mono{hgu133plus2} & Affymetrix Human Genome HG-U133 Plus 2.0 Array \\
-        \mono{HsAgilentDesign026652} & Agilent-026652 Whole Human Genome Microarray 4x44K v2 \\
-        \mono{hugene10st} & Affymetrix Human Gene 1.0-ST Array \\
-        \hline
-    \end{tabular}
-    \caption{Chip IDs and the corresponding microarrays. The chip id codes must be used instead of the longer names when using \gls{gattaca}.}
-    \label{tab:chipids}
-\end{table}
 
 \subsection{Running GATTACA}
 Once the options file is created and edited, the process of running \mono{gattaca} is simple:
@@ -272,20 +256,20 @@ The various batches can be specified with the \mono{design > batches} variable.
 For most applications, the \mono{markings} column can be used to retrieve up- and down-regulated genes in each contrast for each tool. Comparisons of the number of genes detected by the two tools are available in the quality control plots.
 
 \section{Annotating Results}
-Investigators are often interested in annotating their results with metadata. \gls{gattaca} provides the \mono{annotate} command to annotate any \mono{.csv} file with a \mono{probe\_id} column with annotations from Bioconductor databases for each chip.
+Investigators are often interested in annotating their results with metadata. \gls{gattaca} provides the \mono{annotate} command to annotate any \mono{.csv} file with a \mono{probe\_id} column with annotations from \gls{geo} databases for each chip.
 
 The command is invoked as such:
 \begin{lstlisting}
-GATTACA annotate [-h | --help] [-s | --select <selections>] <input_file>
-                 <output_file> <chip_id>
+GATTACA annotate [-h | --help] <input_file> <output_file> <chip_id>
 \end{lstlisting}
 \begin{itemize}
     \item The \mono{-h | --help} ends the command early and shows usage statistics.
-    \item The \mono{-s | --select <selections>} option can be used to select the metadata to annotate. The possible variables that can sourced from most databases are \mono{ACCNUM}, \mono{CHR}, \mono{CHRLOC}, \mono{CHRLOCEND}, \mono{ENSEMBL}, \mono{ENTREZID}, \mono{ENZYME}, \mono{GENENAME}, \mono{GO}, \mono{MAP}, \mono{OMIM}, \mono{PATH}, \mono{PMID}, \mono{REFSEQ}, \mono{SYMBOL} and \mono{UNIPROT}.
     \item \mono{<input\_file>} must be replaced with the (full) path to the input \mono{.csv} file to annotate.
     \item \mono{<output\_file>} must be replaced with the (full) path to the output \mono{.csv} file.
-    \item \mono{<chip\_id>} must be replaced with a valid chip id. The supported chips are available in Table \ref{tab:chipids}.
+    \item \mono{<chip\_id>} must be replaced with the \gls{geo} platform ID. This can be found by searching the \gls{geo} databases for the microarray used to analyse the samples. It follows the format \mono{GPLxxxx}, where \mono{xxxx} are a variable amount of numbers. The retrieved data is used to annotate both the output and Volcano Plots with Gene Symbols.
 \end{itemize}
+
+Currently, annotating with data not found as a \gls{geo} platform in not supported.
 
 \section{Quality control plots}
 \label{sec:QCplots}
