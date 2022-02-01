@@ -1,7 +1,7 @@
 name: deploy-GATTACA
 on:
   release:
-    action: [published]
+    types: [published]
 
 jobs:
   docker:
