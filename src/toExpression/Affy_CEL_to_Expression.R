@@ -104,15 +104,6 @@ affy2expression <- function(
   # Making plots for quality control
   log_info("Making MA plots before normalization...")
 
-  unnormalized_data <- tryCatch({
-      oligo::rma(
-        affyRaw, target = "core", normalize = FALSE, background = FALSE
-      )
-    },
-    error = function(e) {
-
-    }
-  )
   if (exon.probes) {
     unnormalized_data <- oligo::rma(
       affyRaw, target = "core", normalize = FALSE, background = FALSE
