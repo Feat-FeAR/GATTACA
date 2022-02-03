@@ -27,62 +27,87 @@
 
 log_debug("Sourcing the 'annotations.R' file.")
 
-# This list maps shortcodes representing chips to their respective databases.
-CHIP_TO_DB <- list(
-  # Affymetrix Human Genome U133 Set (A)
-  "hgu133a" = "hgu133a.db",
-  # Affymetrix Human Genome U133 Set (B)
-  "hgu133b" = "hgu133b.db",
-  # Affymetrix Human Genome HG-U133 Plus 2.0 Array
-  "hgu133plus2" = "hgu133plus2.db",
-  # Agilent-026652 Whole Human Genome Microarray 4x44K v2
-  "HsAgilentDesign026652" = "HsAgilentDesign026652.db",
-  # Affymetrix Human Gene 1.0-ST Array
-  "hugene10st" = "hugene10sttranscriptcluster.db"
-)
-
-
 #' Merge expression matrices with annotations and sort them.
-#' 
+#'
 #' Fuses by row names.
-#' 
+#'
 #' @param gene.stat The table of genes, usually a DEG summary-statistic top-table
 #'   or an expression matrix.
 #' @param annotation the matrix containing the annotation data
 #' @param sort.by the name or index of the column used to sort the final data set
-#' 
-#' @author FeAR
+#'
+#' @author FeAR, MrHedmad
 merge_annotations <- function(gene.stat, annotation, sort.by = 1) {
+  log_info("Checking if annotation data can be used to annotate input...")
+  # Check the matching degree between array and annotation layouts
+  missing_probes <- sum(
+    ! row.names(gene.stat) %in% row.names(annotation)
+  )
+  missing_perc <- missing_probes / length(gene.stat) * 100
+  if (missing_perc >= 99.9) {
+    stop("There are no annotations for this data. Please use a specific database, or change database.")
+  } else {
+    if (missing_probes > 0) {
+      log_warn(paste0(
+        "There are ", missing_probes, " probes with no annotations. ",
+        round(missing_perc, 4), "% of total."
+      ))
+    }
+  }
+
+  log_info("Checking for conflicting columns...")
+  conflicting_cols <- colnames(gene.stat) %in% colnames(annotation)
+  if (sum(conflicting_cols) > 0) {
+    conflicting_cols_name <- colnames(gene.stat)[conflicting_cols]
+    log_warn(paste0(
+      "Found conflicting columns in input data: ",
+      paste(conflicting_cols_name, collapse = ", "),
+      ". Overriding them with new annotation data."
+    ))
+  }
+
+  gene.stat <- gene.stat[, !conflicting_cols]
+
   # 'merge' function to merge two matrix-like objects horizontally
   # and cast to data frame (right outer join).
   # NOTICE: both gene.stat and annotation are supposed to have the Probe_IDs
   # as row names
   joined = merge(
     annotation, gene.stat,
-    by.x = "row.names", by.y = "row.names",
-    all.y = TRUE
+    by.x = "row.names", by.y = "row.names"
   )
   # The merge has to convert the row names to a column. This reverts it.
   rownames(joined) = joined[,1]
   gene.stat = joined[,-1]
-  
+
+  # Print out the number of NAs in the annotations for each type of annotation
+  notMap = matrix(0, nrow = 2, ncol = dim(joined)[2],
+                  dimnames = list(c("NA entries","%"), colnames(joined)))
+  for (i in colnames(joined)) {
+    notMap[1,i] = sum(isNA(joined[,i]))
+    notMap[2,i] = round(notMap[1,i]/dim(joined)[1]*1e2, digits = 2)
+  }
+  # Take only the cols from the annotations
+  notMap <- notMap[, colnames(annotation)]
+  log_info(paste("Missing annotations:", get.print.str(notMap), sep = "\n"))
+
   # Re-sort the data frame by the content of 'sort.by' column
   # ('sort.by' can be either a number or a column name)
   gene.stat = gene.stat[order(gene.stat[,sort.by]),]
-  
+
   return(gene.stat)
 }
 
 
 #' Get the possible annotation names of a specific database.
-#'  
+#'
 #' This also installs and loads the database package from Bioconductor.
-#' 
+#'
 #' @param db_namespace The name of the library containing the db
-#' 
+#'
 #' @returns A string vector with the names of the available annotations.
-#' 
-#' @author MrHedmad 
+#'
+#' @author MrHedmad
 get_db_names <- function(db_namespace) {
   suppressWarnings({
     stopifnot("Invalid database name - cannot be empty"=db_namespace==character(0))
@@ -97,37 +122,25 @@ get_db_names <- function(db_namespace) {
     possibilities, gsub,
     pattern = db_name, replacement = ""
   )
-  
+
   # Clean out the things that start with _ or . as they are functions and junk
   possibilities <- sapply(
     possibilities, gsub,
     pattern = "^[_\\.].*", replacement = "")
-  
+
   possibilities <- possibilities[possibilities != ""]
   names(possibilities) <- NULL
   return(possibilities)
 }
 
 
-#' Get specified annotations from a certain db.
+#' Get specified annotations from a certain db from bioconductor.
 #'
-#' Possible db_names:
-#'   hgu133a.db (Affymetrix Human Genome U133 Set (A))
-#'   hgu133b.db (Affymetrix Human Genome U133 Set (B))
-#'   hgu133plus2.db (Affymetrix Human Genome HG-U133 Plus 2.0 Array)
-#'   HsAgilentDesign026652.db (Agilent-026652 Whole Human Genome Microarray 4x44K v2)
-#'   hugene10sttranscriptcluster.db (Affymetrix Human Gene 1.0-ST Array)
-#' 
-#' All bioconductor databases can use the following possible selections:
-#'   ACCNUM, CHR, CHRLOC, CHRLOCEND, ENSEMBL, ENTREZID, ENZYME, GENENAME, GO,
-#'   MAP, OMIM, PATH, PMID, REFSEQ, SYMBOL, UNIPROT
-#' 
-#' @param db_name The id of the db. See above and the CHIP_TO_DB object.
+#' @param db_name The name of the db package.
 #' @param selections A vector of strings with the annotations to get from the db.
-#'   The available annotations can be seen above or by using the `get_db_names`
-#'   function
+#'   The available annotations can be seen by using the `get_db_names` function
 #' @returns A data.frame with probe IDs as rownames and one column per annotation.
-#'  
+#'
 #' @author MrHedmad
 get_remote_annotations <- function(
   db_name, selections = c("ACCNUM", "SYMBOL", "GENENAME")
@@ -160,13 +173,13 @@ get_remote_annotations <- function(
       { data[selection] <- get(paste0(db_clean_name, selection)) }
     )
   }
-  
+
   merge_genedata <- function(x, y) {
     return(
       merge(x, y, by = "probe_id", all = TRUE)
     )
   }
-  
+
   collapse_to_str <- function(inputlist) {
     sapply(
       contents(inputlist),
@@ -174,7 +187,7 @@ get_remote_annotations <- function(
         suppressWarnings({if (is.na(x)){x} else {paste(x, collapse = " /// ")}})}
     )
   }
-  
+
   dataframetize <- function(named_vector, name) {
     probe_id <- names(named_vector)
     data <- data.frame()[1:length(named_vector), ]
@@ -182,7 +195,7 @@ get_remote_annotations <- function(
     data$probe_id <- probe_id
     return(data)
   }
-  
+
   # We need dataframes to manipulate
   log_info("Collapsing annotations...")
   data <- map(data, collapse_to_str)
@@ -196,96 +209,92 @@ get_remote_annotations <- function(
   rm(container)
   log_info("Collapsing annotations again...")
   data <- purrr::reduce(data, merge_genedata)
-  
+
   # The merging functions need the probe_ids as rownames
   log_info("Cleaning up rownames...")
   row.names(data) <- data$probe_id
   data$probe_id <- NULL
-  
+
   return(data)
 }
 
-#' Annotate a dataframe with data from a chip.
-#' 
-#' See the `get_remote_annotations` function for info on the possible chip_ids
-#' and selections.
-#' 
+#' Annotate a dataframe with annotation data.
+#'
+#' Annotates with SYMBOL, GENENAME, ENSEMBL, package_name and version columns,
+#' denoting in order the gene symbol (if any), the long gene name, the ensembl
+#' id(s) related to the gene, the source annotation package name(s) and
+#' version(s).
+#'
+#' If `database_name` is unspecified, uses the internal annotation data.
+#' Otherwise uses the data from the specified database to perform the annotation.
+#'
+#' The external package must have the SYMBOL, GENENAME, and ENSEMBL columns, or
+#' this function will fail.
+#'
 #' @param expression_set A data.frame with row.names the probe ids.
-#' @param chip_id A str representing the chip used by the experiment.
-#' @param selections A vector of str with valid annotation names to use to
-#'   annotate the data.
-#'   
-#' @returns A dataframe with `selections` additional columns containing the
-#'   selections.
-annotate_data <- function(expression_set, chip_id, selections) {
-  log_info("Checking chip selection...")
-  database_name <- CHIP_TO_DB[[chip_id]]
-  if (is.null(database_name)) {
-    stop(paste0("Invalid chip id: ", chip_id))
-  }
-  
+#' @param database_name An optional str representing the name of the database
+#'   to source the annotations from. Defaults to `NA`.
+#'
+#' @returns A dataframe with additional annotation columns.
+annotate_data <- function(expression_set, database_name = NA) {
   log_info("Finding annotations...")
-  annotations <- get_remote_annotations(database_name, selections = selections)
-  
-  # Check the matching degree between array and annotation layouts 
-  missing_probes <- sum(
-    ! row.names(expression_set) %in% row.names(annotations)
-  )
-  missing_perc <- missing_probes / length(expression_set) * 100
-  if (missing_probes > 0) {
-    log_warn(paste0(
-      "There are ", missing_probes, " probes with no annotations. ",
-      round(missing_perc, 4), "% of total."
-    ))
+  if (is.na(database_name)) {
+    log_info("Loading local annotations.")
+    load(file = file.path(ROOT, "src", "resources", "full_annotations.RData"))
+
+    if (! "full_annotations" %in% ls()) {
+      stop("I loaded something, but it did not contain the 'full_annotations' object.")
+    }
+  } else {
+    log_info("Loading remote annotations.")
+    full_annotations <- get_remote_annotations(
+      database_name, selections = c("SYMBOL", "GENENAME", "ENSEMBL")
+      )
+    full_annotations$package_name <- database_name
+    full_annotations$version <- packageVersion(database_name)
   }
-  
-  # Print out the number of NAs in the annotations for each type of annotation
-  notMap = matrix(0, nrow = 2, ncol = dim(annotations)[2],
-                  dimnames = list(c("NA entries","%"), colnames(annotations)))
-  for (i in colnames(annotations)) {
-    notMap[1,i] = sum(isNA(annotations[,i]))
-    notMap[2,i] = round(notMap[1,i]/dim(annotations)[1]*1e2, digits = 2)
-  }
-  log_info(paste("Missing annotations:", get.print.str(notMap), sep = "\n"))
-  
+
   log_info("Merging annotations with the data...")
-  merged_data <- merge_annotations(expression_set, annotations)
-  
+  merged_data <- merge_annotations(expression_set, full_annotations)
+
   return(merged_data)
 }
 
+
 #' Annotate a file containing expression data with annotations from a db.
-#' 
+#'
 #' The file needs to be in .csv format with a column named "probe_id" representing
 #' probe ids. The output file is similarly formatted.
-#' 
-#' See the `get_remote_annotations` function for info on the possible chip_ids
-#' and selections.
-#' 
+#'
+#' Annotates with SYMBOL, GENENAME, ENSEMBL, package_name and version columns,
+#' denoting in order the gene symbol (if any), the long gene name, the ensembl
+#' id(s) related to the gene, the source annotation package name(s) and
+#' version(s).
+#'
+#' If `database_name` is unspecified, uses the internal annotation data.
+#' Otherwise uses the data from the specified database (from bioconductor)
+#' to perform the annotation.
+#'
+#' The external package must have the SYMBOL, GENENAME, and ENSEMBL columns, or
+#' this function will fail.
+#'
 #' @param expression_data_path A str with the path to the csv file containing
 #'   the data to be annotated.
 #' @param output_path A full path to the output file.
-#' @param chip_id A str representing the chip used by the experiment.
-#' @param selections A vector of str with valid annotation names to use to
-#'   annotate the data.
-annotate_to_file <- function(
-  expression_data_path, output_path,
-  chip_id, selections
-) {
-  paste0(
-    "Call (expression_data_path, output_path, chip_id, selections): ",
-    paste(expression_data_path, output_path, chip_id, paste(selections, sep = ", "), sep = " :: ")
-  ) |>
-    log_debug()
+#' @param database_name An optional str representing the name of the database
+#'   to source the annotations from. Defaults to `NA`.
+annotate_to_file <- function( expression_data_path, output_path, database_name ) {
+  # The cli can pass the "NA" as a string. This is a patch for that
+  if (database_name == "NA") {database_name <- NA}
 
   source(file.path(ROOT, "src", "tools", "tools.R"))
-  
+
   log_info("Loading input data...")
   expression_set <- read_expression_data(expression_data_path)
- 
+
   log_info("Annotating data...")
-  annotated_set <- annotate_data(expression_set, chip_id, selections)
-  
+  annotated_set <- annotate_data(expression_set, database_name)
+
   write_expression_data(annotated_set, output_path)
   log_info("Written annotations.")
 }

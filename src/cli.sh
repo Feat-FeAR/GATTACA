@@ -68,17 +68,28 @@ function _gattaca_help_prepaffy {
 
 
 function _gattaca_help_annotate {
-    echo "Usage: GATTACA annotate [-h | --help] [-s | --select <selections>] <input_file>"
+    echo "Usage: GATTACA annotate [-h | --help] [-d | --database <database_name>] <input_file>"
     echo "       <output_file> <chip_id>"
     echo
-    echo "Annotate an expression dataset '<input_file>' with annotations for the chip <chip_id>."
+    echo "Annotate an expression dataset '<input_file>' with extra annotations."
+    echo
+    echo "The default annotations cover most human chips. If, instead, you need a"
+    echo "more specific annotation package, use the flag '-d | --database <database_name>'"
+    echo "with the name of the package with the annotations you wish to use from"
+    echo "bioconductor."
+    echo
+    echo "The annotations include the Gene Symbol (SYMBOL), the gene name (GENENAME),"
+    echo "the collection of Ensembl IDs (ENSEMBL), the package(s) used to source the"
+    echo "annotations (package_name) and its version(s) (version)."
+    echo "It is currently impossible to change which information is annotated."
+    echo
     echo "Save the output in <output_file>."
-    echo "Read the README for a list of the supported chips for each container version."
     echo
     echo "Options:"
-    echo "  -s | --select <selections>         Comma delimited list of selections. Defaults to"
-    echo "                                     'SYMBOL,GENENAME', annotating HUGO symbols and long"
-    echo "                                     gene names."
+    echo "  -d | --database <database_name>         Specify the name of the package to"
+    echo "                                          annotate with, overriding the internal"
+    echo "                                          annotation data. The package will be"
+    echo "                                          installed on-the-fly."
 }
 
 
@@ -294,17 +305,16 @@ function _gattaca_run_prepaffy {
 }
 
 function _gattaca_run_annotate {
-    selections="SYMBOL,GENENAME"
-
+    database="NA"
     while test $# -gt 0; do
         case "$1" in
             -h | --help)
                 _gattaca_help_annotate
                 exit 0
             ;;
-            -s | --select)
+            -d | --database)
                 shift
-                selections="$1"
+                database="$1"
                 shift
             ;;
             * )
@@ -313,14 +323,13 @@ function _gattaca_run_annotate {
         esac
     done
 
-    # <input_file> <output_file> <chip_id>
+    # <input_file> <output_file> <database_name>
 
-    if test $# -eq 3; then
+    if test $# -eq 2; then
         input_path=$(realpath "$1")
         target_path="$2"
-        chip_id="$3"
     else
-        >&2 echo "Wrong number of arguments: ${#} (expected 3)"
+        >&2 echo "Wrong number of arguments: ${#} (expected 2)"
         exit 1
     fi
 
@@ -341,7 +350,7 @@ function _gattaca_run_annotate {
         --mount type=bind,source="$input_mountpoint",target=/GATTACA/input,readonly \
         cmalabscience/gattaca:"$version" \
         "$log_name" "$log_level" \
-        "annotate" "$input_filename" "$output_filename" "$chip_id" "$selections"
+        "annotate" "$input_filename" "$output_filename" "$database"
 }
 
 function _gattaca_run_prepagil {
@@ -428,7 +437,7 @@ function _gattaca_run_versions {
 }
 
 function _gattaca_run_parser {
-    
+
     while test $# -gt 0; do
         case "$1" in
             -h | --help)

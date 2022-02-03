@@ -692,7 +692,7 @@ run_rankprod <- function(
       # The class labels are now identical as the set is paired
       rp_class_labels <- rep(1, ncol(subtracted_expression_set))
     }
-    
+
     # Handle batches
     if (!is.null(batches)) {
       log_info("Setting batches...")
@@ -726,7 +726,7 @@ run_rankprod <- function(
         DEGs.RP <- topGene(RP.out, logged = TRUE, logbase = 2, cutoff = Inf)
       )
     )
-    
+
     # Ameliorate original output
     for (j in 1:2) {
       # Take the log2 values and invert FCs to get the 'Case vs Ctrl' measure
@@ -734,7 +734,7 @@ run_rankprod <- function(
       DEGs.RP[[j]][,3] = -log2(DEGs.RP[[j]][,3])
       colnames(DEGs.RP[[j]])[3] = "logFC" # Change column name
     }
-    
+
     # Condense the data from the two matrices into a single dataframe to
     # be stored in the output
     partial_data_up <- as.data.frame(DEGs.RP[[1]])
@@ -766,7 +766,7 @@ run_rankprod <- function(
     # Restore the rownames to actual rownames
     rownames(partial_data) <- partial_data$Row.names
     partial_data$Row.names <- NULL
-    
+
     # We add the "markings" column, with 1 for upregulated, 0 for not significant
     # and -1 for downregulated DEGs.
     # Initialize the array
@@ -794,12 +794,12 @@ run_rankprod <- function(
     # Restore the rownames to actual rownames
     rownames(partial_data) <- partial_data$Row.names
     partial_data$Row.names <- NULL
-    
+
     # Reorder the cols with the magic of dplyr
     partial_data |>
       dp_select(gene.index, logFC, AveExpr, everything()) ->
       partial_data
-    
+
     # Put the data in the list
     DEGs.rankprod[[contrasts[i]]] <- partial_data
 
@@ -975,26 +975,50 @@ GATTACA <- function(options.path, input.file, output.dir) {
     opts$general$save_pdf <- FALSE
   }
 
-  # Global options suitable for PrintPlots
+  if (opts$general$annotation_database %in% c(TRUE, FALSE)) {
+    use.annotations <- opts$general$annotation_database
+    use.remote.annotations <- FALSE
+    database_name <- NA
+  } else {
+    use.annotations <- TRUE
+    use.remote.annotations <- TRUE
+    database_name <- opts$general$annotation_database
+  }
+  log_debug("use.annotations was set to", str(use.annotations))
+  log_debug("use.remote.annotations was set to", str(use.remote.annotations))
+  log_debug("database_name was set to", str(database_name))
+
+  if (use.annotations & use.remote.annotations) {
+    log_info("Loading remote annotations...")
+    # I source the data like this as we can use the `merge_annotations`
+    # function which is faster than `annotate_data` if used many times in a row
+    annotation_data <- get_remote_annotations(
+      database_name, selections = c("SYMBOL", "GENENAME", "ENSEMBL")
+    )
+    annotation_data$package_name <- database_name
+    annotation_data$version <- packageVersion(database_name)
+  } else if (use.annotations) {
+    log_info("Loading local annotations...")
+    load(file = file.path(ROOT, "src", "resources", "full_annotations.RData"))
+
+    if (! "full_annotations" %in% ls()) {
+      stop("I loaded something, but it did not contain the 'full_annotations' object.")
+    }
+    annotation_data <- full_annotations
+    rm(full_annotations)
+  }
+
+  # Global options suitable for PrintPlots and GATTACA as a whole
   options(
     scriptName = "GATTACA",
     save.PNG.plot = opts$general$save_png,
     save.PDF.plot = opts$general$save_pdf,
-    use.annotations = !is.null(opts$general$annotation_chip_id),
+    use.annotations = use.annotations,
     plot.width = opts$general$plot_width,
     plot.height = opts$general$plot_height,
     png_ppi = opts$general$png_resolution,
     enumerate.plots = opts$general$enumerate_plots
   )
-
-  if (getOption("use.annotations")) {
-    annotation_data <- get_remote_annotations(
-      CHIP_TO_DB[[opts$general$annotation_chip_id]], "SYMBOL"
-    )
-    log_info("Annotations loaded.")
-  } else {
-    log_info("No annotations loaded.")
-  }
 
   # ---- Data Loading ----
   # Gene Expression Matrix - log2-Intensity-Values

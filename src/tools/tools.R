@@ -124,7 +124,7 @@ get.print.str <- function(data) {
 #'   data to log, and an optional `message` to describe the data.
 make_data_log_pusher <- function(
     prefix = \(){paste("[", date(), "] <m> >>>>", sep = "")},
-    suffix = "<<<<",
+    suffix = "<<<<\n",
     padding = "    "
   ) {
 

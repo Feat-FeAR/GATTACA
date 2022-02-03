@@ -27,18 +27,12 @@ general:
   enumerate_plots: true # bool
 
   # Specify annotations to add to the data
-  # If annotation are added, some plots (like volcano plots) are more legible
-  # as they use HUGO symbols instead of probe IDs, and the output data will
-  # be annotated with the related HUGO symbols.
-  # Specify here one available annotation ID based on your chip.
-  # Leave to `null` to not annotate.
-  # Available annotations (chip_name -> id):
-  # Affymetrix Human Genome U133 Set (A) -> hgu133a
-  # Affymetrix Human Genome U133 Set (B) -> hgu133b
-  # Affymetrix Human Genome HG-U133 Plus 2.0 Array -> hgu133plus2
-  # Agilent-026652 Whole Human Genome Microarray 4x44K v2 -> HsAgilentDesign026652
-  # Affymetrix Human Gene 1.0-ST Array -> hugene10st
-  annotation_chip_id: null # null OR str
+  # If `true` is specified, will attempt to annotate with local annotations
+  # suitable for human chips (both agilent or affymetrix).
+  # If `false` is specified, no annotations are added.
+  # Otherwise, pass here the name of the database on bioconductor you wish to
+  # source the annotations from.
+  annotation_database: true # bool OR str
 
 
 ## SWITCHES - Various switches to turn parts of the analysis on or off
