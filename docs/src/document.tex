@@ -19,7 +19,7 @@ One of the most widely known and used tools to perform \gls{dea} is \mono{limma}
 
 Finally, microarray scanners will label the intensities with their respective probe IDs, while an human researcher prefers Gene Symbols (or \gls{hugo} symbols). This step is called \textit{annotation}, and requires the use of one of many annotation databases that hold the correspondences between probe IDs and Gene Symbols, among other.
 
-There is currently a need for a simple tool that can analyse microarray expression data to produce a list of \glspl{deg} using an intuitive, user friendly interface. We present \gls{gattaca}, a self-contained tool to prepare, analyse and annotate microarray gene expression data. An additional benefit of \gls{gattaca} is its reproducibility. Being containerized, the tool is guaranteed to be computationally reproducible.
+There is currently a need for a simple tool that can analyse microarray expression data to produce a list of \glspl{deg} using an intuitive, user friendly interface. We present \gls{gattaca}, a self-contained tool to prepare, analyse and annotate microarray gene expression data. An additional benefit of \gls{gattaca} is its reproducibility: being containerized, the tool is guaranteed to be computationally reproducible\footnote{With a few exceptions, namely the usage of remote annotations in \mono{GATTACA run}.}.
 
 One of the strengths of \gls{gattaca} is its user friendliness, so that any researcher, even without a background in bioinformatics or knowledge of \mono{R}, can correctly analyze both novel and pre-existing datasets.
 
@@ -141,7 +141,7 @@ The options are divided into sections. Each section controls different aspects o
         \item \textbf{\mono{plot\_height} (\mono{int})}: The height of the plots, in inches.
         \item \textbf{\mono{png\_resolution} (\mono{int})}: The pixels per inch of the png plots.
         \item \textbf{\mono{enumerate\_plots} (\mono{bool})}: If \mono{true}, each plot is marked with a number, in the order it is created.
-        \item \textbf{\mono{annotation\_chip\_id} (\mono{str})}: The "chip id" string of the chip used to find the \gls{hugo} symbols of the respective probes. A table of the available chip ids can be seen in table \ref{tab:chipids}.
+        \item \textbf{\mono{annotation\_database} (\mono{bool} or \mono{str})}: This value controls how the data is annotated. Annotating data allows for plots with gene names instead of probe IDs, and a more useful output. If \mono{true}, the data is annotated with an internal annotation file covering most Agilent and Affymetrix Human chips. If \mono{false}, the data is not annotated. Otherwise, a string can be passed, representing the complete name of any annotation package on Bioconductor, which will be downloaded and installed on the fly, and used to source annotations\footnote{Note: the package must contain annotations for \mono{SYMBOL}s, \mono{ENSEMBL} IDs, and \mono{GENENAME}s, or the annotation will fail. This might be addressed in a future version of GATTACA}.
     \end{itemize}
     \item \textbf{\mono{switches}}: The switches section contains various parameters to turn parts of the analysis on or off:
     \begin{itemize}
@@ -165,22 +165,6 @@ The options are divided into sections. Each section controls different aspects o
         \end{itemize}
     \end{itemize}
 \end{itemize}
-
-\begin{table}
-    \centering
-    \begin{tabular}{|c|c|}
-        \hline
-        Chip ID & Microarray name \\ \hline
-        \mono{hgu133a} & Affymetrix Human Genome U133 Set (A) \\
-        \mono{hgu133b} & Affymetrix Human Genome U133 Set (B) \\
-        \mono{hgu133plus2} & Affymetrix Human Genome HG-U133 Plus 2.0 Array \\
-        \mono{HsAgilentDesign026652} & Agilent-026652 Whole Human Genome Microarray 4x44K v2 \\
-        \mono{hugene10st} & Affymetrix Human Gene 1.0-ST Array \\
-        \hline
-    \end{tabular}
-    \caption{Chip IDs and the corresponding microarrays. The chip id codes must be used instead of the longer names when using \gls{gattaca}.}
-    \label{tab:chipids}
-\end{table}
 
 \subsection{Running GATTACA}
 Once the options file is created and edited, the process of running \mono{gattaca} is simple:
@@ -276,15 +260,14 @@ Investigators are often interested in annotating their results with metadata. \g
 
 The command is invoked as such:
 \begin{lstlisting}
-GATTACA annotate [-h | --help] [-s | --select <selections>] <input_file>
-                 <output_file> <chip_id>
+GATTACA annotate [-h | --help] [-d | --database <database_name>] <input_file>
+                 <output_file>
 \end{lstlisting}
 \begin{itemize}
     \item The \mono{-h | --help} ends the command early and shows usage statistics.
-    \item The \mono{-s | --select <selections>} option can be used to select the metadata to annotate. The possible variables that can sourced from most databases are \mono{ACCNUM}, \mono{CHR}, \mono{CHRLOC}, \mono{CHRLOCEND}, \mono{ENSEMBL}, \mono{ENTREZID}, \mono{ENZYME}, \mono{GENENAME}, \mono{GO}, \mono{MAP}, \mono{OMIM}, \mono{PATH}, \mono{PMID}, \mono{REFSEQ}, \mono{SYMBOL} and \mono{UNIPROT}.
+    \item The \mono{-d | --database <database\_name>} A string can be passed, representing the complete name of any annotation package on Bioconductor, which will be downloaded and installed on the fly, and used to source annotations\footnote{Note: the package must contain annotations for \mono{SYMBOL}s, \mono{ENSEMBL} IDs, and \mono{GENENAME}s, or the annotation will fail. This might be addressed in a future version of GATTACA}.
     \item \mono{<input\_file>} must be replaced with the (full) path to the input \mono{.csv} file to annotate.
     \item \mono{<output\_file>} must be replaced with the (full) path to the output \mono{.csv} file.
-    \item \mono{<chip\_id>} must be replaced with a valid chip id. The supported chips are available in Table \ref{tab:chipids}.
 \end{itemize}
 
 \section{Quality control plots}

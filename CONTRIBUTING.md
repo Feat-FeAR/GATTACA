@@ -49,3 +49,17 @@ The usual workflow to work locally while rebuilding the docker instance is:
     - Rebuild the docker with `docker build -t cmalabscience/gattaca:bleeding`;
     - Run `GATTACA -v bleeding ...` when testing.
 
+## Rebuilding the annotations
+The GATTACA internal annotations can be rebuilt with the scripts in the `/scripts/`
+folder, and more specifically the `rebuild_annotations.sh` script. The process is
+really *really* rough. You need both Python and R installed. There is no specific
+list of required packages to rebuild the data (a good place to start is with the
+`logger`, `progress` and `BiocManager` for R and `tqdm`, `requests`, `bs4` and
+`jellyfish` for Python).
+
+Just run `rebuild_annotations.sh` while your working directory is `/scripts/` and
+hope for the best.
+
+If annotation collisions are ever detected, it will crash. There is no agreed
+method as of right now to deal with collisions.
+
