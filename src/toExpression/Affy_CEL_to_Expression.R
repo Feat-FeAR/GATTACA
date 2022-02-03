@@ -93,32 +93,26 @@ affy2expression <- function(
   # We can now move to where the plots will be saved.
   setwd(output.folder)
 
-  # Check Platform and set the exon.probes flag
-  # This is done as newer platforms need different processing than old ones.
+  # Take note of the platform name
   platform <- affyRaw@annotation
   log_info(paste0("Detected platform: ", platform))
-  if (platform %in% c(
-    "pd.hg.u133a", "pd.hg.u133b", "pd.hg.u133.plus.2", "pd.drosophila.2"
-  )) {
-    exon.probes = FALSE
-  } else if (platform %in% c(
-    "pd.hugene.1.0.st.v1"
-  )) {
-    exon.probes = TRUE
-  } else {
-     log_error("Cannot determine type of platform automatically.")
-     cat(paste(
-       "The type of platform could not be detected automatically.",
-       "Please input manually if the chip supports exon-level probes.",
-       "Usually, newer chips work at the exon level, so 'yes' should be",
-       "the correct answer in most cases."
-     ))
-     exon.probes <- ask_yes_or_no("Set `exon.probes` flag?")
-     log_warn("`exon.probes` flag was set manually by the user to be '", as.character(exon.probes), "'")
-  }
+
+  # Set the exon.probes flag
+  # This is done as newer platforms need different processing than old ones.
+  exon.probes = ! class(affyRaw) %in% c("ExpressionFeatureSet", "SnpCnvFeatureSet")
 
   # Making plots for quality control
   log_info("Making MA plots before normalization...")
+
+  unnormalized_data <- tryCatch({
+      oligo::rma(
+        affyRaw, target = "core", normalize = FALSE, background = FALSE
+      )
+    },
+    error = function(e) {
+
+    }
+  )
   if (exon.probes) {
     unnormalized_data <- oligo::rma(
       affyRaw, target = "core", normalize = FALSE, background = FALSE
