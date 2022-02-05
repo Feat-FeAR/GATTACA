@@ -256,7 +256,9 @@ make_limma_design <- function(groups, ...) {
       )
     }
   }
-
+  
+  log_data(str_formula, "Linear model formula", is.string = TRUE)
+  
   mm <- model.matrix(formula(str_formula))
   # NOTE: The model matrix has a variety of attributes that *could* mean
   # something. Some of them carry the original variable names of the data,
@@ -267,6 +269,19 @@ make_limma_design <- function(groups, ...) {
   # identical in the two cases (tested with `identical()`), so I feel
   # confident in replacing the colnames here, as I think that these extra
   # attributes are ignored by limma. - Hedmad
+  #
+  # The attribute $contrasts is just to keep track of the parametrization
+  # used to dummy-code categorical variables within the design matrix (see
+  # getOption("contrasts")). So yes, colnames can be safely replaced and
+  # yes, the $contrasts attribute is ignored by lmFit(). However it should
+  # be noted that different dummy codes ("contr.treatment" vs "contr.sum")
+  # lead to different beta coefficients when using a model formula with
+  # intercept; in that case you have to set
+  #   options(contrasts = c("contr.treatment", "contr.poly"))
+  # in order to get the actual logFC values in the first column of topTable()
+  # during a DEA. Notably, such an option does not affect model.matrix()
+  # output if the design matrix is defined with no intercept (~0) as we do
+  # here in GATTACA. - FeAR
   colnames(mm) <- matrix_names
 
   return(mm)
