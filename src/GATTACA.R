@@ -238,16 +238,25 @@ make_limma_design <- function(groups, ...) {
   }
 
   groups <- as.factor(groups)
-
+  factorial_scheme <- paste0("Factor: groups\n   ",
+                             "Levels: ", paste(levels(groups),
+                                               collapse = ", "))
+  
   str_formula <- "~ 0 + groups"
   # The matrix names follow a pattern:
   #   - The groups are always all included, in alphabetical order.
   #   - The other vars are included, in alphabetical order, except for the
-  #     first one.
+  #     first level of each factor.
   groups |> levels() |> sort() -> matrix_names
   if (length(args) != 0) {
     for (some_var in names(factor_vars)) {
-      str_formula <- paste0(str_formula, "+ factor_vars$", some_var)
+      str_formula <- paste0(str_formula, " + factor_vars$", some_var)
+      factorial_scheme <- paste(factorial_scheme,
+                                paste0("Factor: ", some_var, "\n   ",
+                                       "Levels: ",
+                                       paste(levels(factor_vars[[some_var]]),
+                                             collapse = ", ")),
+                                sep = "\n")
       pretty_level_names <- paste(
         some_var, levels(factor_vars[[some_var]])[-1], sep = "_"
       )
@@ -257,7 +266,10 @@ make_limma_design <- function(groups, ...) {
     }
   }
   
-  log_data(str_formula, "Linear model formula", is.string = TRUE)
+  pretty_formula <- paste("log2(expression)",
+                          str_remove_all(str_formula, "factor_vars\\$"))
+  log_data(paste0(pretty_formula, "\n", factorial_scheme),
+           "Linear model formula", is.string = TRUE)
   
   mm <- model.matrix(formula(str_formula))
   # NOTE: The model matrix has a variety of attributes that *could* mean
