@@ -126,9 +126,14 @@ agil2expression <- function (
       ma.plots <- ma.plots[1:n_plots]
     }
 
+    pb <- progress_bar$new(
+      format = "Saving plots... [:bar] :percent (:eta)",
+      total = length(ma.plots), clear = FALSE, width= 80)
+    pb$tick(0)
     for (i in seq_along(ma.plots)) {
       maplot <- ma.plots[[i]]
       printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
+      pb$tick()
     }
   } else {
     log_info("The number of plots is less or equal to 0. Skipping MA plot generation.")
@@ -184,9 +189,14 @@ agil2expression <- function (
       ma.plots <- ma.plots[1:n_plots]
     }
 
+    pb <- progress_bar$new(
+      format = "Saving plots... [:bar] :percent (:eta)",
+      total = length(ma.plots), clear = FALSE, width= 80)
+    pb$tick(0)
     for (i in seq_along(ma.plots)) {
       maplot <- ma.plots[[i]]
       printPlots(\() { suppressMessages(print(maplot)) }, paste(i, "-", maplot$labels$title))
+      pb$tick()
     }
   } # No need to log the warning again.
 

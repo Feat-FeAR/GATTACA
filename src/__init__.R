@@ -10,6 +10,9 @@ options(
     )
 )
 
+# Suppress warnings, globally
+options(warn = -1)
+
 # This NEEDS to be futile.logger THEN logger, as logger needs to overwrite
 # stuff from futile.logger.
 suppressMessages(library(futile.logger))
@@ -23,6 +26,7 @@ if (!interactive()) {
   ROOT <- "/GATTACA" # The root in the docker
 } else {
   ROOT <- getwd()
+  options(warn = 0) # Restore the warnings.
   if (! getOption("running_tests", FALSE) == TRUE) {
     log_threshold(TRACE)
   }
