@@ -365,6 +365,10 @@ run_limma <- function(
       limma_Bayes, coef = i, number = Inf,
       adjust.method = "BH", sort.by = "B"
     )
+    average <- rowMeans(expression_set)
+    average <- as.data.frame(average)
+    colnames(average) <- "AveExpr"
+    DEGs.limma[[i]] |> merge(average, by = "row.names") |> column_to_rownames("Row.names") -> DEGs.limma[[i]]
     pb$tick()
   }
 
