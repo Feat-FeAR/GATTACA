@@ -9,38 +9,13 @@ R makes .Rproj and more session files that are automatically loaded upon startup
     - Remember to add the `-rm`
 
 ## Working and testing locally
-It is useful to work interactively on the source code. To do this, you will
-need the required libraries installed. The file
-`/src/resources/r-requirements.txt` keeps a (hopefully up-to-date) list of the packages needed by
-GATTACA to run. To install them, run something akin to this:
-
-```r
-if (!requireNamespace("BiocManager", quietly = TRUE)) {
-  install.packages("BiocManager")
-}
-
-packages <- read.table("/GATTACA/src/resources/r_requirements.txt")[, 1]
-
-for (package in packages) {
-  if (startsWith(package, "bioc::")) {
-    package <- gsub("^bioc::", "", package)
-    BiocManager::install(package)
-  } else {
-    install.packages(package)
-  }
-}
-```
-
-Afterwards, remember to `source` the `__init__.R` script before starting to work locally.
-
-Even better, ignore all of this, and rebuild the docker each time you need to test the package. See the next section.
+It is recommended to rebuild the docker each time you need to test the package, even when working locally. See the next section.
+A small testing suite can be run by executing `GATTACA test`. However, one should prepare integration tests on real data locally. For more information and help on this points, please contact us (e.g. send an email at luca.visentin (at) unito.it).
 
 ## Rebuilding the Docker
 Docker saves intermediate containers in the cache, so that changes in the dockerfile will not (often) cause the container to rebuild completely.
-
-What does this mean for us? It means that the very long installation process doesn't need to be restarted if the dockerfile section related to the installation of required packages is not changed.
-
-So, feel free to change any other file without having to worry about lengthy recompilation. This also means that tests can (and should) be run in the container and not in interactive mode (like Rstudio).
+Therefore, changing the files is `/src/` will not trigger a full, lengthy rebuild.
+This allows development to be tested in the docker environment, and not locally.
 
 Docker builds made during development should always be tagged with `bleeding`.
 
@@ -63,3 +38,7 @@ hope for the best.
 If annotation collisions are ever detected, it will crash. There is no agreed
 method as of right now to deal with collisions.
 
+This is probably the worst part of GATTACA, so contributions are welcome in making it better.
+
+## Opening pull requests
+Once you make a change, open a pull request. Be sure to fill out the default checklist.

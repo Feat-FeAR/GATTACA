@@ -6,18 +6,16 @@
 [![Latest docker image size](https://img.shields.io/docker/image-size/mrhedmad/gattaca/latest)](https://hub.docker.com/repository/docker/mrhedmad/gattaca)
 
 **GATTACA** is a short for **General Algorithm for The Transcriptional Analysis by one-Channel Arrays**.
-It consists of a set of R scripts for the analysis of Transportome Transcription in Cancer Datasets.
-As the name suggests, GATTACA was originally written with (one-color/high-density) microarray technology in mind, however it can be easily adapted to analyze RNA-Seq data as well.
+It allows for an easy, painless and reproducible analysis of Differentially Expressed genes by using Microarray data.
 
 GATTACA assumes data to be already background-subtracted, log2-transformed, and interarray-normalized.
-To this purpose, use the platform-specific `*_to_Expression.R` script.
+To this purpose, it provides methods to prepare data from raw files given by microarray scanners (see the Usage section below).
 
 The available docker containers live [on Docker Hub](https://hub.docker.com/repository/docker/mrhedmad/gattaca#).
 
-> **Disclaimer**: These instructions are given with a unix-like environment in mind. The program was developed and tested in an Ubuntu installation. See issue #3.
+> **Disclaimer**: These instructions are given with a unix-like environment in mind. The program was developed and tested in a Linux installation. See issue #3.
 
 ## Installation
-
 These scripts are bundled with their dependencies in a Docker container to make usage as painless and reproducible as possible. To install, follow these instructions:
 
 1. Install docker. A tutorial can be found [at the official docker website](https://docs.docker.com/get-docker/).
@@ -28,9 +26,8 @@ These scripts are bundled with their dependencies in a Docker container to make 
 3. Run `GATTACA -h` to begin. The `GATTACA` script is the access point to all the other scripts in the repo. Read the usage section in this readme to learn more. The script takes care of downloading the containers and running them.
 
 ### Troubleshooting
-If the `GATTACA` script cannot be run due to permissions faults, run `chmod +x GATTACA` to give it run permissions, or give it to bash directly using `/bin/bash GATTACA`.
-
-For more help, [open an issue](https://github.com/Feat-FeAR/GATTACA/issues/new).
+We tried to make the error messages given by GATTACA human-readable, so most issues should be solvable by reading the error message and consulting the manual.
+To ask for further help, [open an issue](https://github.com/Feat-FeAR/GATTACA/issues/new).
 
 ## Usage
 Using the scripts is as simple as starting the `GATTACA` bash script. The various help messages (accessed using `-h`) detail the usage of each subcommand.
