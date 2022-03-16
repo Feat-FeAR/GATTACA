@@ -56,7 +56,8 @@ design:
   # Define the experimental design.
   # The experimental design describes which samples are of which group, and if
   # any samples are paired (such as being from the same patient).
-  # NOTE :: The groups must NOT contain numbers. Sorry!
+  # NOTE :: The groups themselves must NOT contain numbers (they would be
+  #   interpreted as pairings). Sorry!
   # Read the README for a guide on how to define this.
   experimental_design: "[treated, control]:2" # str
 
@@ -73,13 +74,17 @@ design:
   # Specify any extra grouping variables. These are considered by limma when
   # running the analysis. Enter each variable as a experimental design string.
   # Set to `null` if there are no extra variables to account for.
-  extra_limma_vars: null # `null` or list of str
+  extra_limma_vars: null # `null` or nested strings
+  # Example of extra variables:
+  # extra_limma_vars:
+  #   some_variable: "(high, low):2"
+  #   another_var: "[fat, thin]:2"
 
-  # Specify the colours that represent the groups above.
-  # Must cover all groups (or more).
+  # Specify the colours that represent the unique groups in the experimental
+  # design. Must cover all groups or more.
   group_colors: [
-    "cornflowerblue", "firebrick3", "olivedrab3",
-    "darkgoldenrod1", "purple", "magenta3"
+    "cornflowerblue", "firebrick3", "olivedrab3", "darkgoldenrod1", "purple",
+    "magenta3"
     ] # list of str
 
   # Filters:
