@@ -506,7 +506,7 @@ diagnose_limma_data <- function(
   # MA-Plot with DEGs
   log_info("Making Limma MA-Plots...")
   # I cannot place a progress bar here as `printPlots` logs to stdout.
-  for (i in seq_along(contrasts)) {
+  for (i in seq_along(DEGs.limma)) {
     # Mark in red/blue all the up-/down- regulated genes
     # This MA plot is made with the LogFC and estimates from the TopTables
     printPlots(
@@ -528,7 +528,7 @@ diagnose_limma_data <- function(
 
   # Volcano Plots
   log_info("Making Limma Volcano plots...")
-  for (i in seq_along(contrasts)) {
+  for (i in seq_along(DEGs.limma)) {
     volcano_p_threshold = find_BH_critical_p(DEGs.limma[[i]]$adj.P.Val)
 
     # Enhanced Volcano Plot
@@ -874,7 +874,7 @@ diagnose_rankprod_data <- function(
   # MA-Plot with DEGs
   log_info("Making Rankprod MA-Plots...")
   # I cannot place a progress bar here as `printPlots` logs to stdout.
-  for (i in seq_along(contrasts)) {
+  for (i in seq_along(DEGs.rankprod)) {
     # Mark in red/blue all the up-/down- regulated genes
     # This MA plot is made with the LogFC and estimates from the TopTables
     printPlots(
@@ -896,7 +896,7 @@ diagnose_rankprod_data <- function(
 
   # Volcano Plots
   log_info("Making RankProd Volcano plots...")
-  for (i in seq_along(contrasts)) {
+  for (i in seq_along(DEGs.rankprod)) {
     # Enhanced Volcano Plot
     if ("SYMBOL" %in% colnames(DEGs.rankprod[[i]])) {
       volcano_labels <- DEGs.rankprod[[i]]$SYMBOL
