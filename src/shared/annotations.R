@@ -25,7 +25,6 @@
 #
 # ------------------------------------------------------------------------------
 
-log_debug("Sourcing the 'annotations.R' file.")
 
 #' Merge expression matrices with annotations and sort them.
 #'
@@ -38,7 +37,7 @@ log_debug("Sourcing the 'annotations.R' file.")
 #'
 #' @author FeAR, MrHedmad
 merge_annotations <- function(gene.stat, annotation, sort.by = 1) {
-  log_info("Checking if annotation data can be used to annotate input...")
+  log$info("Checking if annotation data can be used to annotate input...")
   # Check the matching degree between array and annotation layouts
   missing_probes <- sum(
     ! row.names(gene.stat) %in% row.names(annotation)
@@ -48,18 +47,18 @@ merge_annotations <- function(gene.stat, annotation, sort.by = 1) {
     stop("There are no annotations for this data. Please use a specific database, or change database.")
   } else {
     if (missing_probes > 0) {
-      log_warn(paste0(
+      log$warn(paste0(
         "There are ", missing_probes, " probes with no annotations. ",
         round(missing_perc, 4), "% of total."
       ))
     }
   }
 
-  log_info("Checking for conflicting columns...")
+  log$info("Checking for conflicting columns...")
   conflicting_cols <- colnames(gene.stat) %in% colnames(annotation)
   if (sum(conflicting_cols) > 0) {
     conflicting_cols_name <- colnames(gene.stat)[conflicting_cols]
-    log_warn(paste0(
+    log$warn(paste0(
       "Found conflicting columns in input data: ",
       paste(conflicting_cols_name, collapse = ", "),
       ". Overriding them with new annotation data."
@@ -89,7 +88,7 @@ merge_annotations <- function(gene.stat, annotation, sort.by = 1) {
   }
   # Take only the cols from the annotations
   notMap <- notMap[, colnames(annotation)]
-  log_info(paste("Missing annotations:", get.print.str(notMap), sep = "\n"))
+  log$info(paste("Missing annotations:", get.print.str(notMap), sep = "\n"))
 
   # Re-sort the data frame by the content of 'sort.by' column
   # ('sort.by' can be either a number or a column name)
@@ -148,7 +147,7 @@ get_remote_annotations <- function(
   library(purrr)
   # get_db_names also loads the db in memory, so I don't do it here.
   possible_selections <- get_db_names(db_name)
-  log_info("Checking selections...")
+  log$info("Checking selections...")
   if (!all(selections %in% possible_selections)) {
     stop(
       paste0(
@@ -162,7 +161,7 @@ get_remote_annotations <- function(
   }
 
   # Load the data
-  log_info("Loading the annotation data...")
+  log$info("Loading the annotation data...")
   db_clean_name <- gsub("\\.db", "", db_name)
   data <- as.list(rep(NA, times = length(selections)))
   names(data) <- selections
@@ -197,9 +196,9 @@ get_remote_annotations <- function(
   }
 
   # We need dataframes to manipulate
-  log_info("Collapsing annotations...")
+  log$info("Collapsing annotations...")
   data <- map(data, collapse_to_str)
-  log_info("Casting annotations...")
+  log$info("Casting annotations...")
   container <- as.list(rep(NA, length(data)))
   names(container) <- names(data)
   for (i in seq_along(data)) {
@@ -207,11 +206,11 @@ get_remote_annotations <- function(
   }
   data <- container
   rm(container)
-  log_info("Collapsing annotations again...")
+  log$info("Collapsing annotations again...")
   data <- purrr::reduce(data, merge_genedata)
 
   # The merging functions need the probe_ids as rownames
-  log_info("Cleaning up rownames...")
+  log$info("Cleaning up rownames...")
   row.names(data) <- data$probe_id
   data$probe_id <- NULL
 
@@ -237,16 +236,16 @@ get_remote_annotations <- function(
 #'
 #' @returns A dataframe with additional annotation columns.
 annotate_data <- function(expression_set, database_name = NA) {
-  log_info("Finding annotations...")
+  log$info("Finding annotations...")
   if (is.na(database_name)) {
-    log_info("Loading local annotations.")
+    log$info("Loading local annotations.")
     load(file = file.path(ROOT, "src", "resources", "full_annotations.RData"))
 
     if (! "full_annotations" %in% ls()) {
       stop("I loaded something, but it did not contain the 'full_annotations' object.")
     }
   } else {
-    log_info("Loading remote annotations.")
+    log$info("Loading remote annotations.")
     full_annotations <- get_remote_annotations(
       database_name, selections = c("SYMBOL", "GENENAME", "ENSEMBL")
       )
@@ -254,7 +253,7 @@ annotate_data <- function(expression_set, database_name = NA) {
     full_annotations$version <- packageVersion(database_name)
   }
 
-  log_info("Merging annotations with the data...")
+  log$info("Merging annotations with the data...")
   merged_data <- merge_annotations(expression_set, full_annotations)
 
   return(merged_data)
@@ -289,12 +288,12 @@ annotate_to_file <- function( expression_data_path, output_path, database_name )
 
   source(file.path(ROOT, "src", "tools", "tools.R"))
 
-  log_info("Loading input data...")
+  log$info("Loading input data...")
   expression_set <- read_expression_data(expression_data_path)
 
-  log_info("Annotating data...")
+  log$info("Annotating data...")
   annotated_set <- annotate_data(expression_set, database_name)
 
   write_expression_data(annotated_set, output_path)
-  log_info("Written annotations.")
+  log$info("Written annotations.")
 }

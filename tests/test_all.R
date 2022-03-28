@@ -57,7 +57,7 @@ prepare_env <- function() {
 }
 
 
-log_info("Starting tests... Suppressing logging...")
+log$info("Starting tests... Suppressing logging...")
 log_threshold(ERROR)
 prepare_env()
 for (file in all_test_files) {
@@ -71,6 +71,6 @@ source(file.path(ROOT, "src", "__init__.R"))
 
 log_threshold(DEBUG)
 
-log_info("Finished running tests.")
+log$info("Finished running tests.")
 
 warnings()

@@ -50,7 +50,7 @@
 #
 # ------------------------------------------------------------------------------
 
-log_debug("Sourcing the 'Agilent_TXT_to_Expression.R' file.")
+log$debug("Sourcing the 'Agilent_TXT_to_Expression.R' file.")
 
 agil2expression <- function (
   input_dir, output_file,
@@ -78,7 +78,7 @@ agil2expression <- function (
   output_dir <- dirname(output_file)
   setwd(output_dir)
 
-  log_info(paste0("Finding input files matching the pattern \'",
+  log$info(paste0("Finding input files matching the pattern \'",
                   grep_pattern, "\'..."))
   raw_files <- list.files(path = input_dir, pattern = grep_pattern)
 
@@ -88,10 +88,10 @@ agil2expression <- function (
     raw_files = raw_files[-target.index]
   }
 
-  log_info(
+  log$info(
     paste("Found", length(raw_files), "input files:", paste(raw_files, collapse = ", "))
   )
-  log_info("Reading in input files...")
+  log$info("Reading in input files...")
   expression_data <- read.maimages(
     files = file.path(input_dir, raw_files),
     source = "agilent.median",
@@ -102,7 +102,7 @@ agil2expression <- function (
   colnames(print_data) <- raw_files
   print_data <- log(print_data, 2)
   if (nrow(print_data) > 100000) {
-    log_info("Reducing raw dataset...")
+    log$info("Reducing raw dataset...")
     print_data <- reservoir_sample(print_data, 100000)
     print_data <- as.data.frame(print_data)
   }
@@ -116,7 +116,7 @@ agil2expression <- function (
         "Invalid amount of plots to display"={is.wholenumber(n_plots)}
       )
       if (n_plots > length(ma.plots)) {
-        log_warn(paste0(
+        log$warn(paste0(
           "Number of plots to display (", n_plots,
           ") is higher than the number of plots to be saved (", length(ma.plots),
           "). Printing all of them."
@@ -136,11 +136,11 @@ agil2expression <- function (
       pb$tick()
     }
   } else {
-    log_info("The number of plots is less or equal to 0. Skipping MA plot generation.")
+    log$info("The number of plots is less or equal to 0. Skipping MA plot generation.")
   }
 
 
-  log_info("Making overall boxplot...")
+  log$info("Making overall boxplot...")
   p <- function(){
     bplot <- ggplot(data = melt(print_data), aes(y = value, x = variable)) +
       geom_boxplot(outlier.alpha = 0.5, outlier.size = 1) +
@@ -156,26 +156,26 @@ agil2expression <- function (
 
   rm(print_data)
 
-  log_info("Finished inputting data.")
+  log$info("Finished inputting data.")
 
   # Normalization
-  log_info("Running Normalization")
-  log_info("Background correcting...")
+  log$info("Running Normalization")
+  log$info("Background correcting...")
   expression_data <- limma::backgroundCorrect(expression_data, method = "normexp", offset = 50)
 
   # This step also log2s the data
-  log_info("Running interarray normalization...")
+  log$info("Running interarray normalization...")
   expression_data = limma::normalizeBetweenArrays(expression_data, method = "quantile")
 
   expression_set <- expression_data$E
-  log_info(paste("Dataset dimensions - Cols:", ncol(expression_set), "Rows:", nrow(expression_set)))
+  log$info(paste("Dataset dimensions - Cols:", ncol(expression_set), "Rows:", nrow(expression_set)))
 
   # Check the negative control probes to estimate the log2_intensity of
   # unhybridized spots, to be used as the threshold value for filtering in GATTACA
   neg.ctrl = expression_data$genes$ControlType == -1
   neg.id = unique(expression_data$genes$ProbeName[neg.ctrl])
 
-  log_info(paste0(sum(neg.ctrl), " Negative-Control probes have been found, corresponding to ",
+  log$info(paste0(sum(neg.ctrl), " Negative-Control probes have been found, corresponding to ",
                   length(neg.id), " unique probe(s) [", neg.id, "]. Mean value of ",
                   length(expression_set[neg.ctrl,]), " unhybridized spots = ",
                   mean(expression_set[neg.ctrl,])))
@@ -200,7 +200,7 @@ agil2expression <- function (
     }
   } # No need to log the warning again.
 
-  log_info("Making overall boxplot...")
+  log$info("Making overall boxplot...")
   p <- function(){
     bplot <- ggplot(data = melt(as.data.frame(expression_set)), aes(y = value, x = variable)) +
       geom_boxplot(outlier.alpha = 0.5, outlier.size = 1) +
@@ -215,30 +215,30 @@ agil2expression <- function (
   printPlots(suppressMessages(p), "Normalized Boxplots")
 
   if (remove_controls) {
-    log_info("Filtering out control probes...")
+    log$info("Filtering out control probes...")
     control_probes <- abs(expression_data$genes$ControlType) == 1
     control_probes_percent <- round(sum(control_probes) / nrow(expression_set) * 100, 4)
-    log_info(paste(
+    log$info(paste(
       "Found", sum(control_probes), "control probes,", control_probes_percent,
       "% of total probes. Removing them..."
     ))
 
     expression_data <- expression_data[!control_probes, ]
     expression_set <- expression_data$E
-    log_info(paste("Filtered dataset dimensions - Cols:", ncol(expression_set), "Rows:", nrow(expression_set)))
+    log$info(paste("Filtered dataset dimensions - Cols:", ncol(expression_set), "Rows:", nrow(expression_set)))
   }
 
-  log_info("Finding replicate probes and collapsing them...")
+  log$info("Finding replicate probes and collapsing them...")
   # Replace value of replicate probes with their mean - Probe_ID is used to identify the replicates
   expression_data = avereps(expression_data,  ID = expression_data$genes$ProbeName)
 
   expression_set <- expression_data$E
-  log_info(paste("Final dataset dimensions - Cols:", ncol(expression_set), "Rows:", nrow(expression_set)))
+  log$info(paste("Final dataset dimensions - Cols:", ncol(expression_set), "Rows:", nrow(expression_set)))
 
   expression_set <- as.data.frame(expression_set)
   colnames(expression_set) <- make.names(raw_files)
 
-  log_info("Saving output file...")
+  log$info("Saving output file...")
 
   write_expression_data(expression_set, output_file)
 

@@ -4,9 +4,6 @@
 #
 # ------------------------------------------------------------------------------
 
-log_debug("Sourcing the 'plots.R' file.")
-
-log_debug("Setting the global var ..PRINTPLOT_COUNTER")
 ..PRINTPLOT_COUNTER = 1
 
 #' Save a graphical output to '<folderPrefix> Figures' sub-directory.
@@ -52,11 +49,11 @@ printPlots = function(
 
   if (!file.exists(figSubFolder) && (PNG || PDF)) {
     dir.create(figSubFolder)
-    log_warn("New folder '", figSubFolder, "' has been created in the current WD", sep = "")
+    log$warn("New folder '", figSubFolder, "' has been created in the current WD", sep = "")
   }
 
   if (PNG) {
-    log_debug(paste0("Saving '", figureName, ".png'..."))
+    log$debug(paste0("Saving '", figureName, ".png'..."))
     png(
       file = paste(fullName, ".png", sep = ""),
       width = (plot.width*png_ppi), height = (plot.height*png_ppi)
@@ -66,7 +63,7 @@ printPlots = function(
   }
 
   if (PDF) {
-    log_debug(paste0("Saving '", figureName, "'.pdf..."))
+    log$debug(paste0("Saving '", figureName, "'.pdf..."))
     pdf(
       file = paste(fullName, ".pdf", sep = ""),
       width = plot.width, height = plot.height
@@ -243,7 +240,7 @@ get_better_mas <- function(
   show_density = TRUE,
   density_palette = "RdBu"
 ) {
-  log_info("Making MA plots...")
+  log$info("Making MA plots...")
   format_title <- function(template, x, y) {
     library(stringr)
     x <- path_sanitize(x)
@@ -256,7 +253,7 @@ get_better_mas <- function(
   if (is.data.frame(x)) {plot_order <- rep(NA, length(x))}
 
   if (is.data.frame(x) & ! is.null(y)) {
-    log_info("Plotting cols of x vs vector y...")
+    log$info("Plotting cols of x vs vector y...")
     # We need to test all cols of x vs y.
     results = list(rep(NA, length(x)))
     ranges <- ..get_mama_axis_limits(x, y)
@@ -285,7 +282,7 @@ get_better_mas <- function(
     }
     return(results[order(plot_order, decreasing = TRUE)])
   } else if (is.data.frame(x) & is.null(y)) {
-    log_info("Plotting x with subsets of itself...")
+    log$info("Plotting x with subsets of itself...")
     # We need to test all cols by the median of the remaining ones.
     results = list(rep(NA, length(x)))
     ranges <- ..get_mama_axis_limits(x, y)
@@ -314,7 +311,7 @@ get_better_mas <- function(
     }
     return(results[order(plot_order, decreasing = TRUE)])
   } else if (is.vector(x) & is.vector(y)) {
-    log_info("Plotting simple x vs y...")
+    log$info("Plotting simple x vs y...")
     # We make a MA plot with the two vectors as is.
     formatted_title <- format_title(title, "X", "Y")
     p <- function() {

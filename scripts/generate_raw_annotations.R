@@ -88,7 +88,7 @@ get_remote_annotations <- function(
   library(purrr)
   # get_db_names also loads the db in memory, so I don't do it here.
   possible_selections <- get_db_names(db_name)
-  log_info("Checking selections...")
+  log$info("Checking selections...")
   if (!all(selections %in% possible_selections)) {
     stop(
       paste0(
@@ -102,7 +102,7 @@ get_remote_annotations <- function(
   }
 
   # Load the data
-  log_info("Loading the annotation data...")
+  log$info("Loading the annotation data...")
   db_clean_name <- gsub("\\.db", "", db_name)
   data <- as.list(rep(NA, times = length(selections)))
   names(data) <- selections
@@ -137,9 +137,9 @@ get_remote_annotations <- function(
   }
 
   # We need dataframes to manipulate
-  log_info("Collapsing annotations...")
+  log$info("Collapsing annotations...")
   data <- map(data, collapse_to_str)
-  log_info("Casting annotations...")
+  log$info("Casting annotations...")
   container <- as.list(rep(NA, length(data)))
   names(container) <- names(data)
   for (i in seq_along(data)) {
@@ -147,11 +147,11 @@ get_remote_annotations <- function(
   }
   data <- container
   rm(container)
-  log_info("Collapsing annotations again...")
+  log$info("Collapsing annotations again...")
   data <- purrr::reduce(data, merge_genedata)
 
   # The merging functions need the probe_ids as rownames
-  log_info("Cleaning up rownames...")
+  log$info("Cleaning up rownames...")
   row.names(data) <- data$probe_id
   data$probe_id <- NULL
 

@@ -4,8 +4,6 @@
 #
 # ------------------------------------------------------------------------------
 
-log_debug("Sourcing the 'desing_parser.R' file.")
-
 #' Expand labels with the intercalated strategy.
 #'
 #' @param core A string of comma separated labels to expand

@@ -58,7 +58,7 @@ setup_file_logging <- function (log_dir, log_name = NULL) {
   options(gattaca.datalog.path = data_log_path)
 
   # Log the version of the docker to the file log. For posterity.
-  log_info(paste("Version of current GATTACA container:", readLines(file.path(ROOT, "VERSION"))))
+  log$info(paste("Version of current GATTACA container:", readLines(file.path(ROOT, "VERSION"))))
 }
 
 setwd(ROOT)
@@ -69,29 +69,6 @@ setwd(ROOT)
 # These two are backbone packages.
 suppressMessages(library(tidyverse))
 suppressMessages(library(progress))
-
-#' Gracefully load a series of packages, as to not spam the console.
-#'
-#' @param packages A vector of strings with the package names to load.
-#'
-#' @author MrHedmad
-graceful_load <- function(packages) {
-  log_info("Loading required packages...")
-  log_debug("Loading packages:", paste(packages, collapse = ", "))
-
-  pb <- progress_bar$new(
-    format = "Loading... [:bar] :percent (:eta)",
-    total = length(packages), clear = FALSE, width= 80)
-  pb$tick(0)
-  for (i in seq_along(packages)) {
-    package <- packages[i]
-    log_debug("Loading package: ", package)
-
-    suppressMessages(library(package, character.only = TRUE))
-    pb$tick()
-  }
-  log_debug("Finished loading packages")
-}
 
 graceful_load(c(
   "preprocessCore",   # Interarray Normalization by Quantile-Quantile Algorithm

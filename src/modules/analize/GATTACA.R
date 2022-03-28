@@ -53,11 +53,11 @@
 diagnose_batch_effects <- function(
   expression_set, groups, user_colours, title_mod = NULL
 ) {
-  log_info("Starting sample-wise hierarchical clustering and PCA for batch-effect detection...")
+  log$info("Starting sample-wise hierarchical clustering and PCA for batch-effect detection...")
   # Matrix Transpose t() is used because dist() computes the distances between
   # the ROWS of a matrix
   # Distance matrix (NOTE: t(expression_set) is coerced to matrix)
-  log_info("Performing hierarchical clustering...")
+  log$info("Performing hierarchical clustering...")
   expression_set |> t() |> dist() |> hclust(method = "ward.D") ->
     hierarchical_clusters
 
@@ -66,7 +66,7 @@ diagnose_batch_effects <- function(
     paste("Dendrogram", title_mod, sep = " - ")
   )
 
-  log_info("Performing PCA...")
+  log$info("Performing PCA...")
   # Bundle some metadata in the PCA object for later.
   # Strictly enforced that rownames(metadata) == colnames(expression_set)
   metadata = data.frame(
@@ -77,7 +77,7 @@ diagnose_batch_effects <- function(
   # Do the PCA (centering the data before performing PCA, by default)
   PCA_object = pca(expression_set, metadata = metadata)
 
-  log_info("Finished running PCA. Plotting results...")
+  log$info("Finished running PCA. Plotting results...")
   printPlots(
     \(){print(screeplot(PCA_object))},
     paste("Scree Plot", title_mod, sep = " - ")
@@ -129,7 +129,7 @@ diagnose_batch_effects <- function(
 filter_expression_data <- function(
   expression_set, groups, min_groupwise_presence, expression_threshold
 ) {
-  log_info(
+  log$info(
     "Filtering a ", ncol(expression_set), " cols by ", nrow(expression_set),
     " rows expression set."
   )
@@ -142,7 +142,7 @@ filter_expression_data <- function(
     "\nExpression threshold (log2): ", expression_threshold
     )
 
-  log_debug(
+  log$debug(
     "Raw colnames:", paste(colnames(expression_set), collapse = ", "),
     "\nGroups:", paste(groups, collapse = ", ")
   )
@@ -328,8 +328,8 @@ run_limma <- function(
   other_vars = NULL,
   fc_threshold = 0.5
 ) {
-  log_info("Running differential expression analysis by limma.")
-  log_info("Making limma design matrix...")
+  log$info("Running differential expression analysis by limma.")
+  log$info("Making limma design matrix...")
 
   if ( !is.null(other_vars) ) {
     limma_design <- do.call(make_limma_design, c(list(groups = groups), other_vars))
@@ -339,7 +339,7 @@ run_limma <- function(
 
   log_data(limma_design, "Limma design matrix", shorten = FALSE)
 
-  log_info("Making contrasts matrix...")
+  log$info("Making contrasts matrix...")
   makeContrasts(
     contrasts = contrasts,
     levels = limma_design
@@ -347,12 +347,12 @@ run_limma <- function(
 
   log_data(contrast_matrix, "Contrast Matrix", shorten = FALSE)
 
-  log_info("Computing contrasts...")
+  log$info("Computing contrasts...")
   lmFit(expression_set, limma_design) -> limma_fit
 
   limma_fit |> contrasts.fit(contrast_matrix) |> eBayes() -> limma_Bayes
 
-  log_info("Getting Differential expressions...")
+  log$info("Getting Differential expressions...")
   pb <- progress_bar$new(
     format = "Generating... [:bar] :percent (:eta)",
     total = length(contrasts), clear = FALSE, width= 80)
@@ -463,7 +463,7 @@ make_overlaps_from_markings <- function(markings, toolname = "") {
   } else if (sum(markings) > 0) {
     printPlots(\(){vennDiagram(markings)}, paste("Upset Plot", toolname, sep = " - "))
   } else {
-    log_warn("Cannot plot a Venn or Upset Plot as no DEGs have been detected.")
+    log$warn("Cannot plot a Venn or Upset Plot as no DEGs have been detected.")
   }
 }
 
@@ -493,7 +493,7 @@ make_overlaps_from_markings <- function(markings, toolname = "") {
 diagnose_limma_data <- function(
   DEGs.limma, fc_threshold = 0.5, volcano_colour = "firebrick3"
 ) {
-  log_info("Making limma DEG plots...")
+  log$info("Making limma DEG plots...")
 
   extract_markings(DEGs.limma) |> abs() -> markings
 
@@ -501,14 +501,14 @@ diagnose_limma_data <- function(
 
   # MA-Plots with significant DEGs
   # Find Axis Limits
-  log_info("Finding axis limits...")
+  log$info("Finding axis limits...")
   max.M.value = max(sapply(DEGs.limma, \(data){max(abs(data$logFC))} ))
   max.A.value = max(sapply(DEGs.limma, \(data){max(data$AveExpr)} ))
   min.A.value = min(sapply(DEGs.limma, \(data){min(data$AveExpr)} ))
   min.P.value = min(sapply(DEGs.limma, \(data){min(data$P.Value)} ))
 
   # MA-Plot with DEGs
-  log_info("Making Limma MA-Plots...")
+  log$info("Making Limma MA-Plots...")
   # I cannot place a progress bar here as `printPlots` logs to stdout.
   for (i in seq_along(DEGs.limma)) {
     # Mark in red/blue all the up-/down- regulated genes
@@ -531,7 +531,7 @@ diagnose_limma_data <- function(
   }
 
   # Volcano Plots
-  log_info("Making Limma Volcano plots...")
+  log$info("Making Limma Volcano plots...")
   for (i in seq_along(DEGs.limma)) {
     volcano_p_threshold = find_BH_critical_p(DEGs.limma[[i]]$adj.P.Val)
 
@@ -597,31 +597,31 @@ run_rankprod <- function(
   batches = NULL,
   pairings = NULL, fc_threshold = 0.5
 ) {
-  log_info("Running differential expression analysis with rankproduct...")
+  log$info("Running differential expression analysis with rankproduct...")
 
   # Handling batches AND pairings is currently not supported.
   if (!is.null(batches) & !is.null(pairings)) {
-    log_warn("Cannot handle both batches and pairings. Setting BATCHES to `null`.")
+    log$warn("Cannot handle both batches and pairings. Setting BATCHES to `null`.")
     batches <- NULL
   }
 
   # Make a container for the rankprod results
   DEGs.rankprod = list()
 
-  log_info(paste(
+  log$info(paste(
     "Rankprod Parameters:",
     paste("Groups:", paste(groups, collapse = ", ")),
     paste("Pairings:", paste(pairings, collapse = ", ")),
     paste("Batches:", paste(batches, collapse = ", "))
   ))
 
-  log_info("Renaming columns according to groups input...")
+  log$info("Renaming columns according to groups input...")
   colnames(expression_set) <- make.unique_from1(groups)
 
   for (i in seq_along(contrasts)) {
-    log_info(paste0("Running analysis ", i, " of ", length(contrasts)))
+    log$info(paste0("Running analysis ", i, " of ", length(contrasts)))
 
-    log_info("Finding control and case groups...")
+    log$info("Finding control and case groups...")
     unpacked_groups = strsplit(contrasts[i], split = "-", fixed = TRUE)[[1]]
 
     control_group <- unpacked_groups[2]
@@ -666,7 +666,7 @@ run_rankprod <- function(
         # we need to collapse them in some way as there is ambiguity on how
         # to subtract them.
         if (ncol(control_set) != 1) {
-          log_warn(
+          log$warn(
             paste0(
               "There are more than 1 '", control_group,
               "' paired samples (",
@@ -686,7 +686,7 @@ run_rankprod <- function(
         }
 
         if (ncol(treated_set) != 1) {
-          log_warn(
+          log$warn(
             paste0(
               "There are more than 1 '", treated_group,
               "' paired samples (",
@@ -717,7 +717,7 @@ run_rankprod <- function(
         rownames(subtracted_expression_set) <- subtracted_expression_set$Row.names
         subtracted_expression_set$Row.names <- NULL
       }
-      log_info("Finished pairing dataset.")
+      log$info("Finished pairing dataset.")
       # We put the new data in the same containers
       sub_expression_set <- subtracted_expression_set
       # The class labels are now identical as the set is paired
@@ -726,12 +726,12 @@ run_rankprod <- function(
 
     # Handle batches
     if (!is.null(batches)) {
-      log_info("Setting batches...")
+      log$info("Setting batches...")
       if (length(batches) != ncol(sub_expression_set)) {
         stop("Length of batches vector is not the same as the groups.")
       }
       if (any(table(paste(batches, groups)) == 1)) {
-        log_warn("Some batches have only one sample per group. Rankprod cannot correct such a batch effect")
+        log$warn("Some batches have only one sample per group. Rankprod cannot correct such a batch effect")
         batches <- rep(1, length(groups))
       }
       batches |> as.factor() |> as.numeric() -> batches
@@ -741,7 +741,7 @@ run_rankprod <- function(
 
     # invisible(capture.output()) is to suppress automatic output to console
     # WARNING: therein <- (instead of =) is mandatory for assignment!
-    log_info("Running RankProduct...")
+    log$info("Running RankProduct...")
     RP.out <- RP.advance(
       sub_expression_set,
       rp_class_labels, origin = batches,
@@ -750,7 +750,7 @@ run_rankprod <- function(
     )
 
     # Compute full DEG Tables (returns a list of 2 matrices, not data frames)
-    log_info("Computing DEG table...")
+    log$info("Computing DEG table...")
     invisible(
       capture.output(
         # The Inf cutoff is to print all genes
@@ -787,7 +787,7 @@ run_rankprod <- function(
     # introduced during topGene() calculation. In this case we would loose those
     # genes when merging... it's an unlucky event, but better safe than sorry.
     if (nrow(partial_data) != nrow(expression_set)) {
-      log_warn(
+      log$warn(
         paste(
           nrow(expression_set) - nrow(partial_data),
           "entries have been lost in merging partial_data_up with _down!"
@@ -861,7 +861,7 @@ run_rankprod <- function(
 diagnose_rankprod_data <- function(
   DEGs.rankprod, fc_threshold = 0.5, volcano_colour = "firebrick3"
 ) {
-  log_info("Making rankprod DEG plots...")
+  log$info("Making rankprod DEG plots...")
 
   extract_markings(DEGs.rankprod) |> abs() -> markings
 
@@ -869,14 +869,14 @@ diagnose_rankprod_data <- function(
 
   # MA-Plots with significant DEGs
   # Find Axis Limits
-  log_info("Finding axis limits...")
+  log$info("Finding axis limits...")
   max.M.value = max(sapply(DEGs.rankprod, \(data){max(abs(data$logFC))} ))
   max.A.value = max(sapply(DEGs.rankprod, \(data){max(data$AveExpr)} ))
   min.A.value = min(sapply(DEGs.rankprod, \(data){min(data$AveExpr)} ))
   min.P.value = min(sapply(DEGs.rankprod, \(data){min(c(data$P.value.DOWN, data$P.value.UP))} ))
 
   # MA-Plot with DEGs
-  log_info("Making Rankprod MA-Plots...")
+  log$info("Making Rankprod MA-Plots...")
   # I cannot place a progress bar here as `printPlots` logs to stdout.
   for (i in seq_along(DEGs.rankprod)) {
     # Mark in red/blue all the up-/down- regulated genes
@@ -899,7 +899,7 @@ diagnose_rankprod_data <- function(
   }
 
   # Volcano Plots
-  log_info("Making RankProd Volcano plots...")
+  log$info("Making RankProd Volcano plots...")
   for (i in seq_along(DEGs.rankprod)) {
     # Enhanced Volcano Plot
     if ("SYMBOL" %in% colnames(DEGs.rankprod[[i]])) {
@@ -965,7 +965,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   if (!is.list(options.path)) {
     opts <- yaml.load_file(options.path)
   } else {
-    log_warn(
+    log$warn(
       "I was given a list as input. I assume this is a testing run. ",
       "You should never see this message."
     )
@@ -976,7 +976,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   pitstop <- pitstop.maker(opts$general$slowmode)
   printdata <- printif.maker(opts$general$show_data_snippets, topleft.head)
 
-  log_info("Parsed options.")
+  log$info("Parsed options.")
 
   # ---- Move to output.dir ----
   setwd(output.dir)
@@ -985,7 +985,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   # To reuse as-is the script, I unpack the variables from the yaml file here
   # TODO : Improvement - These should be checked here for basic validity, so
   #        we crash sooner rather than later.
-  log_info("Inputting variables...")
+  log$info("Inputting variables...")
 
   user_colours <- opts$design$group_colors
 
@@ -998,11 +998,11 @@ GATTACA <- function(options.path, input.file, output.dir) {
   # Flags for script-wide IFs
   write_data_to_disk = !opts$switches$dryrun # The ! is important.
   if (opts$switches$dryrun & opts$general$save_png) {
-    log_warn("save_png forced to be FALSE as this is a dryrun")
+    log$warn("save_png forced to be FALSE as this is a dryrun")
     opts$general$save_png <- FALSE
   }
   if (opts$switches$dryrun & opts$general$save_pdf) {
-    log_warn("save_pdf forced to be FALSE as this is a dryrun")
+    log$warn("save_pdf forced to be FALSE as this is a dryrun")
     opts$general$save_pdf <- FALSE
   }
 
@@ -1015,12 +1015,12 @@ GATTACA <- function(options.path, input.file, output.dir) {
     use.remote.annotations <- TRUE
     database_name <- opts$general$annotation_database
   }
-  log_debug("use.annotations was set to", str(use.annotations))
-  log_debug("use.remote.annotations was set to", str(use.remote.annotations))
-  log_debug("database_name was set to", str(database_name))
+  log$debug("use.annotations was set to", str(use.annotations))
+  log$debug("use.remote.annotations was set to", str(use.remote.annotations))
+  log$debug("database_name was set to", str(database_name))
 
   if (use.annotations & use.remote.annotations) {
-    log_info("Loading remote annotations...")
+    log$info("Loading remote annotations...")
     # I source the data like this as we can use the `merge_annotations`
     # function which is faster than `annotate_data` if used many times in a row
     annotation_data <- get_remote_annotations(
@@ -1029,7 +1029,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
     annotation_data$package_name <- database_name
     annotation_data$version <- packageVersion(database_name)
   } else if (use.annotations) {
-    log_info("Loading local annotations...")
+    log$info("Loading local annotations...")
     load(file = file.path(ROOT, "src", "resources", "full_annotations.RData"))
 
     if (! "full_annotations" %in% ls()) {
@@ -1053,7 +1053,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
   # ---- Data Loading ----
   # Gene Expression Matrix - log2-Intensity-Values
-  log_info("Loading data...")
+  log$info("Loading data...")
 
   expression_set <- read_expression_data(input.file)
   printdata(expression_set)
@@ -1062,7 +1062,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   pitstop("Finished loading data.")
 
   # Load the experimental design
-  log_info("Loading experimental design...")
+  log$info("Loading experimental design...")
   # This is a list containing the group sequence in `$groups` and the IDs for
   # pairing in '$pairing'
   design_parser(opts$design$experimental_design) |>
@@ -1082,10 +1082,10 @@ GATTACA <- function(options.path, input.file, output.dir) {
   ..pairing_NAs <- is.na(experimental_design$pairings)
   # We need either ALL or NONE patient NAs
   if (all(..pairing_NAs)) {
-    log_info("No sample pairing detected. Running in unpaired mode.")
+    log$info("No sample pairing detected. Running in unpaired mode.")
     paired_mode <- FALSE
   } else if (all(!..pairing_NAs)) {
-    log_info("Found sample pairings. Running in paired mode.")
+    log$info("Found sample pairings. Running in paired mode.")
     paired_mode <- TRUE
   } else {
     stop("Some samples have pairing data and some do not. Cannot proceed with pairing ambiguity.")
@@ -1122,14 +1122,14 @@ GATTACA <- function(options.path, input.file, output.dir) {
     extra_limma_vars <- NULL
   }
 
-  log_info("Experimental desing loaded.")
+  log$info("Experimental desing loaded.")
 
   # Tidy Sample Names According to the Experimental Design
   # Create a new vector containing tidy group names
   unique_simple_groups <- unique(experimental_design$groups)
-  log_info(paste(length(unique_simple_groups), "groups detected:",
+  log$info(paste(length(unique_simple_groups), "groups detected:",
                  paste0(unique_simple_groups, collapse = ", ")))
-  log_info("Making group names tidy using the experimental design...")
+  log$info("Making group names tidy using the experimental design...")
   unique_groups <- make.unique_from1(experimental_design$groups, sep = "_")
   ..old_colnames <- colnames(expression_set)
   colnames(expression_set) <- unique_groups
@@ -1152,7 +1152,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
       "correspondence_table.csv",
       row.names = FALSE, quote = TRUE
     )
-    log_info(paste("'correspondence_table.csv' has been saved in", output.dir))
+    log$info(paste("'correspondence_table.csv' has been saved in", output.dir))
   }
 
   # Check the contrasts
@@ -1176,7 +1176,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
     ))
   }
 
-  log_info("Design loaded and approved.")
+  log$info("Design loaded and approved.")
   pitstop("")
 
 
@@ -1196,7 +1196,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
       )
     }, "Pre-normalization density")
 
-    log_info("Running quantile-quantile normalization...")
+    log$info("Running quantile-quantile normalization...")
     expression_set <- qq_normalize(expression_set)
     log_data(expression_set, "Post-normalization data")
   }
@@ -1238,11 +1238,11 @@ GATTACA <- function(options.path, input.file, output.dir) {
   )
 
   if (!is.null(batches)) {
-    log_info("Correcting batch effects for visualization...")
+    log$info("Correcting batch effects for visualization...")
     batch_corrected_expr_set <- removeBatchEffect(
       expression_set, batch = batches
     )
-    log_info("Diagnosing batch effects again...")
+    log$info("Diagnosing batch effects again...")
     diagnose_batch_effects(
       batch_corrected_expr_set, experimental_design$groups, user_colours,
       title_mod = "Unbatched"
@@ -1252,17 +1252,17 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
   # ---- SD vs Mean Plot ----
   # Poisson Hypothesis Check
-  log_info("Building SD_vs_Mean plot...")
+  log$info("Building SD_vs_Mean plot...")
 
   # Un-log intensity values
-  log_info("Returning to linear intensities...")
+  log$info("Returning to linear intensities...")
   unlogged_expression_set = 2 ^ expression_set
   printdata(unlogged_expression_set)
   log_data(unlogged_expression_set, "Unlogged expression set")
   pitstop("Did the 'unlogging' mess anything up?")
 
   # Store values using matrices
-  log_info("Making matrices...")
+  log$info("Making matrices...")
   ..nr_unique_simple_groups <- length(unique_simple_groups)
 
   matrix(nrow = nrow(expression_set), ncol = ..nr_unique_simple_groups + 1) |>
@@ -1276,7 +1276,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   names(..correlation_vector) <- c(unique_simple_groups, "Global")
 
   # Statistics for each group...
-  log_info("Calculating groupwise statistics...")
+  log$info("Calculating groupwise statistics...")
   for (group in unique_simple_groups) {
     unlogged_expression_set |> dp_select(starts_with(group)) |>
       rowMeans(na.rm = TRUE) ->
@@ -1291,14 +1291,14 @@ GATTACA <- function(options.path, input.file, output.dir) {
   }
 
   # ...and for the whole experiment
-  log_info("Calculating global statistics...")
+  log$info("Calculating global statistics...")
 
   ..means_frame[["Global"]] = rowMeans(unlogged_expression_set, na.rm = TRUE)
   ..sd_matrix[["Global"]] = apply(unlogged_expression_set, 1, sd, na.rm = TRUE)
   ..correlation_vector[["Global"]] = cor(..means_frame[,"Global"], ..sd_matrix[,"Global"])
 
   # Scatter plot
-  log_info("Making plots...")
+  log$info("Making plots...")
   printPlots(
     \() {
       par(mfrow = c(1, length(unique_simple_groups)+1))
@@ -1325,7 +1325,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
     expression_threshold = min_log2_expression
   )
 
-  log_info("Done filtering.")
+  log$info("Done filtering.")
 
   # ---- DE by Limma ----
   if (opts$switches$limma) {
@@ -1342,7 +1342,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
     )
 
     if (getOption("use.annotations")) {
-      log_info("Annotating limma results...")
+      log$info("Annotating limma results...")
       for (i in seq_along(DEGs.limma)) {
         DEGs.limma[[i]] <- merge_annotations(DEGs.limma[[i]], annotation_data)
       }
@@ -1356,7 +1356,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
     # Save full DEG Tables
     if (write_data_to_disk) {
-      log_info("Saving Differential expression tables...")
+      log$info("Saving Differential expression tables...")
       pb <- progress_bar$new(
         format = "Saving... [:bar] :percent (:eta)",
         total = length(raw_contrasts), clear = FALSE, width= 80)
@@ -1379,7 +1379,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
     )
 
     if (getOption("use.annotations")) {
-      log_info("Annotating RankProd results...")
+      log$info("Annotating RankProd results...")
       for (i in seq_along(DEGs.rankprod)) {
         DEGs.rankprod[[i]] <- merge_annotations(DEGs.rankprod[[i]], annotation_data)
       }
@@ -1393,7 +1393,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
     # Save full DEG Tables
     if (write_data_to_disk) {
-      log_info("Saving Differential expression tables...")
+      log$info("Saving Differential expression tables...")
       pb <- progress_bar$new(
         format = "Saving... [:bar] :percent (:eta)",
         total = length(raw_contrasts), clear = FALSE, width= 80)
@@ -1408,7 +1408,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
   # ---- Comparison Plots - Limma vs RankProd ----
   if (opts$switches$limma & opts$switches$rankproduct) {
-    log_info("Making comparison plots between limma and rankproduct...")
+    log$info("Making comparison plots between limma and rankproduct...")
 
     # To suppress 'venn.diagram()' logging
     futile.logger::flog.threshold(futile.logger::ERROR, name = "VennDiagramLogger")
@@ -1417,7 +1417,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
     results.RP <- extract_markings(DEGs.rankprod)
 
     # Plot Venn diagrams
-    log_info("Plotting Venn diagrams...")
+    log$info("Plotting Venn diagrams...")
     for (i in seq_along(raw_contrasts)) {
       for (j in c(1, -1)) {
 
@@ -1431,7 +1431,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
         }
 
         if (length(DEG.id.limma) == 0 & length(DEG.id.RP) == 0) {
-          log_warn("Both the sets are empty in the contrast: ", raw_contrasts[i], " (", venn.sub, ")")
+          log$warn("Both the sets are empty in the contrast: ", raw_contrasts[i], " (", venn.sub, ")")
           next # Skip the current iteration of the for loop without terminating it
         }
 
@@ -1464,5 +1464,5 @@ GATTACA <- function(options.path, input.file, output.dir) {
     }
   }
 
-  log_info("GATTACA finished")
+  log$info("GATTACA finished")
 }

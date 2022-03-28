@@ -53,7 +53,7 @@
 #
 # ------------------------------------------------------------------------------
 
-log_debug("Sourcing the 'Affy_CEL_to_Expression.R' file.")
+log$debug("Sourcing the 'Affy_CEL_to_Expression.R' file.")
 
 affy2expression <- function(
     input.folder, output.file, remove.controls = TRUE,
@@ -64,7 +64,7 @@ affy2expression <- function(
     "Call (input.folder, output.file, remove.controls): ",
     paste(input.folder, output.file, remove.controls, sep = " :: ")
   ) |>
-    log_debug()
+    log$debug()
 
   # Set options for printPlots
   options(
@@ -76,7 +76,7 @@ affy2expression <- function(
   )
 
   # ---- Load .CEL files ----
-  log_info("Looking for .CEL files...")
+  log$info("Looking for .CEL files...")
   output.folder <- dirname(output.file)
   setwd(input.folder)
 
@@ -84,9 +84,9 @@ affy2expression <- function(
   paste0(
     "Found ", length(celFiles), " .CEL files: ", paste0(celFiles, collapse = ", ")
     ) |>
-    log_info()
+    log$info()
 
-  log_info("Parsing found files to raw data...")
+  log$info("Parsing found files to raw data...")
   # This should also install-and-load the platform design package (e.g. pd.hg.u133a)
   affyRaw = read.celfiles(celFiles)
 
@@ -95,14 +95,14 @@ affy2expression <- function(
 
   # Take note of the platform name
   platform <- affyRaw@annotation
-  log_info(paste0("Detected platform: ", platform))
+  log$info(paste0("Detected platform: ", platform))
 
   # Set the exon.probes flag
   # This is done as newer platforms need different processing than old ones.
   exon.probes = ! class(affyRaw) %in% c("ExpressionFeatureSet", "SnpCnvFeatureSet")
 
   # Making plots for quality control
-  log_info("Making MA plots before normalization...")
+  log$info("Making MA plots before normalization...")
 
   if (exon.probes) {
     unnormalized_data <- oligo::rma(
@@ -126,7 +126,7 @@ affy2expression <- function(
         "Invalid amount of plots to display"={is.wholenumber(n_plots)}
       )
       if (n_plots > length(ma.plots)) {
-        log_warn(paste0(
+        log$warn(paste0(
           "Number of plots to display (", n_plots,
           ") is higher than the number of plots to be saved (", length(ma.plots),
           "). Printing all of them."
@@ -146,10 +146,10 @@ affy2expression <- function(
       pb$tick()
     }
   } else {
-    log_info("The number of plots is less or equal to 0. Skipping MA plot generation.")
+    log$info("The number of plots is less or equal to 0. Skipping MA plot generation.")
   }
 
-  log_info("Making overall boxplot...")
+  log$info("Making overall boxplot...")
   p <- function(){
     bplot <- ggplot(data = melt(unnormalized_data), aes(y = value, x = variable)) +
       geom_boxplot(outlier.alpha = 0.5, outlier.size = 1) +
@@ -168,14 +168,14 @@ affy2expression <- function(
 
   # The call knows when to use `target = "core"` or not, and the defaults are
   # always to use `target = "core"`.
-  log_info("Running RMA normalization.")
+  log$info("Running RMA normalization.")
   expression_set = oligo::rma(affyRaw)
 
-  log_info(paste0("Dataset dimensions: ", dim(expression_set)[1], " probe sets x ",
+  log$info(paste0("Dataset dimensions: ", dim(expression_set)[1], " probe sets x ",
                   dim(expression_set)[2], " samples"))
 
   if (remove.controls) {
-    log_info("Removing control probes...")
+    log$info("Removing control probes...")
     # Remove Affymetrix control probes
     probes.before = dim(expression_set)[1]
     if (exon.probes) {
@@ -195,12 +195,12 @@ affy2expression <- function(
       discarded, " Affymetrix control probes have been discarded, ",
       discarded.percent, "% of the total."
     ) |>
-      log_info()
-    log_info(paste0("Dataset dimensions: ", probes.after, " probe sets x ",
+      log$info()
+    log$info(paste0("Dataset dimensions: ", probes.after, " probe sets x ",
                     dim(expression_set)[2], " samples"))
     # Check for missing values (NA) and NaN entries
     if (any(is.na(exprs((expression_set)))) || any(is.nan(exprs((expression_set))))) {
-      log_warn("Detected some missing values in the dataset. Has something gone terribly wrong?")
+      log$warn("Detected some missing values in the dataset. Has something gone terribly wrong?")
     }
   }
 
@@ -226,7 +226,7 @@ affy2expression <- function(
     }
   }
 
-  log_info("Making overall boxplot...")
+  log$info("Making overall boxplot...")
   p <- function(){
     bplot <- ggplot(data = melt(transposed), aes(y = value, x = variable)) +
       geom_boxplot(outlier.alpha = 0.5, outlier.size = 1) +
@@ -240,7 +240,7 @@ affy2expression <- function(
   }
   printPlots(suppressMessages(p), "Normalized Boxplots")
 
-  log_info("Saving Expression Matrix to file...")
+  log$info("Saving Expression Matrix to file...")
   write_expression_data(transposed, output.file)
-  log_info("affy2expression finished")
+  log$info("affy2expression finished")
 }

@@ -6,14 +6,13 @@
 #
 # ------------------------------------------------------------------------------
 
-log_debug("Sourcing the 'tools.R' file.")
-
 # Source the other tool files.
 # Note: The other tool files are dependent on each other, so you should source
 # all of them at once (such as by sourcing this file).
-source(file.path(ROOT, "src", "tools", "plots.R"))
-source(file.path(ROOT, "src", "tools", "design_parser.R"))
-source(file.path(ROOT, "src", "tools", "annotations.R"))
+source("/GATTACA/shared/plots.R")
+source("/GATTACA/shared/design_parser.R")
+source("/GATTACA/shared/annotations.R")
+source("/GATTACA/shared/logging.R")
 
 
 # https://stackoverflow.com/questions/14469522/stop-an-r-program-without-error
@@ -24,6 +23,28 @@ stop_quietly <- function() {
   stop()
 }
 
+#' Gracefully load a series of packages, as to not spam the console.
+#'
+#' @param packages A vector of strings with the package names to load.
+#'
+#' @author MrHedmad
+graceful_load <- function(packages) {
+  log$info("Loading required packages...")
+  log$debug("Loading packages:", paste(packages, collapse = ", "))
+
+  pb <- progress_bar$new(
+    format = "Loading... [:bar] :percent (:eta)",
+    total = length(packages), clear = FALSE, width= 80)
+  pb$tick(0)
+  for (i in seq_along(packages)) {
+    package <- packages[i]
+    log$debug("Loading package: ", package)
+
+    suppressMessages(library(package, character.only = TRUE))
+    pb$tick()
+  }
+  log$debug("Finished loading packages")
+}
 
 #' Make a pitstop function.
 #'
@@ -98,70 +119,16 @@ get.print.str <- function(data) {
 }
 
 
-#' Create a function to push to a data log saved in getOption("gattaca.datalog.path").
-#'
-#' The function creates the path to the data log when making a new
-#' function, and also overwrites the contents of identically-named files.
-#'
-#' A data log is a weird log where snippets of data are saved for future
-#' inspection. The log therefore has to log multi-line strings without any
-#' log levels. This function makes functions that can push multi-line strings
-#' to such logs.
-#'
-#' If the data log path is not found, this function logs a warning and returns
-#' a function that does nothing.
-#'
-#' @param prefix The prefix to give to every log entry, either as a string or
-#'   a function that returns a string. "<m>" Is replaced with the contents of
-#'   the optional "message" parameter passed to the resulting log pusher.
-#' @param suffix The suffix to give to every log entry, either as a string or
-#'   a function that returns a string.
-#' @param padding If set, prefixes every line pushed to the log (detected by
-#'   newline characters) with the padding. Useful if some indentation is
-#'   wanted for the pushed data.
-#'
-#' @returns A function that takes a mandatory `string_data` parameter with the
-#'   data to log, and an optional `message` to describe the data.
-make_data_log_pusher <- function(
-    prefix = \(){paste("[", date(), "] <m> >>>>", sep = "")},
-    suffix = "<<<<\n",
-    padding = "    "
-  ) {
-
-  configured_push <- function(string_data, message = ""){
-    path <- getOption("gattaca.datalog.path")
-
-    if (is.null(path)) {
-      log_warn("No datalog path was found. Skipping istantiating the data log.")
-      return(\(...){})
-    }
-    dir <- dirname(path)
-    dir.create(dir, showWarnings = FALSE)
-
-    sprefix <- if (is.function(prefix)) {prefix()} else {prefix}
-    sprefix <- gsub("<m>", message, sprefix)
-    ssuffix <- if (is.function(suffix)) {suffix()} else {suffix}
-
-    string_data <- paste0(padding, gsub("\\n", paste0("\n", padding), string_data))
-
-    pushed_string <- paste(sprefix, string_data, ssuffix, sep = "\n")
-
-    # This function behaves like `tee`
-    cat(pushed_string)
-    write(pushed_string, file = path, append = TRUE)
+log_data <- function(data, message = "", shorten = TRUE) {
+  if (shorten) {
+    data <- topleft.head(data)
   }
+  entry <- list(data)
+  names(entry) <- message
+
+  log$data(entry)
 }
 
-push_to_data_log <- make_data_log_pusher()
-
-log_data <- function(data, message = "", shorten = TRUE, is.string = FALSE) {
-      if (is.string) {
-        sdata <- data
-      } else {
-        sdata <- if (shorten) {get.print.str(topleft.head(data))} else {get.print.str((data))}
-      }
-      push_to_data_log(sdata, message = message)
-    }
 
 #' Finds all the chars in `str1` that are also in `str2`,
 #' returning a vector of unique chars.
@@ -240,7 +207,7 @@ write_expression_data <- function (
   expression_data %>% dplyr::select("probe_id", everything()) -> expression_data
 
   if (verbose) {
-    log_info(paste(
+    log$info(paste(
       "Saving a", ncol(expression_data) - 1, "cols by",
       nrow(expression_data), "rows expression dataset"
     ))
@@ -264,7 +231,7 @@ read_expression_data <- function (target, verbose = TRUE) {
   expression_data$probe_id <- NULL
 
   if (verbose) {
-    log_info(paste(
+    log$info(paste(
       "Loaded a", ncol(expression_data), "cols by",
       nrow(expression_data), "rows expression dataset from '",
       target, "'"
@@ -288,7 +255,7 @@ read_expression_data <- function (target, verbose = TRUE) {
 qq_normalize <- function(expression_set) {
   library(preprocessCore)
 
-  log_info("Running quantile-quantile normalization...")
+  log$info("Running quantile-quantile normalization...")
   expression_set |> as.matrix() |> normalize.quantiles() |> as.data.frame() ->
     normalized_data
 
@@ -524,3 +491,71 @@ ask_yes_or_no <- function(prompt) {
   return(tolower(ans) %in% c("yes", "ye", "y"))
 }
 
+
+update_defaults <- function(defaults, args) {
+  for (i in seq_along(defaults)) {
+    key <- names(defaults)[i]
+
+    if (key %in% names(args)) {
+      defaults[[key]] <- args[[key]]
+    }
+  }
+  return(defaults)
+}
+
+
+validate_arguments <- function(args, defaults) {
+  # Coerce NAs and NULLs to their realization
+  args <- as.list(args)
+
+  # Test if there are enough arguments
+  if (length(args) != length(defaults)) {
+    stop(paste0(
+      "Invalid number of args. Expected ", length(defaults), " got ", length(args)
+    ))
+  }
+
+  names(args) <- names(defaults)
+  args[args == "NULL"] <- NULL # drop the NULL arguments
+  args[args == "NA"] <- NA
+  print(args)
+
+  # Try to coerce to the same type
+  for (i in seq_along(args)) {
+    deftype <- typeof(defaults[[names(args)[i]]])
+    print(deftype)
+    
+    # Skip the arg if it needs not be coerced.
+    if (deftype == "NULL" | deftype == "character") {
+      # This could be deftype <- "character", but the arg is already a char.
+      next
+    }
+
+    # Attempt a coercion
+    coerced <- tryCatch(
+      {
+        # The list(args[[i]]) is important here, to get rid of the name.
+        do.call(paste0("as.", deftype), args = list(args[[i]]))
+      },
+      error = function(error){stop(paste0("Cannot coerce '", args[[i]], "' to type '", deftype, "':", error))}
+    )
+    args[[i]] <- coerced
+  }
+
+  # Update the defaults
+  print("Defaults"); print(defaults)
+  print("Coerced"); print(args)
+  # TODO: this does not work as advertised...
+  res <- update_defaults(defaults, args)
+  print("Final"); print(res)
+  # All args should have been updated.
+  if (length(res) != length(defaults)) {
+    stop(paste0(
+      "Args after coercion are not enough. Expected ", length(defaults), " got ", length(args), ". Maybe there were missing required args?"
+    ))
+  }
+
+  print(res)
+
+  return(res)
+}
