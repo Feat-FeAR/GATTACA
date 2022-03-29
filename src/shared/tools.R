@@ -494,39 +494,55 @@ ask_yes_or_no <- function(prompt) {
 
 
 update_defaults <- function(defaults, args) {
-  for (i in seq_along(defaults)) {
-    key <- names(defaults)[i]
-
-    if (key %in% names(args)) {
-      defaults[[key]] <- args[[key]]
+  for (def_opt in names(defaults)) {
+    if (def_opt %in% names(args)) {
+      defaults[[def_opt]] <- args[[def_opt]]
     }
   }
   return(defaults)
 }
 
 
-validate_arguments <- function(args, defaults) {
-  # Coerce NAs and NULLs to their realization
-  args <- as.list(args)
-
-  # Test if there are enough arguments
-  if (length(args) != length(defaults)) {
-    stop(paste0(
-      "Invalid number of args. Expected ", length(defaults), " got ", length(args)
-    ))
+args_to_list <- function(args) {
+  listed_args <- list()
+  for (arg in args) {
+    split <- str_split(arg, "=", simplify = TRUE)
+    if (length(split) != 2) {
+      stop(paste0("Invalid argument '", arg, "'."))
+    }
+    listed_args[split[1]] <- split[2]
   }
+  
+  return(listed_args)
+}
 
-  names(args) <- names(defaults)
+
+validate_arguments <- function(args, defaults) {
+  log$debug("Got ", length(args), " arguments to parse: ", paste0(args, collapse = ", "))
+  # Coerce NAs and NULLs to their realization
+  args <- args_to_list(args)
+  log$debug("Raw listed args - values: ", paste(unlist(args), collapse = ", "), ". names: ", paste(names(args), collapse = ", "))
+
   args[args == "NULL"] <- NULL # drop the NULL arguments
   args[args == "NA"] <- NA
 
+  log$debug("Clean listed args - values: ", paste(unlist(args), collapse = ", "), ". names: ", paste(names(args), collapse = ", "))
+
   # Try to coerce to the same type
-  for (i in seq_along(args)) {
-    deftype <- typeof(defaults[[names(args)[i]]])
+  for (arg_name in names(args)) {
+    if (! arg_name %in% names(defaults)) {
+      stop(paste0(
+        "Unrecognized argument '", arg_name, "'. Possible args: ",
+        paste0(names(defaults), collapse = ", ")
+      ))
+    }
+
+    deftype <- typeof(defaults[[arg_name]])
     
     # Skip the arg if it needs not be coerced.
     if (deftype == "NULL" | deftype == "character") {
-      # This could be deftype <- "character", but the arg is already a char.
+      # This could be deftype <- "character", but the arg is already a char,
+      # so we just skip the call.
       next
     }
 
@@ -534,20 +550,26 @@ validate_arguments <- function(args, defaults) {
     coerced <- tryCatch(
       {
         # The list(args[[i]]) is important here, to get rid of the name.
-        do.call(paste0("as.", deftype), args = list(args[[i]]))
+        do.call(paste0("as.", deftype), args = list(args[[arg_name]]))
       },
       error = function(error){stop(paste0("Cannot coerce '", args[[i]], "' to type '", deftype, "':", error))}
     )
-    args[[i]] <- coerced
+    args[[arg_name]] <- coerced
   }
 
   # Update the defaults
   res <- update_defaults(defaults, args)
 
+  # Drop the "NULL" defaults that migth have gotten left over.
+  # This will cause an error just after this call (which we want).
+  res <- res[! sapply(res, is.null)]
+
   # All args should have been updated.
   if (length(res) != length(defaults)) {
+    missing_args <- names(defaults)[! names(defaults) %in% names(res)]
     stop(paste0(
-      "Args after coercion are not enough. Expected ", length(defaults), " got ", length(args), ". Maybe there were missing required args?"
+      "Missing ", length(missing_args), " required argument(s): ",
+      paste0(missing_args, collapse = ", ")
     ))
   }
 

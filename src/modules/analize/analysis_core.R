@@ -47,11 +47,11 @@
 #'
 #' @param expression_set The expression set to evaluate
 #' @param groups The groups associaged with the data (for plotting)
-#' @param user_colours The colours associated with the groups of the data
+#' @param group_colors The colours associated with the groups of the data
 #'
 #' @author Hedmad
 diagnose_batch_effects <- function(
-  expression_set, groups, user_colours, title_mod = NULL
+  expression_set, groups, group_colors, title_mod = NULL
 ) {
   log$info("Starting sample-wise hierarchical clustering and PCA for batch-effect detection...")
   # Matrix Transpose t() is used because dist() computes the distances between
@@ -87,7 +87,7 @@ diagnose_batch_effects <- function(
     \() {
       suppressMessages(print(
         biplot(
-          PCA_object, colby = "groups", colkey = user_colours,
+          PCA_object, colby = "groups", colkey = group_colors,
           title = "Principal Component Analysis"
         )
       ))
@@ -99,7 +99,7 @@ diagnose_batch_effects <- function(
     \() {
       suppressMessages(print(
         pairsplot(
-          PCA_object, colby = "groups", colkey = user_colours,
+          PCA_object, colby = "groups", colkey = group_colors,
           title = "Paired PCA Plots"
         )
       ))
@@ -954,27 +954,33 @@ diagnose_rankprod_data <- function(
 }
 
 
-GATTACA <- function(options.path, input.file, output.dir) {
+GATTACA <- function(
+  input.file,
+  output.dir,
+  experimental_design,
+  contrasts,
+  min_log2_expression = 4,
+  fc_threshold = 0.5,
+  min_groupwise_presence = 0.8,
+  slowmode = FALSE,
+  show_data_snippets = TRUE,
+  annotation_database = TRUE,
+  dryrun = FALSE,
+  renormalize = FALSE,
+  run_limma_analysis = TRUE,
+  run_rankprod_analysis = TRUE,
+  batches = NA,
+  extra_limma_vars = NA,
+  group_colors = c("cornflowerblue", "firebrick3", "olivedrab3", "darkgoldenrod1", "purple", "magenta3")
+) {
   # This function is so long, a description wouldn't fit here.
   # Refer to the project's README.
 
   set.seed(1) # Rank Prod needs randomness.
 
-  # ---- Option parsing ----
-  # If we get passed a list, it is for testing purposes.
-  if (!is.list(options.path)) {
-    opts <- yaml.load_file(options.path)
-  } else {
-    log$warn(
-      "I was given a list as input. I assume this is a testing run. ",
-      "You should never see this message."
-    )
-    opts <- options.path
-  }
-
   # ---- Making static functions ----
-  pitstop <- pitstop.maker(opts$general$slowmode)
-  printdata <- printif.maker(opts$general$show_data_snippets, topleft.head)
+  pitstop <- pitstop.maker(slowmode)
+  printdata <- printif.maker(show_data_snippets, topleft.head)
 
   log$info("Parsed options.")
 
@@ -987,33 +993,23 @@ GATTACA <- function(options.path, input.file, output.dir) {
   #        we crash sooner rather than later.
   log$info("Inputting variables...")
 
-  user_colours <- opts$design$group_colors
-
-  # Log2 expression threshold
-  min_log2_expression = opts$design$filters$log2_expression
-
-  # Fold Change Threshold
-  thrFC = opts$design$filters$fold_change
-
   # Flags for script-wide IFs
-  write_data_to_disk = !opts$switches$dryrun # The ! is important.
-  if (opts$switches$dryrun & opts$general$save_png) {
-    log$warn("save_png forced to be FALSE as this is a dryrun")
-    opts$general$save_png <- FALSE
-  }
-  if (opts$switches$dryrun & opts$general$save_pdf) {
-    log$warn("save_pdf forced to be FALSE as this is a dryrun")
-    opts$general$save_pdf <- FALSE
-  }
+  write_data_to_disk = !dryrun # The ! is important.
+  if (dryrun) {
+    log$warn("Suppressing printing of plots, as this is a dryrun.")
+    options(
+      save.PNG.plot = FALSE,
+      save.PDF.plot = FALSE
+    )
 
-  if (opts$general$annotation_database %in% c(TRUE, FALSE)) {
-    use.annotations <- opts$general$annotation_database
+  if (annotation_database %in% c(TRUE, FALSE)) {
+    use.annotations <- annotation_database
     use.remote.annotations <- FALSE
     database_name <- NA
   } else {
     use.annotations <- TRUE
     use.remote.annotations <- TRUE
-    database_name <- opts$general$annotation_database
+    database_name <- annotation_database
   }
   log$debug("use.annotations was set to", str(use.annotations))
   log$debug("use.remote.annotations was set to", str(use.remote.annotations))
@@ -1030,7 +1026,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
     annotation_data$version <- packageVersion(database_name)
   } else if (use.annotations) {
     log$info("Loading local annotations...")
-    load(file = file.path(ROOT, "src", "resources", "full_annotations.RData"))
+    load(file = "/GATTACA/modules/annotation/resources/full_annotations.RData")
 
     if (! "full_annotations" %in% ls()) {
       stop("I loaded something, but it did not contain the 'full_annotations' object.")
@@ -1039,17 +1035,8 @@ GATTACA <- function(options.path, input.file, output.dir) {
     rm(full_annotations)
   }
 
-  # Global options suitable for PrintPlots and GATTACA as a whole
-  options(
-    scriptName = "GATTACA",
-    save.PNG.plot = opts$general$save_png,
-    save.PDF.plot = opts$general$save_pdf,
-    use.annotations = use.annotations,
-    plot.width = opts$general$plot_width,
-    plot.height = opts$general$plot_height,
-    png_ppi = opts$general$png_resolution,
-    enumerate.plots = opts$general$enumerate_plots
-  )
+  # Global options that GATTACA reads while running
+  options(use.annotations = use.annotations)
 
   # ---- Data Loading ----
   # Gene Expression Matrix - log2-Intensity-Values
@@ -1065,7 +1052,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   log$info("Loading experimental design...")
   # This is a list containing the group sequence in `$groups` and the IDs for
   # pairing in '$pairing'
-  design_parser(opts$design$experimental_design) |>
+  design_parser(experimental_design) |>
     split_design() ->
     experimental_design
 
@@ -1092,8 +1079,8 @@ GATTACA <- function(options.path, input.file, output.dir) {
   }
 
   # Expand and test batch variable
-  if (!is.null(opts$design$batches)) {
-    batches <- design_parser(opts$design$batches)
+  if (!is.na(batches)) {
+    batches <- design_parser(batches)
     if (length(batches) != ncol(expression_set)) {
       stop(paste0(
         "The number of samples (", ncol(expression_set),
@@ -1105,9 +1092,9 @@ GATTACA <- function(options.path, input.file, output.dir) {
   }
 
   # The same for all extra variables
-  if (!is.null(opts$design$extra_limma_vars)) {
+  if (!is.na(extra_limma_vars)) {
     extra_limma_vars <- lapply(
-      opts$design$extra_limma_vars, design_parser, ignore_asterisk = TRUE
+      extra_limma_vars, design_parser, ignore_asterisk = TRUE
     )
     length_check <- lapply(extra_limma_vars, length) == ncol(expression_set)
     if (! all(length_check)) {
@@ -1134,11 +1121,11 @@ GATTACA <- function(options.path, input.file, output.dir) {
   ..old_colnames <- colnames(expression_set)
   colnames(expression_set) <- unique_groups
 
-  if (length(user_colours) < length(unique_simple_groups)) {
-    stop("Too few colors in \'user_colours\' vector!")
+  if (length(group_colors) < length(unique_simple_groups)) {
+    stop("Too few colors in \'group_colors\' vector!")
   }
   # Bind colors to groups
-  names(user_colours) <- unique_simple_groups
+  names(group_colors) <- unique_simple_groups
 
   # Save Correspondences Table so we can check it later
   ..corrTable = cbind(..old_colnames, colnames(expression_set)) # Cast to matrix
@@ -1156,7 +1143,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   }
 
   # Check the contrasts
-  raw_contrasts <- opts$design$contrasts
+  raw_contrasts <- contrasts
 
   unpack_contrasts <- function(contrasts_list) {
     lapply(contrasts_list, strsplit, split = "-") |>
@@ -1182,11 +1169,11 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
   # ---- Normalization ----
   # After-RMA 2nd Quantile Normalization
-  if (opts$switches$renormalize) {
+  if (renormalize) {
     # Print boxplot before normalization
     printPlots(\() {
       boxplot(
-        expression_set, las = 2, col = user_colours,
+        expression_set, las = 2, col = group_colors,
         main = "Expression values per sample", ylab = "log2 (intesity)"
       )
     }, "Pre-normalization boxpot")
@@ -1207,7 +1194,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   printPlots(\() {
     boxplot(
       expression_set,
-      las = 2, col = user_colours[experimental_design$groups],
+      las = 2, col = group_colors[experimental_design$groups],
       main = "Expression values per sample", ylab = "log2 (intesity)"
       )
     },
@@ -1233,7 +1220,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
   # ---- Clustering ----
   diagnose_batch_effects(
-    expression_set, experimental_design$groups, user_colours,
+    expression_set, experimental_design$groups, group_colors,
     title_mod = "original"
   )
 
@@ -1244,7 +1231,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
     )
     log$info("Diagnosing batch effects again...")
     diagnose_batch_effects(
-      batch_corrected_expr_set, experimental_design$groups, user_colours,
+      batch_corrected_expr_set, experimental_design$groups, group_colors,
       title_mod = "Unbatched"
     )
   }
@@ -1321,24 +1308,24 @@ GATTACA <- function(options.path, input.file, output.dir) {
   # ---- Filtering ----
   expression_set <- filter_expression_data(
     expression_set, groups = experimental_design$groups,
-    min_groupwise_presence = opts$design$filters$min_groupwise_presence,
+    min_groupwise_presence = min_groupwise_presence,
     expression_threshold = min_log2_expression
   )
 
   log$info("Done filtering.")
 
   # ---- DE by Limma ----
-  if (opts$switches$limma) {
+  if (run_limma_analysis) {
     additional_limma_vars <- c(
       if (paired_mode) {list(pairings = experimental_design$pairings)} else {NULL},
       if (!is.null(batches)) {list(batches = batches)} else {NULL},
-      if (! is.null(opts$design$extra_limma_vars)) {extra_limma_vars} else {NULL}
+      if (! is.null(extra_limma_vars)) {extra_limma_vars} else {NULL}
     )
 
     DEGs.limma <- run_limma(
       expression_set, groups = experimental_design$groups, contrasts = raw_contrasts,
       other_vars = additional_limma_vars,
-      fc_threshold = thrFC
+      fc_threshold = fc_threshold
     )
 
     if (getOption("use.annotations")) {
@@ -1350,8 +1337,8 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
     # Make diagnostic plots for Limma
     diagnose_limma_data(
-      DEGs.limma = DEGs.limma, fc_threshold = thrFC,
-      volcano_colour = user_colours[2]
+      DEGs.limma = DEGs.limma, fc_threshold = fc_threshold,
+      volcano_colour = group_colors[2]
     )
 
     # Save full DEG Tables
@@ -1370,12 +1357,12 @@ GATTACA <- function(options.path, input.file, output.dir) {
   }
 
   # ---- DE by RankProduct ----
-  if (opts$switches$rankproduct) {
+  if (run_rankprod_analysis) {
     DEGs.rankprod <- run_rankprod(
       expression_set, groups = experimental_design$groups, contrasts = raw_contrasts,
       batches = batches,
       pairings = if (paired_mode) {experimental_design$pairings} else {NULL},
-      fc_threshold = thrFC
+      fc_threshold = fc_threshold
     )
 
     if (getOption("use.annotations")) {
@@ -1387,8 +1374,8 @@ GATTACA <- function(options.path, input.file, output.dir) {
 
     # Make diagnostic plots for RankProd
     diagnose_rankprod_data(
-      DEGs.rankprod = DEGs.rankprod, fc_threshold = thrFC,
-      volcano_colour = user_colours[2]
+      DEGs.rankprod = DEGs.rankprod, fc_threshold = fc_threshold,
+      volcano_colour = group_colors[2]
     )
 
     # Save full DEG Tables
@@ -1407,7 +1394,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
   }
 
   # ---- Comparison Plots - Limma vs RankProd ----
-  if (opts$switches$limma & opts$switches$rankproduct) {
+  if (run_limma_analysis & run_rankprod_analysis) {
     log$info("Making comparison plots between limma and rankproduct...")
 
     # To suppress 'venn.diagram()' logging
@@ -1441,7 +1428,7 @@ GATTACA <- function(options.path, input.file, output.dir) {
           force.unique = TRUE,
           main = raw_contrasts[i], main.cex = 2, main.fontface = "bold", main.fontfamily = "sans", # Title
           sub = venn.sub, sub.fontfamily = "sans", # Subtitle
-          lwd = 2, lty = "blank", fill = user_colours[1:2], # circles
+          lwd = 2, lty = "blank", fill = group_colors[1:2], # circles
           cex = 2, fontface = "bold", fontfamily = "sans", # numbers
           category.names = c("Limma", "Rank Product"), # names
           cat.cex = 2,

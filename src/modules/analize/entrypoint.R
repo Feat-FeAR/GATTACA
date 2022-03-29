@@ -34,7 +34,12 @@ args <- getOption("module.args")
 # signifies a required argument.
 
 defaults = list(
-    options.path = NULL, input.file = NULL
+    # Plot options
+    use_pdf = TRUE,
+    plot_width = 16,
+    plot_height = 9,
+    png_ppi = 250,
+    enumerate_plots = TRUE
 )
 
 fun_args <- validate_arguments(args, defaults)
@@ -55,4 +60,16 @@ graceful_load(module.packages)
 source("/GATTACA/modules/analize/analysis_core.R")
 
 # Run the module
+# Set options for printPlots
+options(
+    scriptName = "...",
+    save.PNG.plot = !fun_args$use_pdf,
+    save.PDF.plot = fun_args$use_pdf,
+    plot.width = fun_args$plot_width,
+    plot.height = fun_args$plot_height,
+    png_ppi = fun_args$png_resolution,
+    enumerate.plots = fun_args$enumerate_plots
+)
+# Remove plot-related options
+fun_args[c("use_pdf", "plot_width", "plot_heigth", "png_ppi", "enumerate_plots")] <- NULL
 do.call("GATTACA", args = fun_args)
