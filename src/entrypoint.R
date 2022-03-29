@@ -1,8 +1,6 @@
 #!/usr/bin/env Rscript
 args <- commandArgs(trailingOnly = TRUE)
 
-print(args)
-
 # Args here are in this order:
 # > UUID GUID command logname loglevel_console loglevel_file ...
 # The ... are the args to pass on the command/module.
@@ -12,31 +10,54 @@ print(args)
 # and an internal user.
 .restore_uids <- function(UUID, GUID) {
     cat(paste0("Restoring files to UUID/GUID ", UUID, ":", GUID, "\n"))
-    exclude_files <- c(
-        list.files("/GATTACA/target", all.files = TRUE, recursive = TRUE),
-        list.files("/GATTACA/log", all.files = TRUE, recursive = TRUE),
-        list.files("/GATTACA/input", all.files = TRUE, recursive = TRUE)
-    )
-
+    
     restorer <- function(...) {
-        current_files <- c(
-            list.files("/GATTACA/target", all.files = TRUE, recursive = TRUE),
-            list.files("/GATTACA/log", all.files = TRUE, recursive = TRUE),
-            list.files("/GATTACA/input", all.files = TRUE, recursive = TRUE)
-        )
+        registered <- getOption("OWNERSHIP_REGISTER", default = c())
+
+        registered <- registered[file.exists(registered)]
+
+        if (length(registered) == 0) {
+            cat("No files to restore permissions to.")
+            return()
+        }
         
-        new_files <- current_files[! current_files %in% exclude_files]
-        if (length(new_files) == 0) {cat("No files to restore permissions to.\n"); return()}
+        reg_files <- registered[file_test("-f", registered)]
+        reg_folders <- registered[file_test("-d", registered)]
 
-        owner <- paste0(UUID, ":", GUID)
-        cat("Restoring file permissions...\n")
-        system2("xargs -0 chown", args = owner, stdin = new_files)
+        if (length(reg_files) > 0) {
+            exit_files <- system2(
+                "chown",
+                args = c(paste0(UUID, ":", GUID), paste0("'", reg_files, "'"))
+            )
+        } else {
+            exit_files <- 0
+        }
+        
+        if (length(reg_folders) > 0) {
+            exit_folders <- system2(
+                "chown",
+                args = c("-R", paste0(UUID, ":", GUID), paste0("'", reg_folders, "'"))
+            )
+        } else {
+            exit_folders <- 0
+        }
+
+        if (exit_files == 0 & exit_folders == 0) {
+            cat(paste0("Restored permissions to ", length(reg_files), " file(s) and ", length(reg_folders), " folder(s).\n"))
+        } else {
+            cat(paste0("Could not restore file permissions. Exit code files:", exit_files, " folders: ", exit_folders))
+        }
     }
-
-    return(restorer)
+    return(restorer)   
 }
 
-UIDREST <- .restore_uids(args[1], args[2])
+
+invisible(
+    reg.finalizer(
+        environment(), .restore_uids(args[1], args[2]), onexit = TRUE
+    )
+)
+
 
 args <- args[-c(1, 2)]
 
@@ -65,7 +86,6 @@ if (COMMAND == "test") {
     quit(save = "no", status = 0)
 }
 
-invisible(reg.finalizer(environment(), UIDREST, onexit = TRUE))
 
 args <- args[-1]
 
@@ -96,9 +116,10 @@ COMMAND_ARGS <- args[-c(1:3)]
 
 run_module <- function(module_name, module_args, exit_immediately = FALSE) {
     log$info("Saving environment...")
-    .PREVIOUS_LS <- ls(all.names = TRUE)
-    .PREVIOUS_NAMESPACES <- loadedNamespaces()
+    # The order here is important: I want that .PREVIOUS_OPTIONS is saved in
+    # .PREVIOUS_LS
     .PREVOUS_OPTIONS <- options()
+    .PREVIOUS_LS <- ls(all.names = TRUE)
 
     log$info("Setting module arguments (", paste(module_args, collapse = ", "), ")")
     options(module.args = module_args)
@@ -112,24 +133,24 @@ run_module <- function(module_name, module_args, exit_immediately = FALSE) {
     }
 
     # Restore the environment
-    log$info("Restoring namespaces...")
-    .NEW_NAMESPACES <- loadedNamespaces()
-    .TO_UNLOAD <- .NEW_NAMESPACES[! .NEW_NAMESPACES %in% .PREVIOUS_NAMESPACES]
-    for (namespace in .TO_UNLOAD) {
-        detach(namespace, character.only = TRUE)
-    }
-
+    # It could be implemented that the namespaces (loaded with library())
+    # to be unloaded here, but it is a bother. So I just clean the memory
+    # and options, which is simpler and what actually matters most.
     log$info("Cleaning memory...")
     .NEW_LS <- ls(all.names = TRUE)
     .TO_REMOVE <- .NEW_LS[! .NEW_LS %in% .PREVIOUS_LS]
     rm(list = .TO_REMOVE)
 
     log$info("Resetting options...")
-    .NEW_OPTIONS <- modifyList(options(), NULL, keep.null = TRUE)
+    # Keep only the "OWNERSHIP_REGISTER" option
+    ownership_register <- getOption("OWNERSHIP_REGISTER")
+    .NEW_OPTIONS <- options()
+    .NEW_OPTIONS[] <- list(NULL) # This makes them all NULL  
     options(modifyList(.NEW_OPTIONS, .PREVOUS_OPTIONS, keep.null = TRUE))
+    options(OWNERSHIP_REGISTER = ownership_register)
 }
 
-# Run the desired module
+# Run the desired module(s)
 switch(
     COMMAND,
     prepaffy = {

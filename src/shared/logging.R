@@ -13,8 +13,14 @@ LOGLEVELS <- list(
 .set_logname <- function(name) {
     # Set the log name to `name`. The path and extensions of _data.log and .log
     # are automatically set.
-    options("GATTACA_log" = paste0("/GATTACA/logs/", name, ".log"))
-    options("GATTACA_data_log" = paste0("/GATTACA/logs/", name, "_data.log"))
+    gattaca_log_path <- paste0("/GATTACA/logs/", name, ".log")
+    gattaca_data_log_path <- paste0("/GATTACA/logs/", name, "_data.log")
+
+    options("GATTACA_log" = gattaca_log_path)
+    options("GATTACA_data_log" = gattaca_data_log_path)
+    
+    register_for_ownership(gattaca_log_path)
+    register_for_ownership(gattaca_data_log_path)
 }
 
 .set_loglevel <- function(level, target) {

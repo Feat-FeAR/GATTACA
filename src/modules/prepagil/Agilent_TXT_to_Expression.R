@@ -88,6 +88,11 @@ agil2expression <- function (
     raw_files = raw_files[-target.index]
   }
 
+  if (length(raw_files) == 0) {
+    log$error("No input files found. Aborting.")
+    stop_quietly()
+  }
+
   log$info(
     paste("Found", length(raw_files), "input files:", paste(raw_files, collapse = ", "))
   )

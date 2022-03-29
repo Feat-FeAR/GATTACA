@@ -35,7 +35,7 @@ printPlots = function(
   folderPrefix = getOption("scriptName", ""),
   PNG = getOption("save.PNG.plot", TRUE), PDF = getOption("save.PDF.plot", TRUE),
   plot.width = getOption("plot.width", 16), plot.height = getOption("plot.height", 9),
-  png_ppi = getOption("png_ppi", 50),
+  png_ppi = getOption("png_ppi", 400),
   enumerate = getOption("enumerate.plots", FALSE)
 ) {
 
@@ -44,32 +44,38 @@ printPlots = function(
     ..PRINTPLOT_COUNTER <<- ..PRINTPLOT_COUNTER + 1 # The <<- is important
   }
 
-  figSubFolder = paste(folderPrefix, "Figures", sep = " ")
+  figSubFolder = paste0("/GATTACA/target/", folderPrefix, " Figures")
   fullName = file.path(figSubFolder, figureName)
 
   if (!file.exists(figSubFolder) && (PNG || PDF)) {
     dir.create(figSubFolder)
+    register_for_ownership(figSubFolder)
     log$warn("New folder '", figSubFolder, "' has been created in the current WD", sep = "")
   }
 
   if (PNG) {
+    target_path <- paste0(fullName, ".png")
     log$debug(paste0("Saving '", figureName, ".png'..."))
     png(
-      file = paste(fullName, ".png", sep = ""),
-      width = (plot.width*png_ppi), height = (plot.height*png_ppi)
+      file = target_path,
+      width = (plot.width), height = (plot.height),
+      res = png_ppi
     )
     plotfun()
     dev.off()
+    register_for_ownership(target_path)
   }
 
   if (PDF) {
+    target_path <- paste0(fullName, ".pdf")
     log$debug(paste0("Saving '", figureName, "'.pdf..."))
     pdf(
-      file = paste(fullName, ".pdf", sep = ""),
+      file = target_path,
       width = plot.width, height = plot.height
     )
     plotfun()
     dev.off()
+    register_for_ownership(target_path)
   }
 }
 

@@ -214,6 +214,7 @@ write_expression_data <- function (
   }
 
   write.csv(expression_data, target, row.names = FALSE, quote = TRUE)
+  register_for_ownership(target)
 }
 
 
@@ -518,12 +519,10 @@ validate_arguments <- function(args, defaults) {
   names(args) <- names(defaults)
   args[args == "NULL"] <- NULL # drop the NULL arguments
   args[args == "NA"] <- NA
-  print(args)
 
   # Try to coerce to the same type
   for (i in seq_along(args)) {
     deftype <- typeof(defaults[[names(args)[i]]])
-    print(deftype)
     
     # Skip the arg if it needs not be coerced.
     if (deftype == "NULL" | deftype == "character") {
@@ -543,11 +542,8 @@ validate_arguments <- function(args, defaults) {
   }
 
   # Update the defaults
-  print("Defaults"); print(defaults)
-  print("Coerced"); print(args)
-  # TODO: this does not work as advertised...
   res <- update_defaults(defaults, args)
-  print("Final"); print(res)
+
   # All args should have been updated.
   if (length(res) != length(defaults)) {
     stop(paste0(
@@ -555,7 +551,22 @@ validate_arguments <- function(args, defaults) {
     ))
   }
 
-  print(res)
-
   return(res)
+}
+
+
+#' Register a file for ownership correction.
+#' 
+#' This is due to issue #6, which I still cannot figure out how to fix.
+#' At the end of the process, I `chown` all files registered this way.
+register_for_ownership <- function(file_path) {
+  registered <- getOption("OWNERSHIP_REGISTER", default = c())
+
+  if (file_path %in% registered) {
+    log$debug("Path ", file_path, " already registered.")
+    return()
+  }
+
+  options(OWNERSHIP_REGISTER = c(registered, file_path))
+  log$debug("Registered ", file_path, " for ownership correction.")
 }

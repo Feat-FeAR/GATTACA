@@ -43,7 +43,6 @@ defaults = list(
 )
 
 fun_args <- validate_arguments(args, defaults)
-print(fun_args)
 
 # Add the hardcoded arguments
 fun_args$input_dir <- "/GATTACA/input/"
