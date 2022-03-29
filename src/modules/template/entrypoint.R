@@ -24,16 +24,31 @@
 # The command line options passed by the user (the wrapper), are in the
 # `module.args` global option.
 
-# Load the arguments
+# Load the arguments -----------------------------------------------------------
 args <- getOption("module.args")
 
-# Test that the arguments are valid
+# Test that the arguments are valid --------------------------------------------
+# I expect these arguments, in order:
+# ...
+# Pass "NULL" or NULL to use the defaults. Setting NULL in the defaults
+# signifies a required argument.
 
-# Load required libraries
+defaults = list(
+    
+)
+
+fun_args <- validate_arguments(args, defaults)
+
+# Add the hardcoded arguments
+#fun_args$input_dir <- "/GATTACA/input/"
+#fun_args$output_file <- paste0("/GATTACA/target/", fun_args$output_file)
+
+# Load required libraries.
 module.packages <- c()
 graceful_load(module.packages)
 
 # Load the functions for this module 
-source("/GATTACA/modules/thismodule/...")
+source("/GATTACA/modules/some_module/...")
 
 # Run the module
+do.call("...", args = fun_args)

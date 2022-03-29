@@ -30,7 +30,8 @@ args <- getOption("module.args")
 # Test that the arguments are valid --------------------------------------------
 # I expect these arguments, in order:
 # output_file, grep_pattern, remove_controls, width, heigth, use.pdf, n_plots
-# Pass "NULL" or NULL to use the defaults
+# Pass "NULL" or NULL to use the defaults. Setting NULL in the defaults
+# signifies a required argument.
 
 defaults = list(
     output_file = NULL,
@@ -48,11 +49,11 @@ fun_args <- validate_arguments(args, defaults)
 fun_args$input_dir <- "/GATTACA/input/"
 fun_args$output_file <- paste0("/GATTACA/target/", fun_args$output_file)
 
-# Load required libraries
-module.packages <- c("limma", "oligo", "reshape2")
+# Load required libraries.
+module.packages <- c("limma", "reshape2")
 graceful_load(module.packages)
 
-# Load the functions for this module 
+# Load the functions for this module.
 source("/GATTACA/modules/prepagil/Agilent_TXT_to_Expression.R")
 
 # Run the module

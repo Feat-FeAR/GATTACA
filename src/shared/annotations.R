@@ -83,7 +83,7 @@ merge_annotations <- function(gene.stat, annotation, sort.by = 1) {
   notMap = matrix(0, nrow = 2, ncol = dim(joined)[2],
                   dimnames = list(c("NA entries","%"), colnames(joined)))
   for (i in colnames(joined)) {
-    notMap[1,i] = sum(isNA(joined[,i]))
+    notMap[1,i] = sum(is.na(joined[,i]))
     notMap[2,i] = round(notMap[1,i]/dim(joined)[1]*1e2, digits = 2)
   }
   # Take only the cols from the annotations
@@ -239,7 +239,7 @@ annotate_data <- function(expression_set, database_name = NA) {
   log$info("Finding annotations...")
   if (is.na(database_name)) {
     log$info("Loading local annotations.")
-    load(file = file.path(ROOT, "src", "resources", "full_annotations.RData"))
+    load(file = "/GATTACA/modules/annotation/resources/full_annotations.RData")
 
     if (! "full_annotations" %in% ls()) {
       stop("I loaded something, but it did not contain the 'full_annotations' object.")
@@ -281,13 +281,9 @@ annotate_data <- function(expression_set, database_name = NA) {
 #'   the data to be annotated.
 #' @param output_path A full path to the output file.
 #' @param database_name An optional str representing the name of the database
-#'   to source the annotations from. Defaults to `NA`.
-annotate_to_file <- function( expression_data_path, output_path, database_name ) {
-  # The cli can pass the "NA" as a string. This is a patch for that
-  if (database_name == "NA") {database_name <- NA}
-
-  source(file.path(ROOT, "src", "tools", "tools.R"))
-
+#'   to source the annotations from. Defaults to `NA`, loading the local
+#'   annotations.
+annotate_to_file <- function(expression_data_path, output_path, database_name) {
   log$info("Loading input data...")
   expression_set <- read_expression_data(expression_data_path)
 

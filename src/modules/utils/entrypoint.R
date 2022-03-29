@@ -27,30 +27,35 @@
 # Load the arguments -----------------------------------------------------------
 args <- getOption("module.args")
 
+subcommand <- args[1]
+args <- args[-1]
+
 # Test that the arguments are valid --------------------------------------------
 # I expect these arguments, in order:
-# expression_data_path output_path database_name
+# ...
 # Pass "NULL" or NULL to use the defaults. Setting NULL in the defaults
 # signifies a required argument.
 
-defaults = list(
-    expression_data_path = NULL, output_path = NULL, database_name = NA
+switch(
+    subcommand,
+    init = {
+        source("/GATTACA/modules/utils/utilities.R")
+        do.call("init_gattaca_args")
+    }
 )
 
-fun_args <- validate_arguments(args, defaults)
+
 
 # Add the hardcoded arguments
-fun_args$expression_data_path <- paste0(
-    "/GATTACA/input/", fun_args$expression_data_path
-)
-fun_args$output_path <- paste0("/GATTACA/target/", fun_args$output_path)
+#fun_args$input_dir <- "/GATTACA/input/"
+#fun_args$output_file <- paste0("/GATTACA/target/", fun_args$output_file)
 
 # Load required libraries.
-#module.packages <- c()
-#graceful_load(module.packages)
+module.packages <- c()
+graceful_load(module.packages)
 
 # Load the functions for this module 
-#source("/GATTACA/modules/some_module/...")
+source("/GATTACA/modules/some_module/...")
 
 # Run the module
-do.call("annotate_to_file", args = fun_args)
+do.call("...", args = fun_args)

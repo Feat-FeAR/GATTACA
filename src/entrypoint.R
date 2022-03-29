@@ -119,6 +119,7 @@ run_module <- function(module_name, module_args, exit_immediately = FALSE) {
     # The order here is important: I want that .PREVIOUS_OPTIONS is saved in
     # .PREVIOUS_LS
     .PREVOUS_OPTIONS <- options()
+    .PREVIOUS_PKGS <- paste0('package:', names(sessionInfo()$otherPkgs))
     .PREVIOUS_LS <- ls(all.names = TRUE)
 
     log$info("Setting module arguments (", paste(module_args, collapse = ", "), ")")
@@ -133,14 +134,6 @@ run_module <- function(module_name, module_args, exit_immediately = FALSE) {
     }
 
     # Restore the environment
-    # It could be implemented that the namespaces (loaded with library())
-    # to be unloaded here, but it is a bother. So I just clean the memory
-    # and options, which is simpler and what actually matters most.
-    log$info("Cleaning memory...")
-    .NEW_LS <- ls(all.names = TRUE)
-    .TO_REMOVE <- .NEW_LS[! .NEW_LS %in% .PREVIOUS_LS]
-    rm(list = .TO_REMOVE)
-
     log$info("Resetting options...")
     # Keep only the "OWNERSHIP_REGISTER" option
     ownership_register <- getOption("OWNERSHIP_REGISTER")
@@ -148,6 +141,18 @@ run_module <- function(module_name, module_args, exit_immediately = FALSE) {
     .NEW_OPTIONS[] <- list(NULL) # This makes them all NULL  
     options(modifyList(.NEW_OPTIONS, .PREVOUS_OPTIONS, keep.null = TRUE))
     options(OWNERSHIP_REGISTER = ownership_register)
+
+    log$info("Unloading packages...")
+    .NEW_PKGS <- paste0('package:', names(sessionInfo()$otherPkgs))
+    .TO_UNLOAD <- .NEW_PKGS[! .NEW_PKGS %in% .PREVIOUS_PKGS]
+    invisible(lapply(.TO_UNLOAD, detach, character.only=TRUE, unload=TRUE))
+
+    log$info("Cleaning memory...")
+    .NEW_LS <- ls(all.names = TRUE)
+    .TO_REMOVE <- .NEW_LS[! .NEW_LS %in% .PREVIOUS_LS]
+    rm(list = .TO_REMOVE)
+
+    log$info("Environment cleaned.")
 }
 
 # Run the desired module(s)
@@ -164,5 +169,8 @@ switch(
     },
     analize = {
         run_module("analize", COMMAND_ARGS, exit_immediately = TRUE)
+    },
+    utils = {
+        run_module("utils", COMMAND_ARGS, exit_immediately = TRUE)
     }
 )

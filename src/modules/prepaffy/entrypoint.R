@@ -24,16 +24,36 @@
 # The command line options passed by the user (the wrapper), are in the
 # `module.args` global option.
 
-# Load the arguments
+# Load the arguments -----------------------------------------------------------
 args <- getOption("module.args")
 
-# Test that the arguments are valid
+# Test that the arguments are valid --------------------------------------------
+# I expect these arguments, in order:
+# output_file, remove_controls, width, heigth, use.pdf, n_plots
+# Pass "NULL" or NULL to use the defaults.  Setting NULL in the defaults
+# signifies a required argument.
 
-# Load required libraries
-module.packages <- c()
+defaults = list(
+    output.file = NULL,
+    remove.controls = TRUE,
+    plot.width = 16,
+    plot.height = 9,
+    use.pdf = TRUE,
+    n_plots = Inf
+)
+
+fun_args <- validate_arguments(args, defaults)
+
+# Add the hardcoded arguments
+fun_args$input.folder <- "/GATTACA/input/"
+fun_args$output.file <- paste0("/GATTACA/target/", fun_args$output.file)
+
+# Load required libraries.
+module.packages <- c("limma", "oligo", "reshape2", "affycoretools")
 graceful_load(module.packages)
 
 # Load the functions for this module 
-source("/GATTACA/modules/thismodule/...")
+source("/GATTACA/modules/prepaffy/Affy_CEL_to_Expression.R")
 
 # Run the module
+do.call("affy2expression", args = fun_args)
