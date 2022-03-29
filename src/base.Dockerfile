@@ -1,3 +1,6 @@
+# This makes the base gattaca image. The tag is cmalabscience/gattaca-base:...
+# Build context is irrelevant.
+
 FROM rocker/tidyverse:4.1.3
 
 # Install necessary libs to compile R packages
@@ -16,6 +19,3 @@ RUN echo "options(configure.args = list(preprocessCore = '--disable-threading'))
     progress yaml statmod VennDiagram gplots UpSetR testthat BiocManager && \
   /usr/local/lib/R/site-library/littler/examples/installBioc.r \
     preprocessCore PCAtools limma RankProd oligo affycoretools EnhancedVolcano
-
-# This makes the base gattaca image. The tag is cmalabscience/gattaca-base:...
-# Build context is irrelevant.

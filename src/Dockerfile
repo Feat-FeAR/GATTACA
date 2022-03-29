@@ -7,7 +7,7 @@ RUN mkdir /GATTACA && \
 WORKDIR /GATTACA
 
 # Copy the source code
-COPY ./src/ /GATTACA/
+COPY ./GATTACA/ /GATTACA/
 
 # Setup the entrypoint
 ENTRYPOINT [ "/GATTACA/entrypoint.R" ]
