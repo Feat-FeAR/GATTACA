@@ -3,7 +3,6 @@
 # types for that option. Using the wrong types will lead to errors.
 # More info in the README.
 
-
 ## GENERAL - General options
 general:
   # Slowmode: if true, asks for confirmation after every analysis step.
@@ -12,20 +11,6 @@ general:
   # Print out small snippets of data before every analysis step?
   show_data_snippets: true # bool
 
-  # Save PNG and/or PDF plots?
-  save_pdf: true # bool
-  save_png: false # bool
-
-  # Plot width and height in inches.
-  plot_width: 16 # int
-  plot_height: 9 # int
-
-  # PPI (pixel per inch) value for PNG plots
-  png_resolution: 250 # int
-
-  # If true, plots will be enumerated in the order they are created
-  enumerate_plots: true # bool
-
   # Specify annotations to add to the data
   # If `true` is specified, will attempt to annotate with local annotations
   # suitable for human chips (both agilent or affymetrix).
@@ -33,6 +18,22 @@ general:
   # Otherwise, pass here the name of the database on bioconductor you wish to
   # source the annotations from.
   annotation_database: true # bool OR str
+
+  # PLOTS - Control plot size and extension
+  plots:
+    # Save PNG and/or PDF plots?
+    save_pdf: true # bool
+    save_png: false # bool
+
+    # Plot width and height in inches.
+    plot_width: 16 # int
+    plot_height: 9 # int
+
+    # PPI (pixel per inch) value for PNG plots
+    png_resolution: 250 # int
+
+    # If true, plots will be enumerated in the order they are created
+    enumerate_plots: true # bool
 
 
 ## SWITCHES - Various switches to turn parts of the analysis on or off
