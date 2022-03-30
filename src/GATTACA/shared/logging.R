@@ -2,17 +2,26 @@
 # A data log, for writing data, and a normal log, to write output info.
 # The log needs to be always saved in '/GATTACA/target/', and always
 # sent to the console.
+#
+# Additionally, the `logging` library *always* makes the log files. I want them
+# made only when something gets written to them. This mini-module fixes that.
+#
+# Author: Hedmad 
 
 LOGLEVELS <- list(
     "debug" = 10,
     "info" = 20,
     "warning" = 30,
-    "error" = 40
+    "error" = 40,
+    # This level is meant to disable this kind of logging.
+    # Doing so as a level is cheating, but is clean enough for me.
+    "disable" = 1000
 )
 
+#' Internal function to set the variables needed for the log name.
+#' 
+#' The path and extensions are automatically set.
 .set_logname <- function(name) {
-    # Set the log name to `name`. The path and extensions of _data.log and .log
-    # are automatically set.
     gattaca_log_path <- paste0("/GATTACA/logs/", name, ".log")
     gattaca_data_log_path <- paste0("/GATTACA/logs/", name, "_data.log")
 
@@ -23,6 +32,11 @@ LOGLEVELS <- list(
     register_for_ownership(gattaca_data_log_path)
 }
 
+
+#' Internal to set the log level for the "target".
+#' 
+#' The target can be stdout for the console, and file for the logfile.
+#' Loglevels are taken from the above list (LOGLEVELS).
 .set_loglevel <- function(level, target) {
     # Levels can be "debug" < "info" < "warning" < "error".
     # Only messages that match that level or above are logged.
@@ -37,9 +51,18 @@ LOGLEVELS <- list(
     options(newopt)
 }
 
+# Define some simple wrappers for later.
 .set_loglevel_file <- function(level) {.set_loglevel(level, "file")}
 .set_loglevel_stdout <- function(level) {.set_loglevel(level, "stdout")}
 
+
+#' Internal function. Prepare a list of object for printing in a message.
+#' 
+#' Handles converting them to string, and adding some padding. The names of the
+#' objects in the list are saved as the object name.
+#' 
+#' Example:
+#'  .prep_data(list("A vector" = c(1:10), "Flowers" = iris))
 .prep_data <- function(arg_list, padding = "    ") {
     string <- ""
     for (i in seq_along(arg_list)){
@@ -50,6 +73,13 @@ LOGLEVELS <- list(
     return(string)
 }
 
+#' Internal function. Push strings to the log.
+#' 
+#' Unnamed arguments are collapsed and pasted together if pushing to the
+#' standard log, and passed to `.prep_data` if not.
+#' 
+#' Raises an error if pushing to the file log, bug the filename has not been
+#' set with `.set_logname` beforehand.
 .push_to_log <- function(..., level, kind = "standard") {
     args <- list(...)
 
@@ -78,6 +108,8 @@ LOGLEVELS <- list(
     }
 }
 
+
+# A wrapper list that exposes the logging functions.
 log <- list(
     set_name = .set_logname,
     set_console_level = .set_loglevel_stdout,

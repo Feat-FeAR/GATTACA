@@ -19,7 +19,7 @@ source("/GATTACA/shared/logging.R")
 #' Stop a program anywhere, but with no errors.
 stop_quietly <- function() {
   opt <- options(show.error.messages = FALSE)
-  on.exit(options(opt))
+  on.exit(options(opt), add = TRUE)
   stop()
 }
 
@@ -119,6 +119,13 @@ get.print.str <- function(data) {
 }
 
 
+#' Log some data to the datalog.
+#' 
+#' @param data The data to log.
+#' @param message The name (or short description) of the data.
+#' @param shorten Should only the top-left portion of the data be logged?
+#' 
+#' @author MrHedmad
 log_data <- function(data, message = "", shorten = TRUE) {
   if (shorten) {
     data <- topleft.head(data)
@@ -493,16 +500,21 @@ ask_yes_or_no <- function(prompt) {
 }
 
 
+#' Update a named list (defaults) with another (args)
+#' 
+#' Changes the slots of the same name in "defaults" with those in "args". 
 update_defaults <- function(defaults, args) {
-  for (def_opt in names(defaults)) {
-    if (def_opt %in% names(args)) {
-      defaults[[def_opt]] <- args[[def_opt]]
-    }
+  for (override in names(args)) {
+    defaults[[override]] <- args[[override]]
   }
   return(defaults)
 }
 
 
+#' Parses a vector of args to a named list.
+#' 
+#' The strings in the vector must be of the type "<name>=<value>". Different
+#' formats will result in an error.
 args_to_list <- function(args) {
   listed_args <- list()
   for (arg in args) {
@@ -516,7 +528,12 @@ args_to_list <- function(args) {
   return(listed_args)
 }
 
-
+#' Validate a list of arguments
+#' 
+#' This function does (a limited amount of) sanity checking of the input passed
+#' by the user.
+#' Arguments that have a default type will be type-checked and converted, those
+#' that do not will be passed as strings.
 validate_arguments <- function(args, defaults) {
   log$debug("Got ", length(args), " arguments to parse: ", paste0(args, collapse = ", "))
   # Coerce NAs and NULLs to their realization
@@ -549,7 +566,7 @@ validate_arguments <- function(args, defaults) {
     # Attempt a coercion
     coerced <- tryCatch(
       {
-        # The list(args[[i]]) is important here, to get rid of the name.
+        # The list(args[[arg_name]]) is important here, to get rid of the name.
         do.call(paste0("as.", deftype), args = list(args[[arg_name]]))
       },
       error = function(error){stop(paste0("Cannot coerce '", args[[i]], "' to type '", deftype, "':", error))}
@@ -565,11 +582,21 @@ validate_arguments <- function(args, defaults) {
   res <- res[! sapply(res, is.null)]
 
   # All args should have been updated.
-  if (length(res) != length(defaults)) {
+  # Test if we are missing arguments:
+  if (length(res) < length(defaults)) {
     missing_args <- names(defaults)[! names(defaults) %in% names(res)]
     stop(paste0(
       "Missing ", length(missing_args), " required argument(s): ",
       paste0(missing_args, collapse = ", ")
+    ))
+  }
+  # Test if we have extra, unrecognized args. If the first check passes,
+  # we have the correct number of args, but they migth be wrong
+  # e.g. a default missing (-1) + an extra arg (+1), henche the second check.
+  if (length(res) > length(defaults) | ! all(names(res) %in% names(defaults))) {
+    extra_args <- names(res)[! names(res) %in% names(defaults)]
+    stop(paste0(
+      "Unrecognized argument(s): ", paste0(extra_args, collapse = ", ")
     ))
   }
 
@@ -577,7 +604,7 @@ validate_arguments <- function(args, defaults) {
 }
 
 
-#' Register a file for ownership correction.
+#' Register a file or folder for ownership correction.
 #' 
 #' This is due to issue #6, which I still cannot figure out how to fix.
 #' At the end of the process, I `chown` all files registered this way.

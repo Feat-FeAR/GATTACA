@@ -112,6 +112,8 @@ log$set_file_level(args[3])
 
 log$debug("Logfile initialized as '", args[1], "'")
 
+log$info("GATTACA container version: ", readLines("/GATTACA/VERSION"))
+
 COMMAND_ARGS <- args[-c(1:3)]
 
 run_module <- function(module_name, module_args, exit_immediately = FALSE) {
