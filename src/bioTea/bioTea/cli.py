@@ -1,8 +1,11 @@
+from genericpath import samefile
 import logging
 from pathlib import Path
+from bioTea.docker_wrapper import get_all_versions, get_installed_versions
 
 import typer
 from tqdm import tqdm
+from colorama import Fore
 
 from bioTea.pour import retrieve_geo_data
 from bioTea.wizard import wizard
@@ -18,9 +21,9 @@ log = logging.getLogger(__name__)
 #   - wizard: run the wizard
 #   - retrieve: Retrieve (and format) data from GEO
 #   - prepare
-#       - affymetrix: Prep affy data for analysis
+#       - affymetrix: Prep affymetrix data for analysis
 #       - agilent: Prep agilent data for analysis
-#   - analize: Analize with GATTACA an expression file
+#   - analyze: Analyze with GATTACA an expression file
 #   - annotate: Annotate an expression matrix
 #       - generate: Generate annotations for some organism.
 
@@ -33,6 +36,10 @@ cli_root.add_typer(info, name = "info")
 cli_root.add_typer(prepare, name = "prepare")
 cli_root.add_typer(annotate, name = "annotate")
 
+@cli_root.callback()
+def context_handler():
+    log.debug(f"Starting bioTEA.")
+
 @info.callback(invoke_without_command=True)
 def generic_info(ctx: typer.Context):
     """Get information on the status of the tool."""
@@ -43,7 +50,23 @@ def generic_info(ctx: typer.Context):
 @info.command(name = "containers")
 def info_containers():
     """Get information on the downloaded and available GATTACA containers."""
-    pass
+    local_versions = get_installed_versions()
+    remote_versions = get_all_versions()
+
+    c = lambda x: Fore.GREEN + str(x) + Fore.RESET
+    col_remote_vers = [
+        c(ver) if ver in local_versions else str(ver) for ver in remote_versions 
+    ]
+
+    local_versions = [str(x) for x in local_versions]
+    typer.echo(Fore.LIGHTBLUE_EX + "--- Container Info ---" + Fore.RESET)
+    typer.echo("Locally installed: {}".format(", ".join(sorted(local_versions))))
+    typer.echo("Remotely available: {}".format(", ".join(sorted(col_remote_vers))))
+    typer.echo(
+        Fore.LIGHTGREEN_EX + "Note: " + Fore.RESET +
+        "Remote containers installed locally are highlighted in green."
+    )
+    typer.echo(Fore.LIGHTBLUE_EX + "----------------------" + Fore.RESET)
 
 @info.command(name = "biotea")
 def info_biotea():
@@ -72,7 +95,12 @@ def retrieve(output_path: Path, geo_id: str):
 
     Also helps setting the options for the GATTACA analysis.
     """
-    retrieve_geo_data(output_folder=output_path, geo_id = geo_id)
+    geo_series = retrieve_geo_data(output_folder = output_path, geo_id = geo_id)
+    log.info("Writing metadata...")
+    with (output_path / "metadata.csv").open("w+") as fileout:
+        geo_series.generate_metadata().to_csv(fileout, doublequote=True, index=False)
+    
+    log.info(f"Done retrieving data for {geo_id}.")
 
 @prepare.command(name = "agilent")
 def prepare_agilent():

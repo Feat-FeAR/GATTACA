@@ -7,11 +7,4 @@
 
 # Configuration file for bioTEA
 
-# General
-input: "" # GEO or path
-output_folder: "" # path, must be empty
-
-# Experimental Design
-sample_names: ""
-experimental_design: ""
-technical_replicates: ""
+log_folder: "~/.bioTEA/logs/"

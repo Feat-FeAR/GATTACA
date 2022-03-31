@@ -1,10 +1,8 @@
-import shutil
 import sys
 import logging
-from typing import BinaryIO, Callable, TypeAlias, Union
+from typing import  Callable, TypeAlias, Union
 from pathlib import Path
 import ftplib
-from xml.etree.ElementTree import XML
 import requests
 import zipfile
 import os
@@ -15,7 +13,6 @@ from tqdm import tqdm
 from tqdm.utils import CallbackIOWrapper
 
 from bioTea.utils.errors import InvalidGeoId
-from bioTea.utils.xml_parser import GeoSeries, miniml_xml_to_series
 
 log = logging.getLogger(__name__)
 
@@ -256,44 +253,8 @@ def make_geo_ftp(geo_id: str, type: str = "miniml") -> str:
     return endpoints[type].format(obsid=obsid, id=geo_id)
 
 
-def get_minimal_from_geo(
-    geo_id: str, download_dir: PathLike, cleanup: bool = False
-) -> GeoSeries:
-    """Generate a GeoSeries object for a certain GEO Id.
-
-    Uses the miniml file to generate the object.
-
-    Args:
-        geo_id (str): The ID of the wanted series.
-        download_dir (PathLike): (Temporary) directory to download to.
-        cleanup (bool, optional): If True, downloaded files are deleted once the fuction ends. Defaults to False.
-
-    Returns:
-        GeoSeries: The GeoSeries object for the specified series.
-    """
-    download_dir = Path(download_dir)
-    log.info(f"Retrieving GEO MINiML file for {geo_id}")
-
-    ftp_url = make_geo_ftp(geo_id, "miniml")
-    downloaded = download_ftp(ftp_url, download_dir)
-    # There should be just a single file, the zipped file with the data
-    output_folder = download_dir / "minimal_files"
-    os.makedirs(output_folder)
-    # We downloaded only one file (hopefully)
-    # TODO: this seems a hack
-    shutil.unpack_archive(list(downloaded.values())[0], output_folder)
-
-    unzipped_files = os.listdir(output_folder)
-    file = [Path(x) for x in unzipped_files if x.endswith("_family.xml")][0]
-
-    series = miniml_xml_to_series(output_folder / file)
-
-    if cleanup:
-        shutil.rmtree(output_folder)
-        os.remove(downloaded)
-
-    return series
-
-
-def retrieve_raw_data(series: GeoSeries) -> list[Path]:
-    pass
+def contains_all(x: list, y: list) -> bool:
+    if len(x) != len(y):
+        return False
+    
+    return all(val in y for val in x)
