@@ -15,6 +15,8 @@ from . import resources
 
 init(autoreset=True)
 
+__version__ = "0.0.1"
+
 # Parse local options for the tool.
 DEFAULT_OPTIONS = yaml.safe_load(pkg_resources.open_text(resources, "default_options.yml"))
 

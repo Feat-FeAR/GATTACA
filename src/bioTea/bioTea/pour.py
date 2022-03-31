@@ -14,17 +14,6 @@ from tqdm import tqdm
 
 log = logging.getLogger(__name__)
 
-
-TEA = """
-             ;,'
-     _o_    ;:;' __    _     _______________
- ,-.'---`.__ ;  / /_  (_)___/_  __/ ____/   |
-((j`=====',-'  / __ \/ / __ \/ / / __/ / /| |
- `-\     /    / /_/ / / /_/ / / / /___/ ___ |
-    `-=-'    /_.___/_/\____/_/ /_____/_/  |_|
-"""
-
-
 def stage_new_analysis(staging_path: PathLike) -> Tuple[Path, Path]:
     """Stage a new analysis folder, with an output and temp folder.
 

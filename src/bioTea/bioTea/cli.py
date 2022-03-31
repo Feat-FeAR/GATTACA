@@ -7,6 +7,7 @@ import typer
 from tqdm import tqdm
 from colorama import Fore
 
+from bioTea import __version__
 from bioTea.pour import retrieve_geo_data
 from bioTea.wizard import wizard
 
@@ -71,7 +72,8 @@ def info_containers():
 @info.command(name = "biotea")
 def info_biotea():
     """Get information on the version of bioTEA."""
-    pass
+    typer.echo(Fore.LIGHTBLUE_EX + "--- BioTEA Info ---" + Fore.RESET)
+    typer.echo(Fore.LIGHTGREEN_EX + "Version: " + Fore.RESET + __version__)
 
 @cli_root.command(name = "update")
 def update_tool():
