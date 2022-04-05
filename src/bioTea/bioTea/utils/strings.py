@@ -23,7 +23,7 @@ def strip_colors(string):
     return ansi_escape.sub("", string)
 
 
-def combine_linewise(a, b, padding="", strip=False, align_bottom=False):
+def combine_linewise(a, b, padding="", strip=False, align_bottom=False, fix_len=True):
     lines_a = a.split("\n")
     lines_b = b.split("\n")
 
@@ -31,10 +31,13 @@ def combine_linewise(a, b, padding="", strip=False, align_bottom=False):
         lines_a = list(reversed(lines_a))
         lines_b = list(reversed(lines_b))
 
-    if len(lines_a) > len(lines_b):
-        fill = " " * len(lines_a)
-    elif len(lines_b) > len(lines_a):
-        fill = " " * len(lines_b)
+    def max_len(lines):
+        return max([len(strip_colors(x)) for x in lines])
+
+    if max_len(lines_a) > max_len(lines_b) and fix_len:
+        fill = " " * max_len(lines_a)
+    elif max_len(lines_b) > max_len(lines_a) and fix_len:
+        fill = " " * max_len(lines_b)
     else:
         fill = ""
 
@@ -54,14 +57,16 @@ def combine_linewise(a, b, padding="", strip=False, align_bottom=False):
 def make_square(logo, side="left"):
     assert side in ["left", "right"]
     lines = logo.split("\n")
-    print(lines)
     longest = max([len(strip_colors(x)) for x in lines])
-    print(longest)
 
-    if side == "left":
-        res = [line.ljust(longest) for line in lines]
-    elif side == "right":
-        res = [line.rjust(longest) for line in lines]
+    res = []
+    for line in lines:
+        padding = " "*(longest - len(strip_colors(line)))
+
+        if side == "left":
+            res.append(line + padding)
+        elif side == "right":
+            res.append(padding + line)
 
     return "\n".join(res)
 
@@ -79,13 +84,13 @@ TEA = """                                                    __/\__
 TEAPOT = (Fore.RESET + "\n").join(
     [
         Fore.LIGHTBLACK_EX + "             ;,'",
-        Fore.BLUE + "     _o_    " + Fore.LIGHTBLACK_EX + ";:;'",
-        Fore.BLUE + " ,-.'---`.__ " + Fore.LIGHTBLACK_EX + ";",
-        Fore.BLUE + "((j`=====',-'",
-        Fore.BLUE + " `-\     /",
-        Fore.BLUE + "    `-=-'",
+        Fore.LIGHTRED_EX + "     _o_    " + Fore.LIGHTBLACK_EX + ";:;' ",
+        Fore.LIGHTRED_EX + " ,-.'---`.__ " + Fore.LIGHTBLACK_EX + ";  ",
+        Fore.LIGHTRED_EX + "((j`=====',-'  ",
+        Fore.LIGHTRED_EX + " `-\     /    ",
+        Fore.LIGHTRED_EX + "    `-=-'    ",
     ]
-)
+) + Fore.RESET
 
 BIOTEA = (Fore.RESET + "\n").join(
     [
@@ -97,4 +102,29 @@ BIOTEA = (Fore.RESET + "\n").join(
     ]
 )
 
-TEA_LOGO = combine_linewise(TEAPOT)
+BIOTEA_S = (Fore.RESET + "\n").join(
+    [
+        "__    _     " + Fore.LIGHTGREEN_EX + "_______________ ",
+        "/ /_  (_)___" + Fore.LIGHTGREEN_EX + "/_  __/ ____/   |",
+        "/ __ \/ / __ \\" + Fore.LIGHTGREEN_EX + "/ / / __/ / /| |",
+        "/ /_/ / / /_/ " + Fore.LIGHTGREEN_EX + "/ / / /___/ ___ |",
+        "/_.___/_/\____" + Fore.LIGHTGREEN_EX + "/_/ /_____/_/  |_|",
+    ]
+) + Fore.RESET
+
+WIZARD =(Fore.RESET + "\n").join(
+    [
+        Fore.LIGHTYELLOW_EX + "     __/\__",
+        Fore.LIGHTCYAN_EX + ". _ " + Fore.LIGHTYELLOW_EX + " \\\\''//",
+        Fore.LIGHTCYAN_EX + "-( )-" + Fore.LIGHTBLACK_EX + "/_||_\\",
+        Fore.LIGHTCYAN_EX + " .'. " + Fore.LIGHTBLACK_EX + "\_()_/",
+        "  |   " + Fore.LIGHTRED_EX + "| . \\",
+        Fore.LIGHTBLACK_EX + "  ϕ" + Fore.LIGHTRED_EX + "---| .  \\",
+        " .'. " + Fore.LIGHTRED_EX + ",\_____'."
+    ]
+) + Fore.RESET
+
+WIZARD_WORD = Fore.LIGHTCYAN_EX + "                          W I Z A R D" + Fore.RESET
+
+TEA_LOGO = combine_linewise(TEAPOT, BIOTEA_S, strip=False, align_bottom = True, fix_len=False)
+WIZARD_LOGO = combine_linewise(make_square(TEA_LOGO), WIZARD, strip=False, align_bottom = True, padding=" ") + "\n" + WIZARD_WORD

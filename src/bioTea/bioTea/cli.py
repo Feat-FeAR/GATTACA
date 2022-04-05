@@ -1,15 +1,17 @@
+from enum import Enum
 from genericpath import samefile
 import logging
 from pathlib import Path
-from bioTea.docker_wrapper import get_all_versions, get_installed_versions
+from typing import Optional, Union
 
 import typer
-from tqdm import tqdm
 from colorama import Fore
 
 from bioTea import __version__
 from bioTea.pour import retrieve_geo_data
 from bioTea.wizard import wizard
+from bioTea.utils.strings import TEA_LOGO, WIZARD_LOGO
+from bioTea.docker_wrapper import get_all_versions, get_installed_versions
 
 log = logging.getLogger(__name__)
 
@@ -35,7 +37,7 @@ annotate = typer.Typer()
 
 cli_root.add_typer(info, name="info")
 cli_root.add_typer(prepare, name="prepare")
-cli_root.add_typer(annotate, name="annotate")
+cli_root.add_typer(annotate, name="annotations")
 
 
 @cli_root.callback()
@@ -46,14 +48,15 @@ def context_handler():
 @info.callback(invoke_without_command=True)
 def generic_info(ctx: typer.Context):
     """Get information on the status of the tool."""
+    print(TEA_LOGO)
     if ctx.invoked_subcommand:
         return
-    pass
 
 
 @info.command(name="containers")
 def info_containers():
     """Get information on the downloaded and available GATTACA containers."""
+    log.info("Getting container info...")
     local_versions = get_installed_versions()
     remote_versions = get_all_versions()
 
@@ -97,6 +100,7 @@ def run_wizard():
 
     The wizard helps in setting up, running, and exploring a GATTACA analysis.
     """
+    print(WIZARD_LOGO)
     pass
 
 
@@ -115,32 +119,44 @@ def retrieve(output_path: Path, geo_id: str):
 
 
 @prepare.command(name="agilent")
-def prepare_agilent():
+def prepare_agilent(
+    input_dir: Path, output_file: Path, grep_pattern: Optional[str] = "\.txt$",
+    remove_controls: Optional[bool] = False, plot_number: Optional[int] = None, plot_size: Optional[str] = "12,5"
+):
     """Prepare agilent expression data for analysis."""
     pass
 
 
 @prepare.command(name="affymetrix")
-def prepare_affymetrix():
+def prepare_affymetrix(
+    input_dir: Path, output_file: Path,
+    remove_controls: Optional[bool] = False, plot_number: Optional[int] = None, plot_size: Optional[str] = "12,5"
+):
     """Prepare affymetrix expression data for analysis."""
     pass
 
 
 @cli_root.command(name="analyze")
-def run_gattaca_analysis():
+def run_gattaca_analysis(options_path: Path, output_dir: Path, input_dir: Path):
     """Run Differential Gene Expression with GATTACA."""
     pass
 
 
-@annotate.callback(invoke_without_command=True)
-def annotate_callback(ctx: typer.Context):
+class ValidSpecies(str, Enum):
+    human = "human"
+    drosophila = "drosophila"
+    mouse = "mouse"
+    rat = "rat"
+    bee = "apis"
+
+
+@annotate.command(name="apply")
+def annotate_file(target: Path, annotation_database: Optional[str] = "internal"):
     """Annotate some expression data or DEA output with annotation data."""
-    if ctx.invoked_subcommand:
-        return
     pass
 
 
-@annotate.command()
-def generate_annotations():
+@annotate.command(name="generate")
+def generate_annotations(target: Path, organism: ValidSpecies = ValidSpecies.human):
     """Generate annotations to use with GATTACA."""
     pass
