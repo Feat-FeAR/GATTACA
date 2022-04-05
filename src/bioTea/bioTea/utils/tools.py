@@ -1,6 +1,9 @@
+from __future__ import annotations
+from pdb import line_prefix
+
 import sys
 import logging
-from typing import  Callable, TypeAlias, Union
+from typing import Callable, Optional, TypeAlias, Union
 from pathlib import Path
 import ftplib
 import requests
@@ -8,6 +11,7 @@ import zipfile
 import os
 import gzip
 import tarfile
+from collections import deque
 
 from tqdm import tqdm
 from tqdm.utils import CallbackIOWrapper
@@ -256,5 +260,54 @@ def make_geo_ftp(geo_id: str, type: str = "miniml") -> str:
 def contains_all(x: list, y: list) -> bool:
     if len(x) != len(y):
         return False
-    
+
     return all(val in y for val in x)
+
+
+class ConsoleWindow:
+    def __init__(
+        self,
+        height: int,
+        name: Optional[str] = None,
+        line_prefix: str = "",
+        clear: bool = False,
+    ) -> None:
+        self.height = height
+        self.name = name
+        self.line_prefix = line_prefix
+        self.clear = clear
+
+        self.buffer = deque([""] * self.height, maxlen=self.height)
+
+    def print(self, line) -> None:
+        self.buffer.append(line)
+        self.update()
+
+    @staticmethod
+    def clearlines(n):
+        # Use ANSI codes to clear `n` lines
+        for _ in range(n):
+            # The first goes up one line, the second clears it.
+            print("\033[1A", end="\x1b[2K")
+
+    def update(self) -> None:
+        self.clearlines(self.height)
+        for line in self.buffer:
+            print(self.line_prefix + line)
+
+    def __enter__(self) -> ConsoleWindow:
+        if self.name:
+            print(self.line_prefix + f"-- {self.name} -- " + "\n" * self.height)
+        else:
+            print(self.line_prefix + "\n" * self.height)
+
+        return self
+
+    def __exit__(self, type, value, traceback) -> None:
+        self.update()
+
+        if self.clear:
+            if self.name:
+                self.clearlines(self.height + 1)
+            else:
+                self.clearlines(self.height)

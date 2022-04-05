@@ -3,7 +3,8 @@ from colorama import Fore
 import re
 
 # 7-bit C1 ANSI sequences
-ansi_escape = re.compile(r'''
+ansi_escape = re.compile(
+    r"""
     \x1B  # ESC
     (?:   # 7-bit C1 Fe (except CSI)
         [@-Z\\-_]
@@ -13,13 +14,16 @@ ansi_escape = re.compile(r'''
         [ -/]*  # Intermediate bytes
         [@-~]   # Final byte
     )
-''', re.VERBOSE)
+""",
+    re.VERBOSE,
+)
+
 
 def strip_colors(string):
-    return ansi_escape.sub('', string)
+    return ansi_escape.sub("", string)
 
 
-def combine_linewise(a, b, padding = "", strip=False, align_bottom=False):
+def combine_linewise(a, b, padding="", strip=False, align_bottom=False):
     lines_a = a.split("\n")
     lines_b = b.split("\n")
 
@@ -40,14 +44,14 @@ def combine_linewise(a, b, padding = "", strip=False, align_bottom=False):
             line_a, line_b = line_a.strip(), line_b.strip()
         line_a = line_a + padding
         result.append(line_a + line_b)
-    
+
     if align_bottom:
         result = reversed(result)
-    
+
     return "\n".join(result)
 
 
-def make_square(logo, side = "left"):
+def make_square(logo, side="left"):
     assert side in ["left", "right"]
     lines = logo.split("\n")
     print(lines)
@@ -60,7 +64,7 @@ def make_square(logo, side = "left"):
         res = [line.rjust(longest) for line in lines]
 
     return "\n".join(res)
-    
+
 
 TEA = """                                                    __/\__
              ;,'                               . _  \\\\''//
@@ -72,21 +76,25 @@ TEA = """                                                    __/\__
                               W I Z A R D
 """
 
-TEAPOT = (Fore.RESET + "\n").join([
-Fore.LIGHTBLACK_EX + "             ;,'",
-Fore.BLUE + "     _o_    " + Fore.LIGHTBLACK_EX + ";:;'",
-Fore.BLUE + " ,-.'---`.__ " + Fore.LIGHTBLACK_EX + ";",
-Fore.BLUE + "((j`=====',-'",
-Fore.BLUE + " `-\     /",
-Fore.BLUE + "    `-=-'"
-])
+TEAPOT = (Fore.RESET + "\n").join(
+    [
+        Fore.LIGHTBLACK_EX + "             ;,'",
+        Fore.BLUE + "     _o_    " + Fore.LIGHTBLACK_EX + ";:;'",
+        Fore.BLUE + " ,-.'---`.__ " + Fore.LIGHTBLACK_EX + ";",
+        Fore.BLUE + "((j`=====',-'",
+        Fore.BLUE + " `-\     /",
+        Fore.BLUE + "    `-=-'",
+    ]
+)
 
-BIOTEA = (Fore.RESET+"\n").join([
-    "    __    _     " + Fore.LIGHTGREEN_EX + "_______________ ",
-    "   / /_  (_)___" + Fore.LIGHTGREEN_EX +  "/_  __/ ____/   |",
-    "  / __ \/ / __ \\" + Fore.LIGHTGREEN_EX + "/ / / __/ / /| |",
-    " / /_/ / / /_/ " + Fore.LIGHTGREEN_EX + "/ / / /___/ ___ |",
-    "/_.___/_/\____" + Fore.LIGHTGREEN_EX + "/_/ /_____/_/  |_|"
-])
+BIOTEA = (Fore.RESET + "\n").join(
+    [
+        "    __    _     " + Fore.LIGHTGREEN_EX + "_______________ ",
+        "   / /_  (_)___" + Fore.LIGHTGREEN_EX + "/_  __/ ____/   |",
+        "  / __ \/ / __ \\" + Fore.LIGHTGREEN_EX + "/ / / __/ / /| |",
+        " / /_/ / / /_/ " + Fore.LIGHTGREEN_EX + "/ / / /___/ ___ |",
+        "/_.___/_/\____" + Fore.LIGHTGREEN_EX + "/_/ /_____/_/  |_|",
+    ]
+)
 
 TEA_LOGO = combine_linewise(TEAPOT)

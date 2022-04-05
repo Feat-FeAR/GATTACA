@@ -26,7 +26,9 @@ class XmlMinimlExtractor:
         authors = []
         for author in raw_authors:
             if "Person" in author.keys():
-                authors.append("{} {}".format(author["Person"]["First"], author["Person"]["Last"]))
+                authors.append(
+                    "{} {}".format(author["Person"]["First"], author["Person"]["Last"])
+                )
 
         return authors
 
@@ -39,8 +41,12 @@ class XmlMinimlExtractor:
 
         log.debug("Sanity Check: Do all samples have the same conditions?")
         for sample in sample_objects:
-            if not contains_all(list(sample_obj.conditions.keys()), list(sample.conditions.keys())):
-                log.error("Failed sanity check: Not all samples have the same conditions")
+            if not contains_all(
+                list(sample_obj.conditions.keys()), list(sample.conditions.keys())
+            ):
+                log.error(
+                    "Failed sanity check: Not all samples have the same conditions"
+                )
                 raise SanityError("Not all values have the same conditions.")
 
         return sample_objects

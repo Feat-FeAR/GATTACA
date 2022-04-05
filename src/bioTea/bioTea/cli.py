@@ -33,30 +33,33 @@ info = typer.Typer()
 prepare = typer.Typer()
 annotate = typer.Typer()
 
-cli_root.add_typer(info, name = "info")
-cli_root.add_typer(prepare, name = "prepare")
-cli_root.add_typer(annotate, name = "annotate")
+cli_root.add_typer(info, name="info")
+cli_root.add_typer(prepare, name="prepare")
+cli_root.add_typer(annotate, name="annotate")
+
 
 @cli_root.callback()
 def context_handler():
     log.debug(f"Starting bioTEA.")
 
+
 @info.callback(invoke_without_command=True)
 def generic_info(ctx: typer.Context):
     """Get information on the status of the tool."""
-    if ctx.invoked_subcommand :
+    if ctx.invoked_subcommand:
         return
     pass
 
-@info.command(name = "containers")
+
+@info.command(name="containers")
 def info_containers():
     """Get information on the downloaded and available GATTACA containers."""
     local_versions = get_installed_versions()
     remote_versions = get_all_versions()
 
-    c = lambda x: Fore.GREEN + str(x) + Fore.RESET
+    c = lambda x: Fore.LIGHTGREEN_EX + str(x) + Fore.RESET
     col_remote_vers = [
-        c(ver) if ver in local_versions else str(ver) for ver in remote_versions 
+        c(ver) if ver in local_versions else str(ver) for ver in remote_versions
     ]
 
     local_versions = [str(x) for x in local_versions]
@@ -64,26 +67,31 @@ def info_containers():
     typer.echo("Locally installed: {}".format(", ".join(sorted(local_versions))))
     typer.echo("Remotely available: {}".format(", ".join(sorted(col_remote_vers))))
     typer.echo(
-        Fore.LIGHTGREEN_EX + "Note: " + Fore.RESET +
-        "Remote containers installed locally are highlighted in green."
+        Fore.LIGHTGREEN_EX
+        + "Note: "
+        + Fore.RESET
+        + "Remote containers installed locally are highlighted in green."
     )
     typer.echo(Fore.LIGHTBLUE_EX + "----------------------" + Fore.RESET)
 
-@info.command(name = "biotea")
+
+@info.command(name="biotea")
 def info_biotea():
     """Get information on the version of bioTEA."""
     typer.echo(Fore.LIGHTBLUE_EX + "--- BioTEA Info ---" + Fore.RESET)
     typer.echo(Fore.LIGHTGREEN_EX + "Version: " + Fore.RESET + __version__)
 
-@cli_root.command(name = "update")
+
+@cli_root.command(name="update")
 def update_tool():
     """Check bioTEA and the container repos for updates.
-    
+
     This command also updates the latest container, if needed.
     """
     pass
 
-@cli_root.command(name = "wizard")
+
+@cli_root.command(name="wizard")
 def run_wizard():
     """Run the bioTEA wizard.
 
@@ -91,43 +99,48 @@ def run_wizard():
     """
     pass
 
-@cli_root.command(name = "retrieve")
+
+@cli_root.command(name="retrieve")
 def retrieve(output_path: Path, geo_id: str):
     """Retrieve data from GEO regarding a GEO series.
 
     Also helps setting the options for the GATTACA analysis.
     """
-    geo_series = retrieve_geo_data(output_folder = output_path, geo_id = geo_id)
+    geo_series = retrieve_geo_data(output_folder=output_path, geo_id=geo_id)
     log.info("Writing metadata...")
     with (output_path / "metadata.csv").open("w+") as fileout:
         geo_series.generate_metadata().to_csv(fileout, doublequote=True, index=False)
-    
+
     log.info(f"Done retrieving data for {geo_id}.")
 
-@prepare.command(name = "agilent")
+
+@prepare.command(name="agilent")
 def prepare_agilent():
     """Prepare agilent expression data for analysis."""
     pass
 
-@prepare.command(name = "affymetrix")
+
+@prepare.command(name="affymetrix")
 def prepare_affymetrix():
     """Prepare affymetrix expression data for analysis."""
     pass
 
-@cli_root.command(name = "analyze")
+
+@cli_root.command(name="analyze")
 def run_gattaca_analysis():
     """Run Differential Gene Expression with GATTACA."""
     pass
 
+
 @annotate.callback(invoke_without_command=True)
 def annotate_callback(ctx: typer.Context):
     """Annotate some expression data or DEA output with annotation data."""
-    if ctx.invoked_subcommand :
+    if ctx.invoked_subcommand:
         return
     pass
+
 
 @annotate.command()
 def generate_annotations():
     """Generate annotations to use with GATTACA."""
     pass
-

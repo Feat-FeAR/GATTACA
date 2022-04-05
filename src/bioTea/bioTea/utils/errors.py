@@ -20,11 +20,14 @@ class InvalidGeoId(BioTeaError):
 class UnsupportedChip(BioTeaError):
     pass
 
+
 class SanityError(BioTeaError):
     pass
 
+
 class ImageNotFoundError(BioTeaError):
     pass
+
 
 # --- #
 

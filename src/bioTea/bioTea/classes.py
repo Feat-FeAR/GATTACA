@@ -6,6 +6,7 @@ from bioTea.utils.errors import UnsupportedChip
 
 import pandas as pd
 
+
 @dataclass
 class GeoPlatform:
     accession: str
@@ -44,6 +45,7 @@ class GeoSample:
             # This is a list of small dicts. We fuse them together.
             def dictify(dict):
                 return {dict["@tag"]: dict["#text"]}
+
             char = [dictify(x) for x in char]
             conditions = {}
             [conditions.update(x) for x in char]
@@ -69,25 +71,23 @@ class GeoSeries:
         authors = ", ".join(self.authors)
         samples = ", ".join([str(x) for x in self.samples])
         return f"GEO - Series ({self.accession}) from {authors}. Platform {self.platform} with {len(self.samples)} samples: {samples}"
-    
+
     @property
     def design(self) -> str:
-        design = {
-            "Sample_id": [sample.accession for sample in self.samples]
-        }
+        design = {"Sample_id": [sample.accession for sample in self.samples]}
         for condition in self.samples[0].conditions:
             design[condition] = [
                 sample.conditions[condition] for sample in self.samples
             ]
-        
+
         return design
-    
+
     @property
     def design_strings(self) -> str:
         strings = {}
         for key in self.design:
             strings[key] = ", ".join(self.design[key])
         return strings
-    
+
     def generate_metadata(self) -> pd.DataFrame:
-        return pd.DataFrame(data = self.design)
+        return pd.DataFrame(data=self.design)

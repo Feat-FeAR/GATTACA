@@ -1,5 +1,6 @@
 """bioTEA - A pipeline for processing microarray data to detect general transportome up- or down- regulation.
 """
+import imp
 import logging
 from logging import StreamHandler
 from logging.handlers import RotatingFileHandler
@@ -7,6 +8,9 @@ from pathlib import Path
 import importlib.resources as pkg_resources
 from copy import copy
 import os
+import curses
+import atexit
+from time import sleep
 
 from colorama import init, Fore, Back, Style
 import yaml
@@ -18,17 +22,23 @@ init(autoreset=True)
 __version__ = "0.0.1"
 
 # Parse local options for the tool.
-DEFAULT_OPTIONS = yaml.safe_load(pkg_resources.open_text(resources, "default_options.yml"))
+DEFAULT_OPTIONS = yaml.safe_load(
+    pkg_resources.open_text(resources, "default_options.yml")
+)
+
 
 def parse_local_options(*args):
     updated_defaults = copy(DEFAULT_OPTIONS)
     for dict in args:
         invalid_keys = [new_key not in DEFAULT_OPTIONS.keys() for new_key in dict]
         if invalid_keys:
-            raise ValueError("Invalid local option(s) {}.".format(", ".join(invalid_keys)))
+            raise ValueError(
+                "Invalid local option(s) {}.".format(", ".join(invalid_keys))
+            )
         updated_defaults.update(args)
 
     return updated_defaults
+
 
 _possible_option_paths = [Path("~/.bioTEA/config.yaml"), Path("~/.bioTEA/config.yml")]
 _all_local_opts = []
@@ -39,14 +49,15 @@ for path in _possible_option_paths:
         _all_local_opts.append(yaml.safe_load(file))
 OPTIONS = parse_local_options(*_all_local_opts)
 
+
 class ColorFormatter(logging.Formatter):
     # Change this dictionary to suit your coloring needs!
     COLORS = {
-        "WARNING": Fore.YELLOW ,
+        "WARNING": Fore.YELLOW,
         "ERROR": Fore.RED,
         "DEBUG": Style.BRIGHT + Fore.MAGENTA,
         "INFO": Fore.GREEN,
-        "CRITICAL": Style.BRIGHT + Fore.RED
+        "CRITICAL": Style.BRIGHT + Fore.RED,
     }
 
     def format(self, record):
@@ -58,6 +69,7 @@ class ColorFormatter(logging.Formatter):
                 record.msg = color + record.msg + reset
             record.levelname = color + record.levelname + reset
         return logging.Formatter.format(self, record)
+
 
 # Setup logging
 log = logging.getLogger("bioTea")  # Keep this at the module level name
