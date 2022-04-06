@@ -61,7 +61,7 @@ def make_square(logo, side="left"):
 
     res = []
     for line in lines:
-        padding = " "*(longest - len(strip_colors(line)))
+        padding = " " * (longest - len(strip_colors(line)))
 
         if side == "left":
             res.append(line + padding)
@@ -112,7 +112,7 @@ BIOTEA_S = (Fore.RESET + "\n").join(
     ]
 ) + Fore.RESET
 
-WIZARD =(Fore.RESET + "\n").join(
+WIZARD = (Fore.RESET + "\n").join(
     [
         Fore.LIGHTYELLOW_EX + "     __/\__",
         Fore.LIGHTCYAN_EX + ". _ " + Fore.LIGHTYELLOW_EX + " \\\\''//",
@@ -120,11 +120,19 @@ WIZARD =(Fore.RESET + "\n").join(
         Fore.LIGHTCYAN_EX + " .'. " + Fore.LIGHTBLACK_EX + "\_()_/",
         "  |   " + Fore.LIGHTRED_EX + "| . \\",
         Fore.LIGHTBLACK_EX + "  ϕ" + Fore.LIGHTRED_EX + "---| .  \\",
-        " .'. " + Fore.LIGHTRED_EX + ",\_____'."
+        " .'. " + Fore.LIGHTRED_EX + ",\_____'.",
     ]
 ) + Fore.RESET
 
 WIZARD_WORD = Fore.LIGHTCYAN_EX + "                          W I Z A R D" + Fore.RESET
 
-TEA_LOGO = combine_linewise(TEAPOT, BIOTEA_S, strip=False, align_bottom = True, fix_len=False)
-WIZARD_LOGO = combine_linewise(make_square(TEA_LOGO), WIZARD, strip=False, align_bottom = True, padding=" ") + "\n" + WIZARD_WORD
+TEA_LOGO = combine_linewise(
+    TEAPOT, BIOTEA_S, strip=False, align_bottom=True, fix_len=False
+)
+WIZARD_LOGO = (
+    combine_linewise(
+        make_square(TEA_LOGO), WIZARD, strip=False, align_bottom=True, padding=" "
+    )
+    + "\n"
+    + WIZARD_WORD
+)

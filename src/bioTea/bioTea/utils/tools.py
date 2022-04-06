@@ -6,6 +6,7 @@ import logging
 from typing import Callable, Optional, TypeAlias, Union
 from pathlib import Path
 import ftplib
+from bioTea.utils.path_checker import is_path_exists_or_creatable_portable
 import requests
 import zipfile
 import os
@@ -16,7 +17,7 @@ from collections import deque
 from tqdm import tqdm
 from tqdm.utils import CallbackIOWrapper
 
-from bioTea.utils.errors import InvalidGeoId
+from bioTea.utils.errors import InvalidGeoId, InvalidPathError
 
 log = logging.getLogger(__name__)
 
@@ -311,3 +312,32 @@ class ConsoleWindow:
                 self.clearlines(self.height + 1)
             else:
                 self.clearlines(self.height)
+
+
+def make_path_valid(path: Path, dir: bool = False):
+    """Make a path valid to write in
+
+    If the path points to a real directory or file, makes sure that we can read
+    and write there. Otherwise, makes the directory/parent directory so we
+    can use the path directly.
+
+    Args:
+        path (Path): The path to test
+        dir (bool, optional): Is the path theoretically pointing to  a directory?. Defaults to False.
+
+    Raises:
+        InvalidPathError: If the path is invalid.
+
+    Returns:
+        Path: The same path in input.
+    """
+    if is_path_exists_or_creatable_portable(path) and not path.exists():
+        if dir:
+            os.makedirs(path, exist_ok = True)
+        else:
+            os.makedirs(path.parent, exist_ok= True)
+    
+    if not is_path_exists_or_creatable_portable(path):
+        raise InvalidPathError(f"Invalid path: {path}")
+    
+    return path
