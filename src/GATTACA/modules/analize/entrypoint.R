@@ -34,6 +34,23 @@ args <- getOption("module.args")
 # signifies a required argument.
 
 defaults = list(
+    input.file = NULL,
+    output.dir = NULL,
+    experimental_design = NULL,
+    contrasts = NULL,
+    min_log2_expression = 4,
+    fc_threshold = 0.5,
+    min_groupwise_presence = 0.8,
+    slowmode = FALSE,
+    show_data_snippets = TRUE,
+    annotation_database = TRUE,
+    dryrun = FALSE,
+    renormalize = FALSE,
+    run_limma_analysis = TRUE,
+    run_rankprod_analysis = TRUE,
+    batches = NA,
+    extra_limma_vars = NA,
+    group_colors = c("cornflowerblue", "firebrick3", "olivedrab3", "darkgoldenrod1", "purple", "magenta3")
     # Plot options
     use_pdf = TRUE,
     plot_width = 16,
