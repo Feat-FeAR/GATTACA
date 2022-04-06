@@ -333,11 +333,11 @@ def make_path_valid(path: Path, dir: bool = False):
     """
     if is_path_exists_or_creatable_portable(path) and not path.exists():
         if dir:
-            os.makedirs(path, exist_ok = True)
+            os.makedirs(path, exist_ok=True)
         else:
-            os.makedirs(path.parent, exist_ok= True)
-    
+            os.makedirs(path.parent, exist_ok=True)
+
     if not is_path_exists_or_creatable_portable(path):
         raise InvalidPathError(f"Invalid path: {path}")
-    
+
     return path

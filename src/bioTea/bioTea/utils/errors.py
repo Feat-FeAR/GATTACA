@@ -28,6 +28,7 @@ class SanityError(BioTeaError):
 class ImageNotFoundError(BioTeaError):
     pass
 
+
 class InvalidPathError(BioTeaError):
     pass
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import unique
 import logging
 from pathlib import Path
 import os
@@ -29,6 +28,7 @@ COMPATIBLE_VERSIONS = ["bleeding"]
 REPO = "cmalabscience/gattaca"
 
 POSSIBLE_LOG_LEVELS = ("info", "debug", "error", "warning", "disable")
+
 
 @dataclass
 class GattacaVersion:
@@ -104,6 +104,7 @@ def get_all_versions() -> list[GattacaVersion]:
 def get_latest_version() -> GattacaVersion:
     return sorted(get_all_versions())[-1]
 
+
 # Some checks
 def na_or(check) -> Callable:
     def _wrapped_check(argument):
@@ -111,49 +112,56 @@ def na_or(check) -> Callable:
             return True
         else:
             return check(argument)
-    
+
     return _wrapped_check
 
 
 def is_(argtype) -> Callable:
     def _wrapped_check(argument):
         return issubclass(type(argument), argtype)
+
     return _wrapped_check
+
 
 def is_in(arglist) -> Callable:
     def _wrapped_check(argument):
         return argument in arglist
-    
+
     return _wrapped_check
+
 
 def is_valid_design_string(argument):
     # TODO: implement this check
     return is_(str)(argument)
 
+
 def is_valid_color(argument):
     # TODO: implement this
     return is_(str)(argument)
+
 
 def is_list_of(check) -> Callable:
     def _wrapped_check(argument):
         if not type(argument) == list:
             return False
-        
+
         return all([check(x) for x in argument])
-    
+
     return _wrapped_check
-    
 
 
 class GattacaArgument:
     """Class used to mark an argument in a GattacaInterface dict."""
+
     def __init__(self, check: Callable, default: Any) -> None:
         self.check = check
         self.default = default
 
-        assert self.check(default), "Invalid default GATTACA value. Someone coded it wrong."
-    
-    def __call__(self, argument = None):
+        assert self.check(
+            default
+        ), "Invalid default GATTACA value. Someone coded it wrong."
+
+    def __call__(self, argument=None):
         if argument == None:
             argument == self.default
 
@@ -166,7 +174,7 @@ class RequiredGattacaArgument(GattacaArgument):
         self.check = check
         # The default does not matter. It HAS to be overridden.
         self.default = None
-    
+
     def __call__(self, argument):
         if not self.check(argument):
             raise ValueError(f"Argument check failed. Invalid argument {argument}")
@@ -179,12 +187,13 @@ class GattacaInterface(ABC):
     parsing them to an object that can be given to `run_gattaca` to run the
     concrete command.
     """
+
     possible_args: dict = None
     """The possible arguments to the interface.
-    
+
     This is a dictionary of "value_name" = GattacaArgument.
     If a Callable, it is used to test the arg before passing it to GATTACA.
-    If a RequiredArgument, 
+    If a RequiredArgument,
     """
 
     # I am not 100% sure this is the correct way to use this, but it fails
@@ -196,12 +205,20 @@ class GattacaInterface(ABC):
     @classmethod
     def parse_arguments(self, **kwargs) -> str:
         """Check the input args and parse them to a GATTACA-compliant string."""
-        required_args = [key for key, val in self.possible_args.items() if type(val) is RequiredGattacaArgument]
+        required_args = [
+            key
+            for key, val in self.possible_args.items()
+            if type(val) is RequiredGattacaArgument
+        ]
 
-        assert all([x in required_args for x in kwargs.keys()]), "Missing required args: {}".format(
+        assert all(
+            [x in required_args for x in kwargs.keys()]
+        ), "Missing required args: {}".format(
             ", ".join([x for x in kwargs.keys() if x not in required_args])
         )
-        assert all([x in self.possible_args.keys() for x in kwargs.keys()]), "Unrecognized argument(s) {}".format(
+        assert all(
+            [x in self.possible_args.keys() for x in kwargs.keys()]
+        ), "Unrecognized argument(s) {}".format(
             ", ".join([x for x in kwargs.keys() if x not in self.possible_args.keys()])
         )
 
@@ -209,13 +226,15 @@ class GattacaInterface(ABC):
             # These will raise an error if the check fails. So, if this passes,
             # all passed args are OK.
             self.possible_args[key](value)
-        
+
         # Here, we are sure of three things:
         # 1. All required arguments are overridden by `kwargs`
         # 2. All arguments in `kwargs` are in the possible_arguments.
         # 3. All arguments in `kwargs` are valid (they pass the checks)
         # Therefore, we can update the default values with the kwargs safely.
-        defaults = {key: self.possible_args[key].default for key in self.possible_args.keys()}
+        defaults = {
+            key: self.possible_args[key].default for key in self.possible_args.keys()
+        }
         defaults.update(kwargs)
 
         # Update the keywords for python to R.
@@ -225,12 +244,12 @@ class GattacaInterface(ABC):
                     return "TRUE"
                 return "FALSE"
             return value
-        
+
         def transmogrify_none(value):
             if value is None:
                 return "NA"
             return value
-        
+
         def transmogrify(value):
             value = transmogrify_bool(value)
             value = transmogrify_none(value)
@@ -241,10 +260,12 @@ class GattacaInterface(ABC):
         # GATTACA wants a space-separated, quoted list of string arguments.
         return " ".join([f'"{key}={val}"' for key, val in defaults.items()])
 
+
 ## >> Interface definitions
-# To define a new interface, or check that one is compilant, look in the 
+# To define a new interface, or check that one is compilant, look in the
 # `entrypoint.R` of the GATTACA module, at the `defaults` list.
 # Convert this list to a dictionary, replacing every `NULL` with RequiredArgument
+
 
 class PrepAffyInterface(GattacaInterface):
     possible_args: dict = {
@@ -254,10 +275,11 @@ class PrepAffyInterface(GattacaInterface):
         # Plot options
         "use_pdf": GattacaArgument(is_(bool), True),
         "plot_width": GattacaArgument(is_(int), 16),
-        "plot_height":  GattacaArgument(is_(int), 9),
-        "png_ppi":  GattacaArgument(is_(int), 250),
-        "enumerate_plots":  GattacaArgument(is_(bool), True) 
+        "plot_height": GattacaArgument(is_(int), 9),
+        "png_ppi": GattacaArgument(is_(int), 250),
+        "enumerate_plots": GattacaArgument(is_(bool), True),
     }
+
 
 class PrepAgilInterface(GattacaInterface):
     possible_args: dict = {
@@ -268,10 +290,11 @@ class PrepAgilInterface(GattacaInterface):
         # Plot options
         "use_pdf": GattacaArgument(is_(bool), True),
         "plot_width": GattacaArgument(is_(int), 16),
-        "plot_height":  GattacaArgument(is_(int), 9),
-        "png_ppi":  GattacaArgument(is_(int), 250),
-        "enumerate_plots":  GattacaArgument(is_(bool), True) 
+        "plot_height": GattacaArgument(is_(int), 9),
+        "png_ppi": GattacaArgument(is_(int), 250),
+        "enumerate_plots": GattacaArgument(is_(bool), True),
     }
+
 
 class AnalyzeInterface(GattacaInterface):
     possible_args: dict = {
@@ -290,24 +313,41 @@ class AnalyzeInterface(GattacaInterface):
         "run_limma_analysis": GattacaArgument(is_(bool), True),
         "run_rankprod_analysis": GattacaArgument(is_(bool), True),
         "batches": GattacaArgument(na_or(is_valid_design_string), "NA"),
-        "extra_limma_vars": GattacaArgument(na_or(is_list_of(is_valid_design_string)), "NA"),
-        "group_colors": GattacaArgument(is_list_of(is_valid_color), ["cornflowerblue", "firebrick3", "olivedrab3", "darkgoldenrod1", "purple", "magenta3"]),
+        "extra_limma_vars": GattacaArgument(
+            na_or(is_list_of(is_valid_design_string)), "NA"
+        ),
+        "group_colors": GattacaArgument(
+            is_list_of(is_valid_color),
+            [
+                "cornflowerblue",
+                "firebrick3",
+                "olivedrab3",
+                "darkgoldenrod1",
+                "purple",
+                "magenta3",
+            ],
+        ),
         # Plot options
         "use_pdf": GattacaArgument(is_(bool), True),
         "plot_width": GattacaArgument(is_(int), 16),
-        "plot_height":  GattacaArgument(is_(int), 9),
-        "png_ppi":  GattacaArgument(is_(int), 250),
-        "enumerate_plots":  GattacaArgument(is_(bool), True) 
+        "plot_height": GattacaArgument(is_(int), 9),
+        "png_ppi": GattacaArgument(is_(int), 250),
+        "enumerate_plots": GattacaArgument(is_(bool), True),
     }
+
 
 class AnnotateInterface(GattacaInterface):
     possible_args: dict = {
-        "expression_data_path": RequiredGattacaArgument(is_path_exists_or_creatable_portable),
+        "expression_data_path": RequiredGattacaArgument(
+            is_path_exists_or_creatable_portable
+        ),
         "output_path": RequiredGattacaArgument(is_path_exists_or_creatable_portable),
-        "database_name": GattacaArgument(is_(str))
+        "database_name": GattacaArgument(is_(str)),
     }
 
+
 ## <<
+
 
 def run_gattaca(
     command: str,
@@ -357,7 +397,9 @@ def run_gattaca(
     try:
         parsed_args = interface.parse_arguments(**arguments)
     except ValueError as e:
-        log.exception("Invalid arguments passed to interface. Please open an issue with the bioTEA logs.")
+        log.exception(
+            "Invalid arguments passed to interface. Please open an issue with the bioTEA logs."
+        )
         return 0
 
     try:

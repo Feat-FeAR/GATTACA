@@ -152,7 +152,9 @@ def retrieve(
     try:
         geo_series = retrieve_geo_data(output_folder=output_path, geo_id=geo_id)
     except Exception as e:
-        log.error("Failed to retrieve GEO data. Possibly, the MINiML file cannot be parsed correctly.")
+        log.error(
+            "Failed to retrieve GEO data. Possibly, the MINiML file cannot be parsed correctly."
+        )
     log.info("Writing metadata...")
     with (output_path / "metadata.csv").open("w+") as fileout:
         geo_series.generate_metadata().to_csv(fileout, doublequote=True, index=False)
@@ -178,10 +180,9 @@ def prepare_agilent(
     ),
 ):
     """Prepare agilent expression data for analysis."""
-    
+
     make_path_valid(input_dir, dir=True)
     make_path_valid(output_file)
-    
 
 
 @prepare.command(name="affymetrix")
