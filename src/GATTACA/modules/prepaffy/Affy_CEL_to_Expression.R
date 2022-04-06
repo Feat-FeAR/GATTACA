@@ -131,7 +131,7 @@ affy2expression <- function(
           ") is higher than the number of plots to be saved (", length(ma.plots),
           "). Printing all of them."
         ))
-        n_plots <- Inf
+        n_plots <- length(ma.plots)
       }
       ma.plots <- ma.plots[1:n_plots]
     }

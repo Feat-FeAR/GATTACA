@@ -1,17 +1,21 @@
 from __future__ import annotations
-from pdb import line_prefix
 
 import sys
 import logging
 from typing import Callable, Optional, TypeAlias, Union
 from pathlib import Path
 import ftplib
-from bioTea.utils.path_checker import is_path_exists_or_creatable_portable
+from bioTea.utils.path_checker import (
+    is_pathname_valid,
+    is_path_exists_or_creatable_portable,
+)
+from math import floor
 import requests
 import zipfile
 import os
 import gzip
 import tarfile
+from shutil import get_terminal_size
 from collections import deque
 
 from tqdm import tqdm
@@ -281,7 +285,16 @@ class ConsoleWindow:
         self.buffer = deque([""] * self.height, maxlen=self.height)
 
     def print(self, line) -> None:
-        self.buffer.append(line)
+        max_chars, _ = get_terminal_size((80, 20))
+        max_chars = floor(max_chars * 0.9)  # Give it some wiggle space
+        if len(line) > max_chars:
+            lines = [
+                line[i : i + max_chars].strip() for i in range(0, len(line), max_chars)
+            ]
+        else:
+            lines = [line.strip()]
+
+        self.buffer.extend(lines)
         self.update()
 
     @staticmethod
@@ -331,6 +344,7 @@ def make_path_valid(path: Path, dir: bool = False):
     Returns:
         Path: The same path in input.
     """
+    path = path.resolve()
     if is_path_exists_or_creatable_portable(path) and not path.exists():
         if dir:
             os.makedirs(path, exist_ok=True)

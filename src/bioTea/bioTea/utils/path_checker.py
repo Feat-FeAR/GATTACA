@@ -154,6 +154,7 @@ def is_path_exists_or_creatable_portable(pathname: str) -> bool:
 
     This function is guaranteed to _never_ raise exceptions.
     """
+    pathname = str(pathname)
     try:
         # To prevent "os" module calls from raising undesirable exceptions on
         # invalid pathnames, is_pathname_valid() is explicitly called first.

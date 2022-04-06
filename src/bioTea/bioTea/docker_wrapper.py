@@ -39,9 +39,19 @@ class GattacaVersion:
         return parse(self.raw_version)
 
     def __lt__(self, other: GattacaVersion) -> bool:
+        if type(other) is str:
+            other = GattacaVersion(other)
+
+        if type(other) is not GattacaVersion:
+            raise TypeError(f"Cannot compare 'GattacaVersion' and '{type(other)}'")
         return self.realversion < other.realversion
 
     def __eq__(self, other: object) -> bool:
+        if type(other) is str:
+            other = GattacaVersion(other)
+
+        if type(other) is not GattacaVersion:
+            raise TypeError(f"Cannot compare 'GattacaVersion' and '{type(other)}'")
         return self.realversion == other.realversion
 
     def __str__(self) -> str:
@@ -198,9 +208,10 @@ class GattacaInterface(ABC):
 
     # I am not 100% sure this is the correct way to use this, but it fails
     # if "possible_args" is not defined, so I'm happy.
-    def __init_subclass__(cls, /, possible_args, **kwargs):
+    def __init_subclass__(cls, /, **kwargs):
         super().__init_subclass__(**kwargs)
-        cls.possible_args = possible_args
+        if cls.possible_args is None:
+            raise TypeError("Must specify `possible_args`.")
 
     @classmethod
     def parse_arguments(self, **kwargs) -> str:
@@ -212,7 +223,7 @@ class GattacaInterface(ABC):
         ]
 
         assert all(
-            [x in required_args for x in kwargs.keys()]
+            [x in kwargs.keys() for x in required_args]
         ), "Missing required args: {}".format(
             ", ".join([x for x in kwargs.keys() if x not in required_args])
         )
@@ -271,7 +282,7 @@ class PrepAffyInterface(GattacaInterface):
     possible_args: dict = {
         "output.file": RequiredGattacaArgument(is_path_exists_or_creatable_portable),
         "remove.controls": GattacaArgument(is_(bool), True),
-        "n_plots": GattacaArgument(is_(int), 1e10),
+        "n_plots": GattacaArgument(is_(int), 1_000_000),
         # Plot options
         "use_pdf": GattacaArgument(is_(bool), True),
         "plot_width": GattacaArgument(is_(int), 16),
@@ -285,7 +296,7 @@ class PrepAgilInterface(GattacaInterface):
     possible_args: dict = {
         "output.file": RequiredGattacaArgument(is_path_exists_or_creatable_portable),
         "remove.controls": GattacaArgument(is_(bool), True),
-        "n_plots": GattacaArgument(is_(int), 1e10),
+        "n_plots": GattacaArgument(is_(int), 1_000_000),
         "grep_pattern": GattacaArgument(is_(str), "*.(txt|TXT)"),
         # Plot options
         "use_pdf": GattacaArgument(is_(bool), True),
@@ -342,7 +353,7 @@ class AnnotateInterface(GattacaInterface):
             is_path_exists_or_creatable_portable
         ),
         "output_path": RequiredGattacaArgument(is_path_exists_or_creatable_portable),
-        "database_name": GattacaArgument(is_(str)),
+        "database_name": GattacaArgument(is_(str), "internal"),
     }
 
 
@@ -402,18 +413,27 @@ def run_gattaca(
         )
         return 0
 
+    log.info(f"Launching container with version {version}")
+
     try:
         # The composed command is like such:
         # UUID GUID command logname loglevel_console loglevel_file (args)
         composed_command = (
-            os.getuid()
-            + os.getgid()
+            str(os.getuid())
+            + " "
+            + str(os.getgid())
+            + " "
             + command
+            + " "
             + log_name
+            + " "
             + console_level
+            + " "
             + logfile_level
+            + " "
             + parsed_args
         )
+        log.info(f"Composed command: {composed_command}")
         container = client.containers.run(
             image,
             command=composed_command,
@@ -421,18 +441,31 @@ def run_gattaca(
             stderr=True,
             detach=True,
             mounts=[
-                Mount("/GATTACA/target", output_anchor, type="bind"),
-                Mount("/GATTACA/input", input_anchor, type="bind", read_only=True),
-                Mount("/GATTACA/logs", log_anchor, type="bind"),
+                # Needs the `str` or the internal serializer dies
+                Mount("/GATTACA/target", str(output_anchor), type="bind"),
+                Mount("/GATTACA/input", str(input_anchor), type="bind", read_only=True),
+                Mount("/GATTACA/logs", str(log_anchor), type="bind"),
             ],
         )
     except Exception as e:
         log.error(f"Launching container failed: {e}")
         raise e
 
-    with ConsoleWindow(10, name="GATTACA container", line_prefix="> ") as window:
-        for line in container.logs(stream=True):
-            window.print(line)
+    try:
+        with ConsoleWindow(10, name="GATTACA container", line_prefix="> ") as window:
+            for line in container.logs(stream=True):
+                window.print(line.decode().rstrip())
+    except KeyboardInterrupt:
+        log.warn("Got shutdown signal. Killing container.")
+        container.kill()
+        raise KeyboardInterrupt
+
+    try:
+        # Sometimes the container does not stop immediately.
+        # This assures it does, even on errors.
+        container.stop()
+    except Exception as e:
+        pass
 
     log.debug("Container exited.")
-    return 1
+    return 0

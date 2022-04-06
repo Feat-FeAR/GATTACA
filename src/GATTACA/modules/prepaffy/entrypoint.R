@@ -19,7 +19,7 @@
 # > The `tools` library in src/shared/tools.R;
 #
 # The logging module is already sourced, so the log object is present in the
-# environment. 
+# environment.
 #
 # The command line options passed by the user (the wrapper), are in the
 # `module.args` global option.
@@ -55,7 +55,7 @@ fun_args$output.file <- paste0("/GATTACA/target/", fun_args$output.file)
 module.packages <- c("limma", "oligo", "reshape2", "affycoretools")
 graceful_load(module.packages)
 
-# Load the functions for this module 
+# Load the functions for this module
 source("/GATTACA/modules/prepaffy/Affy_CEL_to_Expression.R")
 
 # Run the module
@@ -70,6 +70,6 @@ options(
     enumerate.plots = fun_args$enumerate_plots
 )
 # Remove plot-related options
-fun_args[c("use_pdf", "plot_width", "plot_heigth", "png_ppi", "enumerate_plots")] <- NULL
+fun_args[c("use_pdf", "plot_width", "plot_height", "png_ppi", "enumerate_plots")] <- NULL
 
 do.call("affy2expression", args = fun_args)

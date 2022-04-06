@@ -40,14 +40,24 @@ class XmlMinimlExtractor:
             sample_objects.append(sample_obj)
 
         log.debug("Sanity Check: Do all samples have the same conditions?")
-        for sample in sample_objects:
+        for i, sample in enumerate(sample_objects):
             if not contains_all(
                 list(sample_obj.conditions.keys()), list(sample.conditions.keys())
             ):
-                log.error(
-                    "Failed sanity check: Not all samples have the same conditions"
+                extra_keys = set(sample.conditions.keys()) - set(
+                    sample_obj.conditions.keys()
                 )
-                raise SanityError("Not all values have the same conditions.")
+                log.warn(
+                    "Failed sanity check: Not all samples have the same conditions. "
+                    f"(Extra keys: {extra_keys}) "
+                    "Removing the extra keys."
+                )
+                for key in extra_keys:
+                    log.debug(f"Popping {key}..")
+                    sample.conditions.pop(key)
+
+                log.debug(f"Dict after popping: {sample.conditions.keys()}")
+                sample_objects[i] = sample
 
         return sample_objects
 

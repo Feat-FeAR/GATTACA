@@ -2,6 +2,7 @@ from enum import Enum
 from genericpath import samefile
 import logging
 from pathlib import Path
+from sys import exc_info
 from typing import Optional, Union
 import os
 from bioTea.utils.tools import make_path_valid
@@ -15,10 +16,13 @@ from bioTea.wizard import wizard
 from bioTea.utils.strings import TEA_LOGO
 from bioTea.utils.path_checker import is_path_exists_or_creatable_portable
 from bioTea.docker_wrapper import (
+    PrepAffyInterface,
+    PrepAgilInterface,
     get_all_versions,
     get_installed_versions,
     get_latest_version,
     pull_gattaca_version,
+    run_gattaca,
 )
 
 log = logging.getLogger(__name__)
@@ -44,8 +48,10 @@ prepare = typer.Typer()
 annotate = typer.Typer()
 
 cli_root.add_typer(info, name="info")
-cli_root.add_typer(prepare, name="prepare")
-cli_root.add_typer(annotate, name="annotations")
+cli_root.add_typer(
+    prepare, name="prepare", help="Prepare raw expression data to an expression matrix"
+)
+cli_root.add_typer(annotate, name="annotations", help="Annotate expression data.")
 
 
 @cli_root.callback()
@@ -95,9 +101,7 @@ def info_biotea():
 
 @cli_root.command(name="update")
 def update_tool(
-    yes: Optional[bool] = typer.Option(
-        False, help="Skip the confirmation prompt and update"
-    )
+    yes: bool = typer.Option(False, help="Skip the confirmation prompt and update")
 ):
     """Check bioTEA and the container repos for updates.
 
@@ -139,10 +143,10 @@ def run_wizard():
 @cli_root.command(name="retrieve")
 def retrieve(
     output_path: Path = typer.Argument(
-        help="Path to a folder that will contain the output"
+        ..., help="Path to a folder that will contain the output"
     ),
     geo_id: str = typer.Argument(
-        help="GEO id that needs to be retrieved, e.g. GSE15471"
+        ..., help="GEO id that needs to be retrieved, e.g. GSE15471"
     ),
 ):
     """Retrieve data from GEO regarding a GEO series.
@@ -155,6 +159,9 @@ def retrieve(
         log.error(
             "Failed to retrieve GEO data. Possibly, the MINiML file cannot be parsed correctly."
         )
+        log.debug("Stack:", exc_info=exc_info())
+        return
+
     log.info("Writing metadata...")
     with (output_path / "metadata.csv").open("w+") as fileout:
         geo_series.generate_metadata().to_csv(fileout, doublequote=True, index=False)
@@ -164,50 +171,156 @@ def retrieve(
 
 @prepare.command(name="agilent")
 def prepare_agilent(
-    input_dir: Path = typer.Argument(help="Path to the folder with the input files"),
-    output_file: Path = typer.Argument(help="Path to the output file"),
-    grep_pattern: Optional[str] = typer.Argument(
+    input_dir: Path = typer.Argument(
+        ..., help="Path to the folder with the input files"
+    ),
+    output_file: Path = typer.Argument(..., help="Path to the output file"),
+    grep_pattern: str = typer.Argument(
         "\.txt$", help="Pattern with which to find the files"
     ),
-    remove_controls: Optional[bool] = typer.Option(
-        False, help="Remove control probes?"
+    version: str = typer.Option("latest", help="Specify GATTACA container version"),
+    log_name: Optional[str] = typer.Option(
+        None, help="Specify GATTACA log name for the run"
     ),
+    remove_controls: bool = typer.Option(False, help="Remove control probes?"),
     plot_number: Optional[int] = typer.Option(
         None, help="Maximum number of plots to show"
     ),
-    plot_size: Optional[str] = typer.Option(
-        "12,5", help="Size of plots as 'width,height'"
+    plot_size: str = typer.Option("12,5", help="Size of plots as 'width,height'"),
+    use_png: bool = typer.Option(
+        False, help="Generate .png files instead of pdf files (600 ppi resolution)."
     ),
+    verbose: bool = typer.Option(False, help="Increase verbosity of GATTACA logs"),
 ):
     """Prepare agilent expression data for analysis."""
-
     make_path_valid(input_dir, dir=True)
     make_path_valid(output_file)
+
+    if version == "latest":
+        version = get_latest_version()
+
+    try:
+        plot_width, plot_height = [int(x) for x in plot_size.split(",")]
+    except (ValueError, TypeError):
+        log.error(f"Cannot parse {plot_size} as two numbers.")
+        return
+
+    if not version in ["bleeding"] and version not in get_all_versions():
+        log.error(f"Invalid GATTACA version {version}")
+        return
+
+    if version not in get_installed_versions():
+        pull_gattaca_version(version)
+
+    args = {
+        "output.file": output_file.stem,
+        "remove.controls": remove_controls,
+        "n_plots": plot_number or 1e10,
+        "grep_pattern": grep_pattern,
+        # Plot options
+        "use_pdf": not use_png,
+        "plot_width": plot_width,
+        "plot_height": plot_height,
+        "png_ppi": 600,
+        "enumerate_plots": True,
+    }
+
+    response = run_gattaca(
+        "prepagil",
+        arguments=args,
+        interface=PrepAgilInterface,
+        input_anchor=input_dir,
+        output_anchor=output_file.parent,
+        log_anchor=output_file.parent,
+        version=version,
+        console_level="debug" if verbose else "info",
+        logfile_level="debug",
+        log_name=log_name or "auto",
+    )
+
+    if response:
+        log.info("The docker API reported an error. Aborting.")
+        return
+
+    log.info("BioTEA completed.")
 
 
 @prepare.command(name="affymetrix")
 def prepare_affymetrix(
-    input_dir: Path = typer.Argument(help="Path to the folder with the input files"),
-    output_file: Path = typer.Argument(help="Path to the output file"),
-    remove_controls: Optional[bool] = typer.Option(
-        False, help="Remove control probes?"
+    input_dir: Path = typer.Argument(
+        ..., help="Path to the folder with the input files"
     ),
-    plot_number: Optional[int] = typer.Option(
-        1e10, help="Maximum number of plots to show"
+    output_file: Path = typer.Argument(..., help="Path to the output file"),
+    version: str = typer.Option("latest", help="Specify GATTACA container version"),
+    log_name: Optional[str] = typer.Option(
+        None, help="Specify GATTACA log name for the run"
     ),
-    plot_size: Optional[str] = typer.Option(
-        "12,5", help="Size of plots as 'width,height'"
+    remove_controls: bool = typer.Option(False, help="Remove control probes?"),
+    plot_number: int = typer.Option(1e10, help="Maximum number of plots to show"),
+    plot_size: str = typer.Option("12,5", help="Size of plots as 'width,height'"),
+    use_png: bool = typer.Option(
+        False, help="Generate .png files instead of pdf files (600 ppi resolution)."
     ),
+    verbose: bool = typer.Option(False, help="Increase verbosity of GATTACA logs"),
 ):
     """Prepare affymetrix expression data for analysis."""
-    pass
+    make_path_valid(input_dir, dir=True)
+    make_path_valid(output_file)
+
+    if version == "latest":
+        version = get_latest_version()
+
+    try:
+        plot_width, plot_height = [int(x) for x in plot_size.split(",")]
+    except (ValueError, TypeError):
+        log.error(f"Cannot parse {plot_size} as two numbers.")
+        return
+
+    if not version in ["bleeding"] and version not in get_all_versions():
+        log.error(f"Invalid GATTACA version {version}")
+        return
+
+    if version not in get_installed_versions():
+        pull_gattaca_version(version)
+
+    args = {
+        "output.file": output_file.stem,
+        "remove.controls": remove_controls,
+        "n_plots": plot_number or 1e10,
+        # Plot options
+        "use_pdf": not use_png,
+        "plot_width": plot_width,
+        "plot_height": plot_height,
+        "png_ppi": 600,
+        "enumerate_plots": True,
+    }
+
+    response = run_gattaca(
+        "prepaffy",
+        arguments=args,
+        interface=PrepAffyInterface,
+        input_anchor=input_dir,
+        output_anchor=output_file.parent,
+        log_anchor=output_file.parent,
+        version=version,
+        console_level="debug" if verbose else "info",
+        logfile_level="debug",
+        log_name=log_name or "auto",
+    )
+
+    if response:
+        log.info("The docker API reported an error. Aborting.")
+        return
+
+    log.info("BioTEA completed.")
 
 
 @cli_root.command(name="analyze")
 def run_gattaca_analysis(
-    options_path: Path = typer.Argument(help="Path to the options file"),
-    output_dir: Path = typer.Argument(help="Path to the output directory"),
-    input_file: Path = typer.Argument(help="Path to the input expression matrix"),
+    options_path: Path = typer.Argument(..., help="Path to the options file"),
+    output_dir: Path = typer.Argument(..., help="Path to the output directory"),
+    input_file: Path = typer.Argument(..., help="Path to the input expression matrix"),
+    verbose: bool = typer.Option(False, help="Increase verbosity of GATTACA logs."),
 ):
     """Run Differential Gene Expression with GATTACA."""
     print(TEA_LOGO)
@@ -225,12 +338,13 @@ class ValidSpecies(str, Enum):
 @annotate.command(name="apply")
 def annotate_file(
     target: Path = typer.Argument(
-        help="Path to the input expression matrix to annotate"
+        ..., help="Path to the input expression matrix to annotate"
     ),
-    annotation_database: Optional[str] = typer.Argument(
+    annotation_database: str = typer.Argument(
         "internal",
         help="Annotation database to use. Pass 'internal' to use the default human database. Otherwise, a path to the database file generated with `annotations generate`",
     ),
+    verbose: bool = typer.Option(False, help="Increase verbosity of GATTACA logs."),
 ):
     """Annotate some expression data or DEA output with annotation data."""
     pass
@@ -239,11 +353,12 @@ def annotate_file(
 @annotate.command(name="generate")
 def generate_annotations(
     target: Path = typer.Argument(
-        help="Path to the file where the annotations will be stored"
+        ..., help="Path to the file where the annotations will be stored"
     ),
     organism: ValidSpecies = typer.Argument(
         ValidSpecies.human, help="Species to generate annotations for"
     ),
+    verbose: bool = typer.Option(False, help="Increase verbosity of GATTACA logs."),
 ):
     """Generate annotations to use with GATTACA."""
     pass
