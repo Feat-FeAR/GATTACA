@@ -22,7 +22,8 @@ def stage_new_analysis(staging_path: PathLike) -> Tuple[Path, Path]:
         staging_path (PathLike): The path to the output folder
 
     Returns:
-        Tuple[Path, Path]: A tuple with first element the (resolved) output path, and second element the path to the temporary folder.
+        Tuple[Path, Path]: A tuple with first element the (resolved) output path,
+        and second element the path to the temporary folder.
     """
     log.info("Staging new analysis project...")
     staging_path = Path(staging_path).resolve()
