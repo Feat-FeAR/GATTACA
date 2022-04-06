@@ -10,8 +10,8 @@ from colorama import Fore
 from bioTea import __version__
 from bioTea.pour import retrieve_geo_data
 from bioTea.wizard import wizard
-from bioTea.utils.strings import TEA_LOGO, WIZARD_LOGO
-from bioTea.docker_wrapper import get_all_versions, get_installed_versions
+from bioTea.utils.strings import BIOTEA, TEA_LOGO, WIZARD_LOGO
+from bioTea.docker_wrapper import get_all_versions, get_installed_versions, get_latest_version, pull_gattaca_version
 
 log = logging.getLogger(__name__)
 
@@ -86,12 +86,33 @@ def info_biotea():
 
 
 @cli_root.command(name="update")
-def update_tool():
+def update_tool(yes: Optional[bool] = typer.Option(False, help="Skip the confirmation prompt and update")):
     """Check bioTEA and the container repos for updates.
 
     This command also updates the latest container, if needed.
     """
-    pass
+    # TODO: Once this is released on PyPA, implement checks for the tool update.
+    log.info("Checking containers for updates...")
+    if (latest := get_latest_version()) in get_installed_versions():
+        log.info("Containers are up-to-date.")
+        return
+    
+    if not yes:
+        do_update = typer.prompt(
+            "A new GATTACA version was found ({latest}). Update?",
+            default=False,
+            type=bool
+        )
+    else:
+        log.debug("Skipped confirmation prompt")
+        do_update = True
+    if not do_update:
+        log.debug("User abort.")
+        return
+    
+    pull_gattaca_version(latest)
+
+    log.info("Done pulling new version.")
 
 
 @cli_root.command(name="wizard")
@@ -105,10 +126,10 @@ def run_wizard():
 
 
 @cli_root.command(name="retrieve")
-def retrieve(output_path: Path, geo_id: str):
+def retrieve(output_path: Path = typer.Argument(help="Path to a folder that will contain the output"), geo_id: str = typer.Argument(help = "GEO id that needs to be retrieved, e.g. GSE15471")):
     """Retrieve data from GEO regarding a GEO series.
 
-    Also helps setting the options for the GATTACA analysis.
+    Also helps setting the options for the GATTACA analysis by providing a metadata file.
     """
     geo_series = retrieve_geo_data(output_folder=output_path, geo_id=geo_id)
     log.info("Writing metadata...")
@@ -120,8 +141,12 @@ def retrieve(output_path: Path, geo_id: str):
 
 @prepare.command(name="agilent")
 def prepare_agilent(
-    input_dir: Path, output_file: Path, grep_pattern: Optional[str] = "\.txt$",
-    remove_controls: Optional[bool] = False, plot_number: Optional[int] = None, plot_size: Optional[str] = "12,5"
+    input_dir: Path = typer.Argument(help="Path to the folder with the input files"),
+    output_file: Path = typer.Argument(help="Path to the output file"),
+    grep_pattern: Optional[str] = typer.Argument("\.txt$", help = "Pattern with which to find the files"),
+    remove_controls: Optional[bool] = typer.Option(False, help="Remove control probes?"),
+    plot_number: Optional[int] = typer.Option(None, help="Maximum number of plots to show"),
+    plot_size: Optional[str] = typer.Option("12,5", help="Size of plots as 'width,height'")
 ):
     """Prepare agilent expression data for analysis."""
     pass
@@ -129,16 +154,24 @@ def prepare_agilent(
 
 @prepare.command(name="affymetrix")
 def prepare_affymetrix(
-    input_dir: Path, output_file: Path,
-    remove_controls: Optional[bool] = False, plot_number: Optional[int] = None, plot_size: Optional[str] = "12,5"
+    input_dir: Path = typer.Argument(help="Path to the folder with the input files"),
+    output_file: Path = typer.Argument(help="Path to the output file"),
+    remove_controls: Optional[bool]= typer.Option(False, help="Remove control probes?"),
+    plot_number: Optional[int] = typer.Option(1e10, help="Maximum number of plots to show"),
+    plot_size: Optional[str] = typer.Option("12,5", help="Size of plots as 'width,height'")
 ):
     """Prepare affymetrix expression data for analysis."""
     pass
 
 
 @cli_root.command(name="analyze")
-def run_gattaca_analysis(options_path: Path, output_dir: Path, input_dir: Path):
+def run_gattaca_analysis(
+    options_path: Path = typer.Argument(help = "Path to the options file"),
+    output_dir: Path = typer.Argument(help = "Path to the output directory"),
+    input_file: Path = typer.Argument(help = "Path to the input expression matrix")
+):
     """Run Differential Gene Expression with GATTACA."""
+    print(TEA_LOGO)
     pass
 
 
@@ -151,12 +184,12 @@ class ValidSpecies(str, Enum):
 
 
 @annotate.command(name="apply")
-def annotate_file(target: Path, annotation_database: Optional[str] = "internal"):
+def annotate_file(target: Path = typer.Argument(help = "Path to the input expression matrix to annotate"), annotation_database: Optional[str] = typer.Argument("internal", help = "Annotation database to use. Pass 'internal' to use the default human database. Otherwise, a path to the database file generated with `annotations generate`")):
     """Annotate some expression data or DEA output with annotation data."""
     pass
 
 
 @annotate.command(name="generate")
-def generate_annotations(target: Path, organism: ValidSpecies = ValidSpecies.human):
+def generate_annotations(target: Path = typer.Argument(help = "Path to the file where the annotations will be stored"), organism: ValidSpecies = typer.Argument(ValidSpecies.human, help = "Species to generate annotations for")):
     """Generate annotations to use with GATTACA."""
     pass
