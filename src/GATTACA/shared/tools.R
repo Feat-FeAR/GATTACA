@@ -619,3 +619,13 @@ register_for_ownership <- function(file_path) {
   options(OWNERSHIP_REGISTER = c(registered, file_path))
   log$debug("Registered ", file_path, " for ownership correction.")
 }
+
+
+#' Takes a string representation of a python list, and makes it a vector.
+list_to_vector <- function(string) {
+  # Get rid of the []
+  string <- substring(string, 2, nchar(string) -1)
+  splitted <- unlist(str_split(string, ", "))
+
+  return(splitted)
+}

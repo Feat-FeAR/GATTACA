@@ -71,6 +71,6 @@ options(
     enumerate.plots = fun_args$enumerate_plots
 )
 # Remove plot-related options
-fun_args[c("use_pdf", "plot_width", "plot_heigth", "png_ppi", "enumerate_plots")] <- NULL
+fun_args[c("use_pdf", "plot_width", "plot_height", "png_ppi", "enumerate_plots")] <- NULL
 
 do.call("agil2expression", args = fun_args)

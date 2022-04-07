@@ -6,8 +6,8 @@ from pathlib import Path
 import os
 from datetime import datetime
 from abc import ABC
-from telnetlib import GA
 from typing import Any, Callable
+from numbers import Number
 
 from packaging.version import parse, LegacyVersion
 import docker
@@ -74,8 +74,8 @@ def pull_gattaca_version(
         log.error(f"Version {version} not found remotely.")
         raise ImageNotFoundError(str(version))
 
-    log.info("Pulling remote image {version}...")
-    client.images.get(f"{REPO}:{version}")
+    log.info(f"Pulling remote image {version}...")
+    client.images.pull(f"{REPO}:{version.realversion}")
     log.info("Pulled image.")
 
 
@@ -118,6 +118,8 @@ def get_latest_version() -> GattacaVersion:
 # Some checks
 def na_or(check) -> Callable:
     def _wrapped_check(argument):
+        if argument is None:
+            return True
         if type(argument) == str and argument.upper() in ("NA"):
             return True
         else:
@@ -225,7 +227,7 @@ class GattacaInterface(ABC):
         assert all(
             [x in kwargs.keys() for x in required_args]
         ), "Missing required args: {}".format(
-            ", ".join([x for x in kwargs.keys() if x not in required_args])
+            ", ".join([x for x in required_args if x not in kwargs.keys()])
         )
         assert all(
             [x in self.possible_args.keys() for x in kwargs.keys()]
@@ -236,7 +238,11 @@ class GattacaInterface(ABC):
         for key, value in kwargs.items():
             # These will raise an error if the check fails. So, if this passes,
             # all passed args are OK.
-            self.possible_args[key](value)
+            try:
+                self.possible_args[key](value)
+            except ValueError:
+                # Re-raise with more context
+                raise ValueError(f"Argument check failed for key {key}: {value}")
 
         # Here, we are sure of three things:
         # 1. All required arguments are overridden by `kwargs`
@@ -294,8 +300,8 @@ class PrepAffyInterface(GattacaInterface):
 
 class PrepAgilInterface(GattacaInterface):
     possible_args: dict = {
-        "output.file": RequiredGattacaArgument(is_path_exists_or_creatable_portable),
-        "remove.controls": GattacaArgument(is_(bool), True),
+        "output_file": RequiredGattacaArgument(is_path_exists_or_creatable_portable),
+        "remove_controls": GattacaArgument(is_(bool), True),
         "n_plots": GattacaArgument(is_(int), 1_000_000),
         "grep_pattern": GattacaArgument(is_(str), "*.(txt|TXT)"),
         # Plot options
@@ -310,12 +316,11 @@ class PrepAgilInterface(GattacaInterface):
 class AnalyzeInterface(GattacaInterface):
     possible_args: dict = {
         "input.file": RequiredGattacaArgument(is_path_exists_or_creatable_portable),
-        "output.dir": RequiredGattacaArgument(is_path_exists_or_creatable_portable),
         "experimental_design": RequiredGattacaArgument(is_valid_design_string),
-        "contrasts": RequiredGattacaArgument(is_valid_design_string),
-        "min_log2_expression": GattacaArgument(is_(float), 4.0),
-        "fc_threshold": GattacaArgument(is_(float), 0.5),
-        "min_groupwise_presence": GattacaArgument(is_(float), 0.8),
+        "contrasts": RequiredGattacaArgument(is_list_of(is_(str))),
+        "min_log2_expression": GattacaArgument(is_(Number), 4.0),
+        "fc_threshold": GattacaArgument(is_(Number), 0.5),
+        "min_groupwise_presence": GattacaArgument(is_(Number), 0.8),
         "slowmode": GattacaArgument(is_(bool), False),
         "show_data_snippets": GattacaArgument(is_(bool), True),
         "annotation_database": GattacaArgument(is_(bool), True),
@@ -323,7 +328,7 @@ class AnalyzeInterface(GattacaInterface):
         "renormalize": GattacaArgument(is_(bool), False),
         "run_limma_analysis": GattacaArgument(is_(bool), True),
         "run_rankprod_analysis": GattacaArgument(is_(bool), True),
-        "batches": GattacaArgument(na_or(is_valid_design_string), "NA"),
+        "batches": GattacaArgument(na_or(is_list_of(is_valid_design_string)), "NA"),
         "extra_limma_vars": GattacaArgument(
             na_or(is_list_of(is_valid_design_string)), "NA"
         ),

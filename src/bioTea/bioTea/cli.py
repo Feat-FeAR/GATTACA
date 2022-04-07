@@ -4,8 +4,8 @@ import logging
 from pathlib import Path
 from sys import exc_info
 from typing import Optional, Union
-import os
-from bioTea.utils.tools import make_path_valid
+import yaml
+from bioTea.utils.tools import make_path_valid, parse_gattaca_options
 
 import typer
 from colorama import Fore
@@ -16,6 +16,7 @@ from bioTea.wizard import wizard
 from bioTea.utils.strings import TEA_LOGO
 from bioTea.utils.path_checker import is_path_exists_or_creatable_portable
 from bioTea.docker_wrapper import (
+    AnalyzeInterface,
     PrepAffyInterface,
     PrepAgilInterface,
     get_all_versions,
@@ -114,10 +115,8 @@ def update_tool(
         return
 
     if not yes:
-        do_update = typer.prompt(
-            "A new GATTACA version was found ({latest}). Update?",
-            default=False,
-            type=bool,
+        do_update = typer.confirm(
+            f"A new GATTACA version was found ({latest}). Update?",
         )
     else:
         log.debug("Skipped confirmation prompt")
@@ -213,8 +212,8 @@ def prepare_agilent(
         pull_gattaca_version(version)
 
     args = {
-        "output.file": output_file.stem,
-        "remove.controls": remove_controls,
+        "output_file": output_file.name,
+        "remove_controls": remove_controls,
         "n_plots": plot_number or 1e10,
         "grep_pattern": grep_pattern,
         # Plot options
@@ -284,7 +283,7 @@ def prepare_affymetrix(
         pull_gattaca_version(version)
 
     args = {
-        "output.file": output_file.stem,
+        "output.file": output_file.name,
         "remove.controls": remove_controls,
         "n_plots": plot_number or 1e10,
         # Plot options
@@ -315,15 +314,63 @@ def prepare_affymetrix(
     log.info("BioTEA completed.")
 
 
-@cli_root.command(name="analyze")
+@cli_root.command(name="analize")
 def run_gattaca_analysis(
     options_path: Path = typer.Argument(..., help="Path to the options file"),
     output_dir: Path = typer.Argument(..., help="Path to the output directory"),
     input_file: Path = typer.Argument(..., help="Path to the input expression matrix"),
-    verbose: bool = typer.Option(False, help="Increase verbosity of GATTACA logs."),
+    version: str = typer.Option("latest", help="Specify GATTACA container version"),
+    log_name: Optional[str] = typer.Option(
+        None, help="Specify GATTACA log name for the run"
+    ),
+    verbose: bool = typer.Option(False, help="Increase verbosity of GATTACA logs"),
 ):
     """Run Differential Gene Expression with GATTACA."""
     print(TEA_LOGO)
+    log.info(f"Biotea version {__version__}")
+
+    make_path_valid(options_path)
+    make_path_valid(output_dir)
+    make_path_valid(input_file)
+
+    if version == "latest":
+        version = get_latest_version()
+
+    if not version in ["bleeding"] and version not in get_all_versions():
+        log.error(f"Invalid GATTACA version {version}")
+        return
+
+    if version not in get_installed_versions():
+        pull_gattaca_version(version)
+
+    log.info("Parsing options...")
+    args = parse_gattaca_options(options_path)
+
+    log.debug("Adding input.file argument...")
+    args["input.file"] = input_file.name
+
+    response = run_gattaca(
+        "analize",
+        arguments=args,
+        interface=AnalyzeInterface,
+        input_anchor=input_file.parent,
+        output_anchor=output_dir,
+        log_anchor=output_dir,
+        version=version,
+        console_level="debug" if verbose else "info",
+        logfile_level="debug",
+        log_name=log_name or "auto",
+    )
+
+    if response:
+        log.info("The docker API reported an error. Aborting.")
+        return
+
+    log.info("BioTEA completed.")
+    pass
+
+@cli_root.command(name="initialize")
+def init_with_options(path: Path = typer.Argument(..., help = "Path to the folder that has to be initialized")):
     pass
 
 

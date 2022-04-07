@@ -56,23 +56,10 @@ agil2expression <- function (
   input_dir, output_file,
   grep_pattern = "*.(txt|TXT)",
   remove_controls = TRUE,
-  plot.width = 16,
-  plot.height = 9,
-  use.pdf = TRUE,
   n_plots = Inf
 ) {
 
   set.seed(1) # This module uses random sampling
-
-  # Options for printPlots
-  # Set options for printPlots
-  options(
-    "scriptName" = "prepagil",
-    "save.PNG.plot" = !use.pdf,
-    "save.PDF.plot" = use.pdf,
-    "plot.width" = plot.width,
-    "plot.height" = plot.height
-  )
 
   # Inputting data
   output_dir <- dirname(output_file)
@@ -126,7 +113,7 @@ agil2expression <- function (
           ") is higher than the number of plots to be saved (", length(ma.plots),
           "). Printing all of them."
         ))
-        n_plots <- Inf
+        n_plots <- length(ma.plots)
       }
       ma.plots <- ma.plots[1:n_plots]
     }

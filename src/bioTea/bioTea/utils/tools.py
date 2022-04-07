@@ -1,4 +1,5 @@
 from __future__ import annotations
+from pprint import pprint
 
 import sys
 import logging
@@ -6,8 +7,7 @@ from typing import Callable, Optional, TypeAlias, Union
 from pathlib import Path
 import ftplib
 from bioTea.utils.path_checker import (
-    is_pathname_valid,
-    is_path_exists_or_creatable_portable,
+    is_pathname_valid
 )
 from math import floor
 import requests
@@ -17,6 +17,7 @@ import gzip
 import tarfile
 from shutil import get_terminal_size
 from collections import deque
+import yaml
 
 from tqdm import tqdm
 from tqdm.utils import CallbackIOWrapper
@@ -336,7 +337,7 @@ def make_path_valid(path: Path, dir: bool = False):
 
     Args:
         path (Path): The path to test
-        dir (bool, optional): Is the path theoretically pointing to  a directory?. Defaults to False.
+        dir (bool, optional): Is the path theoretically pointing to  a directory? Defaults to False.
 
     Raises:
         InvalidPathError: If the path is invalid.
@@ -345,13 +346,68 @@ def make_path_valid(path: Path, dir: bool = False):
         Path: The same path in input.
     """
     path = path.resolve()
-    if is_path_exists_or_creatable_portable(path) and not path.exists():
+    if is_pathname_valid(str(path)) and not path.exists():
         if dir:
             os.makedirs(path, exist_ok=True)
         else:
             os.makedirs(path.parent, exist_ok=True)
 
-    if not is_path_exists_or_creatable_portable(path):
+    if not is_pathname_valid(str(path)):
         raise InvalidPathError(f"Invalid path: {path}")
 
     return path
+
+
+def parse_gattaca_options(path: Path) -> dict:
+    with path.open("r") as stream:
+        raw_args = yaml.safe_load(stream)
+    
+    # I need to parse the raw dictionary to a shallow input redable by GATTACA
+    # The options that can be accepted are in `docker_wrapper.py/AnalizeInterface`,
+    # which in turn looks to the entrypoint of the analize module.
+    try:
+        args = {
+            "experimental_design": raw_args["design"]["experimental_design"],
+            "contrasts": raw_args["design"]["contrasts"],
+            "min_log2_expression": raw_args["design"]["filters"]["log2_expression"],
+            "fc_threshold": raw_args["design"]["filters"]["fold_change"],
+            "min_groupwise_presence": raw_args["design"]["filters"]["min_groupwise_presence"],
+            "slowmode": raw_args["general"]["slowmode"],
+            "show_data_snippets": raw_args["general"]["show_data_snippets"],
+            "annotation_database": raw_args["general"]["annotation_database"],
+            "dryrun": raw_args["switches"]["dryrun"],
+            "renormalize": raw_args["switches"]["renormalize"],
+            "run_limma_analysis": raw_args["switches"]["limma"],
+            "run_rankprod_analysis": raw_args["switches"]["rankproduct"],
+            "group_colors": raw_args["design"]["group_colors"],
+            # Plot options
+            "use_pdf": not raw_args["general"]["plots"]["save_png"],
+            "plot_width": raw_args["general"]["plots"]["plot_width"],
+            "plot_height": raw_args["general"]["plots"]["plot_height"],
+            "png_ppi": raw_args["general"]["plots"]["png_resolution"],
+            "enumerate_plots": raw_args["general"]["plots"]["enumerate_plots"],
+        }
+    except KeyError as e:
+        log.error(f"Cannot find a valid option for key {e.args[0]}. Aborting.")
+        sys.exit()
+
+    # These two options can be null, so a missing key is fine:
+    try:
+        batches = raw_args["design"]["batches"]
+    except KeyError:
+        batches = "NA"
+    try:
+        extra_limma_vars = raw_args["batches"]["extra_limma_vars"]
+    except KeyError:
+        extra_limma_vars = "NA"
+
+    args.update(
+        {
+            "batches": batches,
+            "extra_limma_vars": extra_limma_vars
+        }
+    )
+
+    pprint(args)
+
+    return args

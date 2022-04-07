@@ -21,8 +21,7 @@ general:
 
   # PLOTS - Control plot size and extension
   plots:
-    # Save PNG and/or PDF plots?
-    save_pdf: true # bool
+    # Save PNG plots? By default saves PDF plots.
     save_png: false # bool
 
     # Plot width and height in inches.

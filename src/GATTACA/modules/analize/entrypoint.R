@@ -35,7 +35,6 @@ args <- getOption("module.args")
 
 defaults = list(
     input.file = NULL,
-    output.dir = NULL,
     experimental_design = NULL,
     contrasts = NULL,
     min_log2_expression = 4,
@@ -50,7 +49,7 @@ defaults = list(
     run_rankprod_analysis = TRUE,
     batches = NA,
     extra_limma_vars = NA,
-    group_colors = c("cornflowerblue", "firebrick3", "olivedrab3", "darkgoldenrod1", "purple", "magenta3")
+    group_colors = c("cornflowerblue", "firebrick3", "olivedrab3", "darkgoldenrod1", "purple", "magenta3"),
     # Plot options
     use_pdf = TRUE,
     plot_width = 16,
@@ -59,16 +58,17 @@ defaults = list(
     enumerate_plots = TRUE
 )
 
+args["group_colors"] <- list_to_vector(args["group_colors"])
+
 fun_args <- validate_arguments(args, defaults)
 
 # Add the hardcoded arguments
 fun_args$input.file <- paste0("/GATTACA/input/", fun_args$input.file)
-fun_args$options.path <- paste0("/GATTACA/input/", fun_args$options.path)
 fun_args$output.dir <- paste0("/GATTACA/target/")
 
 # Load required libraries.
 module.packages <- c(
-    "limma", "rankprod", "reshape2", "EnhancedVolcano", "gplots", "UpSetR",
+    "limma", "RankProd", "reshape2", "EnhancedVolcano", "gplots", "UpSetR",
     "yaml", "statmod"
 )
 graceful_load(module.packages)
@@ -79,7 +79,7 @@ source("/GATTACA/modules/analize/analysis_core.R")
 # Run the module
 # Set options for printPlots
 options(
-    scriptName = "...",
+    scriptName = "analize",
     save.PNG.plot = !fun_args$use_pdf,
     save.PDF.plot = fun_args$use_pdf,
     plot.width = fun_args$plot_width,
@@ -88,5 +88,5 @@ options(
     enumerate.plots = fun_args$enumerate_plots
 )
 # Remove plot-related options
-fun_args[c("use_pdf", "plot_width", "plot_heigth", "png_ppi", "enumerate_plots")] <- NULL
+fun_args[c("use_pdf", "plot_width", "plot_height", "png_ppi", "enumerate_plots")] <- NULL
 do.call("GATTACA", args = fun_args)

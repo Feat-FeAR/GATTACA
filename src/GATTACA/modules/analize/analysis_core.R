@@ -1001,6 +1001,7 @@ GATTACA <- function(
       save.PNG.plot = FALSE,
       save.PDF.plot = FALSE
     )
+  }
 
   if (annotation_database %in% c(TRUE, FALSE)) {
     use.annotations <- annotation_database
