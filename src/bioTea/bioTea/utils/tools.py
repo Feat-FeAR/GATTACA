@@ -6,9 +6,7 @@ import logging
 from typing import Callable, Optional, TypeAlias, Union
 from pathlib import Path
 import ftplib
-from bioTea.utils.path_checker import (
-    is_pathname_valid
-)
+from bioTea.utils.path_checker import is_pathname_valid
 from math import floor
 import requests
 import zipfile
@@ -361,7 +359,7 @@ def make_path_valid(path: Path, dir: bool = False):
 def parse_gattaca_options(path: Path) -> dict:
     with path.open("r") as stream:
         raw_args = yaml.safe_load(stream)
-    
+
     # I need to parse the raw dictionary to a shallow input redable by GATTACA
     # The options that can be accepted are in `docker_wrapper.py/AnalizeInterface`,
     # which in turn looks to the entrypoint of the analize module.
@@ -371,7 +369,9 @@ def parse_gattaca_options(path: Path) -> dict:
             "contrasts": raw_args["design"]["contrasts"],
             "min_log2_expression": raw_args["design"]["filters"]["log2_expression"],
             "fc_threshold": raw_args["design"]["filters"]["fold_change"],
-            "min_groupwise_presence": raw_args["design"]["filters"]["min_groupwise_presence"],
+            "min_groupwise_presence": raw_args["design"]["filters"][
+                "min_groupwise_presence"
+            ],
             "slowmode": raw_args["general"]["slowmode"],
             "show_data_snippets": raw_args["general"]["show_data_snippets"],
             "annotation_database": raw_args["general"]["annotation_database"],
@@ -401,12 +401,7 @@ def parse_gattaca_options(path: Path) -> dict:
     except KeyError:
         extra_limma_vars = "NA"
 
-    args.update(
-        {
-            "batches": batches,
-            "extra_limma_vars": extra_limma_vars
-        }
-    )
+    args.update({"batches": batches, "extra_limma_vars": extra_limma_vars})
 
     pprint(args)
 

@@ -214,7 +214,7 @@ def prepare_agilent(
     args = {
         "output_file": output_file.name,
         "remove_controls": remove_controls,
-        "n_plots": plot_number or 1e10,
+        "n_plots": plot_number or 1_000_000,
         "grep_pattern": grep_pattern,
         # Plot options
         "use_pdf": not use_png,
@@ -369,8 +369,13 @@ def run_gattaca_analysis(
     log.info("BioTEA completed.")
     pass
 
+
 @cli_root.command(name="initialize")
-def init_with_options(path: Path = typer.Argument(..., help = "Path to the folder that has to be initialized")):
+def init_with_options(
+    path: Path = typer.Argument(
+        ..., help="Path to the folder that has to be initialized"
+    )
+):
     pass
 
 

@@ -6,7 +6,7 @@
 # Additionally, the `logging` library *always* makes the log files. I want them
 # made only when something gets written to them. This mini-module fixes that.
 #
-# Author: Hedmad 
+# Author: Hedmad
 
 LOGLEVELS <- list(
     "debug" = 10,
@@ -19,7 +19,7 @@ LOGLEVELS <- list(
 )
 
 #' Internal function to set the variables needed for the log name.
-#' 
+#'
 #' The path and extensions are automatically set.
 .set_logname <- function(name) {
     gattaca_log_path <- paste0("/GATTACA/logs/", name, ".log")
@@ -27,14 +27,14 @@ LOGLEVELS <- list(
 
     options("GATTACA_log" = gattaca_log_path)
     options("GATTACA_data_log" = gattaca_data_log_path)
-    
+
     register_for_ownership(gattaca_log_path)
     register_for_ownership(gattaca_data_log_path)
 }
 
 
 #' Internal to set the log level for the "target".
-#' 
+#'
 #' The target can be stdout for the console, and file for the logfile.
 #' Loglevels are taken from the above list (LOGLEVELS).
 .set_loglevel <- function(level, target) {
@@ -57,10 +57,10 @@ LOGLEVELS <- list(
 
 
 #' Internal function. Prepare a list of object for printing in a message.
-#' 
+#'
 #' Handles converting them to string, and adding some padding. The names of the
 #' objects in the list are saved as the object name.
-#' 
+#'
 #' Example:
 #'  .prep_data(list("A vector" = c(1:10), "Flowers" = iris))
 .prep_data <- function(arg_list, padding = "    ") {
@@ -74,14 +74,19 @@ LOGLEVELS <- list(
 }
 
 #' Internal function. Push strings to the log.
-#' 
+#'
 #' Unnamed arguments are collapsed and pasted together if pushing to the
 #' standard log, and passed to `.prep_data` if not.
-#' 
+#'
 #' Raises an error if pushing to the file log, bug the filename has not been
 #' set with `.set_logname` beforehand.
 .push_to_log <- function(..., level, kind = "standard") {
     args <- list(...)
+
+    if (kind == "data") {
+        # The data log is given already as a list. So we "unlist" the list.
+        args <- args[[1]]
+    }
 
     if (! kind %in% c("standard", "data")) {stop(paste0("Invalid kind ", kind))}
 
@@ -119,5 +124,5 @@ log <- list(
     info = \(...){.push_to_log(..., level = LOGLEVELS[["info"]])},
     warn = \(...){.push_to_log(..., level = LOGLEVELS[["warning"]])},
     error = \(...){.push_to_log(..., level = LOGLEVELS[["error"]])},
-    data = \(...){.push_to_log(..., level = LOGLEVELS[["info"]], kind = "data")}
+    data = \(data_list){.push_to_log(data_list, level = LOGLEVELS[["info"]], kind = "data")}
 )

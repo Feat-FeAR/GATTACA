@@ -16,6 +16,6 @@ RUN apt update && apt install -y --no-install-recommends \
 # Disable threading for preprocessCore since it is bugged rigth now
 RUN echo "options(configure.args = list(preprocessCore = '--disable-threading'))" >> /usr/local/lib/R/etc/Rprofile.site && \
   install2.r -n $(nproc --all) \
-    progress yaml statmod VennDiagram gplots UpSetR testthat BiocManager && \
+    progress yaml statmod VennDiagram gplots UpSetR testthat BiocManager jsonlite && \
   /usr/local/lib/R/site-library/littler/examples/installBioc.r \
     preprocessCore PCAtools limma RankProd oligo affycoretools EnhancedVolcano

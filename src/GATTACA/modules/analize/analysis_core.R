@@ -38,6 +38,8 @@
 #
 # ------------------------------------------------------------------------------
 
+# Stupid r is stupid. Need this to use in pipes
+dp_select <- dplyr::select
 
 #' Make plots to diagnose the presence of batch effects
 #'
@@ -200,7 +202,7 @@ filter_expression_data <- function(
     sep = "\n"
     )
 
-  log_data(report, "Data filtering report", shorten = FALSE, is.string = TRUE)
+  log$data(list("filtering_report" = report))
   return(expression_set)
 }
 
@@ -241,7 +243,7 @@ make_limma_design <- function(groups, ...) {
   factorial_scheme <- paste0("Factor: groups\n   ",
                              "Levels: ", paste(levels(groups),
                                                collapse = ", "))
-  
+
   str_formula <- "~ 0 + groups"
   # The matrix names follow a pattern:
   #   - The groups are always all included, in alphabetical order.
@@ -265,12 +267,14 @@ make_limma_design <- function(groups, ...) {
       )
     }
   }
-  
+
   pretty_formula <- paste("log2(expression)",
                           str_remove_all(str_formula, "factor_vars\\$"))
-  log_data(paste0(pretty_formula, "\n", factorial_scheme),
-           "Linear model formula", is.string = TRUE)
-  
+
+  log$data(list(
+    "linear_model_formula" = paste0(pretty_formula, "\n", factorial_scheme)
+  ))
+
   mm <- model.matrix(formula(str_formula))
   # NOTE: The model matrix has a variety of attributes that *could* mean
   # something. Some of them carry the original variable names of the data,

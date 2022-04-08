@@ -19,7 +19,7 @@
 # > The `tools` library in src/shared/tools.R;
 #
 # The logging module is already sourced, so the log object is present in the
-# environment. 
+# environment.
 #
 # The command line options passed by the user (the wrapper), are in the
 # `module.args` global option.
@@ -58,8 +58,6 @@ defaults = list(
     enumerate_plots = TRUE
 )
 
-args["group_colors"] <- list_to_vector(args["group_colors"])
-
 fun_args <- validate_arguments(args, defaults)
 
 # Add the hardcoded arguments
@@ -69,11 +67,11 @@ fun_args$output.dir <- paste0("/GATTACA/target/")
 # Load required libraries.
 module.packages <- c(
     "limma", "RankProd", "reshape2", "EnhancedVolcano", "gplots", "UpSetR",
-    "yaml", "statmod"
+    "yaml", "statmod", "PCAtools", "VennDiagram"
 )
 graceful_load(module.packages)
 
-# Load the functions for this module 
+# Load the functions for this module
 source("/GATTACA/modules/analize/analysis_core.R")
 
 # Run the module

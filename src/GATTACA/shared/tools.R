@@ -115,16 +115,22 @@ printif.maker <- function(check, applied.fun = function(x) {x}) {
 #'
 #' @author MrHedmad
 get.print.str <- function(data) {
+  # This uses both cat and print because sometimes, the data is just a string,
+  # with embedded "\n", so that print cannot really handle.
+  if (typeof(data) == "character" & length(data) == 1) {
+    # this is just a line. Use CAT
+    return(paste0(capture.output(cat(data)), collapse = "\n"))
+  }
   return(paste0(capture.output(print(data)), collapse = "\n"))
 }
 
 
 #' Log some data to the datalog.
-#' 
+#'
 #' @param data The data to log.
 #' @param message The name (or short description) of the data.
 #' @param shorten Should only the top-left portion of the data be logged?
-#' 
+#'
 #' @author MrHedmad
 log_data <- function(data, message = "", shorten = TRUE) {
   if (shorten) {
@@ -501,8 +507,8 @@ ask_yes_or_no <- function(prompt) {
 
 
 #' Update a named list (defaults) with another (args)
-#' 
-#' Changes the slots of the same name in "defaults" with those in "args". 
+#'
+#' Changes the slots of the same name in "defaults" with those in "args".
 update_defaults <- function(defaults, args) {
   for (override in names(args)) {
     defaults[[override]] <- args[[override]]
@@ -511,25 +517,8 @@ update_defaults <- function(defaults, args) {
 }
 
 
-#' Parses a vector of args to a named list.
-#' 
-#' The strings in the vector must be of the type "<name>=<value>". Different
-#' formats will result in an error.
-args_to_list <- function(args) {
-  listed_args <- list()
-  for (arg in args) {
-    split <- str_split(arg, "=", simplify = TRUE)
-    if (length(split) != 2) {
-      stop(paste0("Invalid argument '", arg, "'."))
-    }
-    listed_args[split[1]] <- split[2]
-  }
-  
-  return(listed_args)
-}
-
 #' Validate a list of arguments
-#' 
+#'
 #' This function does (a limited amount of) sanity checking of the input passed
 #' by the user.
 #' Arguments that have a default type will be type-checked and converted, those
@@ -537,7 +526,6 @@ args_to_list <- function(args) {
 validate_arguments <- function(args, defaults) {
   log$debug("Got ", length(args), " arguments to parse: ", paste0(args, collapse = ", "))
   # Coerce NAs and NULLs to their realization
-  args <- args_to_list(args)
   log$debug("Raw listed args - values: ", paste(unlist(args), collapse = ", "), ". names: ", paste(names(args), collapse = ", "))
 
   args[args == "NULL"] <- NULL # drop the NULL arguments
@@ -555,7 +543,7 @@ validate_arguments <- function(args, defaults) {
     }
 
     deftype <- typeof(defaults[[arg_name]])
-    
+
     # Skip the arg if it needs not be coerced.
     if (deftype == "NULL" | deftype == "character") {
       # This could be deftype <- "character", but the arg is already a char,
@@ -605,7 +593,7 @@ validate_arguments <- function(args, defaults) {
 
 
 #' Register a file or folder for ownership correction.
-#' 
+#'
 #' This is due to issue #6, which I still cannot figure out how to fix.
 #' At the end of the process, I `chown` all files registered this way.
 register_for_ownership <- function(file_path) {

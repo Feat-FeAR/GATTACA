@@ -16,6 +16,8 @@ from docker.types import Mount
 import requests
 import json
 
+import typer
+
 from bioTea.utils.errors import ImageNotFoundError
 from bioTea.utils.path_checker import is_path_exists_or_creatable_portable
 from bioTea.utils.tools import ConsoleWindow
@@ -254,28 +256,8 @@ class GattacaInterface(ABC):
         }
         defaults.update(kwargs)
 
-        # Update the keywords for python to R.
-        def transmogrify_bool(value):
-            if type(value) == bool:
-                if value:
-                    return "TRUE"
-                return "FALSE"
-            return value
-
-        def transmogrify_none(value):
-            if value is None:
-                return "NA"
-            return value
-
-        def transmogrify(value):
-            value = transmogrify_bool(value)
-            value = transmogrify_none(value)
-            return value
-
-        defaults = {k: transmogrify(v) for k, v in defaults.items()}
-
-        # GATTACA wants a space-separated, quoted list of string arguments.
-        return " ".join([f'"{key}={val}"' for key, val in defaults.items()])
+        # GATTACA wants a JSON-encoded string.
+        return f"'{json.dumps(defaults, indent=None)}'"
 
 
 ## >> Interface definitions
@@ -388,6 +370,12 @@ def run_gattaca(
 
     if version not in get_installed_versions(client=client):
         pull_gattaca_version(version, client=client)
+
+    if version not in COMPATIBLE_VERSIONS:
+        log.warn(
+            f"Selected an incompatible version '{version}'. BioTEA might not work."
+        )
+        typer.confirm("Continue anyway?", abort=True)
 
     for path in [input_anchor, output_anchor, log_anchor]:
         assert is_path_exists_or_creatable_portable(

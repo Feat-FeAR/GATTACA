@@ -10,7 +10,7 @@ args <- commandArgs(trailingOnly = TRUE)
 # and an internal user.
 .restore_uids <- function(UUID, GUID) {
     cat(paste0("Restoring files to UUID/GUID ", UUID, ":", GUID, "\n"))
-    
+
     restorer <- function(...) {
         registered <- getOption("OWNERSHIP_REGISTER", default = c())
 
@@ -20,7 +20,7 @@ args <- commandArgs(trailingOnly = TRUE)
             cat("No files to restore permissions to.")
             return()
         }
-        
+
         reg_files <- registered[file_test("-f", registered)]
         reg_folders <- registered[file_test("-d", registered)]
 
@@ -32,7 +32,7 @@ args <- commandArgs(trailingOnly = TRUE)
         } else {
             exit_files <- 0
         }
-        
+
         if (length(reg_folders) > 0) {
             exit_folders <- system2(
                 "chown",
@@ -48,7 +48,7 @@ args <- commandArgs(trailingOnly = TRUE)
             cat(paste0("Could not restore file permissions. Exit code files:", exit_files, " folders: ", exit_folders))
         }
     }
-    return(restorer)   
+    return(restorer)
 }
 
 
@@ -114,7 +114,8 @@ log$debug("Logfile initialized as '", args[1], "'")
 
 log$info("GATTACA container version: ", readLines("/GATTACA/VERSION"))
 
-COMMAND_ARGS <- args[-c(1:3)]
+# The last arg is the JSON string
+COMMAND_ARGS <- jsonlite::fromJSON(args[length(args)])
 
 run_module <- function(module_name, module_args, exit_immediately = FALSE) {
     log$info("Saving environment...")
@@ -140,7 +141,7 @@ run_module <- function(module_name, module_args, exit_immediately = FALSE) {
     # Keep only the "OWNERSHIP_REGISTER" option
     ownership_register <- getOption("OWNERSHIP_REGISTER")
     .NEW_OPTIONS <- options()
-    .NEW_OPTIONS[] <- list(NULL) # This makes them all NULL  
+    .NEW_OPTIONS[] <- list(NULL) # This makes them all NULL
     options(modifyList(.NEW_OPTIONS, .PREVOUS_OPTIONS, keep.null = TRUE))
     options(OWNERSHIP_REGISTER = ownership_register)
 
