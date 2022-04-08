@@ -374,8 +374,17 @@ def run_gattaca_analysis(
 def init_with_options(
     path: Path = typer.Argument(
         ..., help="Path to the folder that has to be initialized"
-    )
+    ),
+    metadata: Optional[Path] = type.Argument(
+        None, help="Path to a metadata file to use to generate the config"
+    ),
 ):
+    """Generate an options file suitable for `biotea analize`
+
+    If a metadata file is specified, it should be a metadata file like one that
+    is produced by `biotea retrieve`, with a first column with sample names and
+    a series of other columns with the sample variables.
+    """
     pass
 
 
