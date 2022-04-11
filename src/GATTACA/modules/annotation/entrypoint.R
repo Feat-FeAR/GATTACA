@@ -19,7 +19,7 @@
 # > The `tools` library in src/shared/tools.R;
 #
 # The logging module is already sourced, so the log object is present in the
-# environment. 
+# environment.
 #
 # The command line options passed by the user (the wrapper), are in the
 # `module.args` global option.
@@ -49,8 +49,9 @@ fun_args$output_path <- paste0("/GATTACA/target/", fun_args$output_path)
 #module.packages <- c()
 #graceful_load(module.packages)
 
-# Load the functions for this module 
+# Load the functions for this module
 #source("/GATTACA/modules/some_module/...")
 
 # Run the module
+# > Small fix for the
 do.call("annotate_to_file", args = fun_args)

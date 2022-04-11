@@ -163,6 +163,13 @@ def is_list_of(check) -> Callable:
     return _wrapped_check
 
 
+def _or_(x: Callable, y: Callable):
+    def _wrapped(argument):
+        return x(argument) or y(argument)
+
+    return _wrapped
+
+
 class GattacaArgument:
     """Class used to mark an argument in a GattacaInterface dict."""
 
@@ -339,7 +346,7 @@ class AnnotateInterface(GattacaInterface):
             is_path_exists_or_creatable_portable
         ),
         "output_path": RequiredGattacaArgument(is_path_exists_or_creatable_portable),
-        "database_name": GattacaArgument(is_(str), "internal"),
+        "database_name": GattacaArgument(_or_(is_(str), is_(bool)), "internal"),
     }
 
 

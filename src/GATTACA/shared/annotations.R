@@ -237,7 +237,8 @@ get_remote_annotations <- function(
 #' @returns A dataframe with additional annotation columns.
 annotate_data <- function(expression_set, database_name = NA) {
   log$info("Finding annotations...")
-  if (is.na(database_name)) {
+  # Added compatibility patch with bioTEA. Also runs when passing "TRUE"
+  if (is.na(database_name) | database_name == TRUE) {
     log$info("Loading local annotations.")
     load(file = "/GATTACA/modules/annotation/resources/full_annotations.RData")
 

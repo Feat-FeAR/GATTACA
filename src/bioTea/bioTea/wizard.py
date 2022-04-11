@@ -17,7 +17,6 @@ import yaml
 from bioTea import pour
 from bioTea.utils.errors import BioTeaError, ErrorManager, RaiserHandler
 from bioTea.utils.path_checker import (
-    is_path_exists_or_creatable_portable,
     is_pathname_valid,
 )
 from bioTea.utils.tools import (

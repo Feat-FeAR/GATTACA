@@ -13,6 +13,7 @@ from colorama import Fore
 from bioTea import __version__
 from bioTea.docker_wrapper import (
     AnalyzeInterface,
+    AnnotateInterface,
     PrepAffyInterface,
     PrepAgilInterface,
     get_all_versions,
@@ -416,14 +417,39 @@ def annotate_file(
     target: Path = typer.Argument(
         ..., help="Path to the input expression matrix to annotate"
     ),
+    output: Path = typer.Argument(..., help="Path to the annotated output path"),
     annotation_database: str = typer.Argument(
         "internal",
         help="Annotation database to use. Pass 'internal' to use the default human database. Otherwise, a path to the database file generated with `annotations generate`",
     ),
+    version: str = typer.Option("latest", help="Specify GATTACA container version"),
+    log_name: Optional[str] = typer.Option(
+        None, help="Specify GATTACA log name for the run"
+    ),
     verbose: bool = typer.Option(False, help="Increase verbosity of GATTACA logs."),
 ):
     """Annotate some expression data or DEA output with annotation data."""
-    pass
+    make_path_valid(output)
+
+    if annotation_database == "internal":
+        annotation_database = True
+
+    run_gattaca(
+        command="annotation",
+        arguments={
+            "expression_data_path": target.name,
+            "output_path": output.name,
+            "database_name": annotation_database,
+        },
+        interface=AnnotateInterface,
+        input_anchor=target.parent,
+        output_anchor=output.parent,
+        log_anchor=output.parent,
+        version=version,
+        console_level="debug" if verbose else "info",
+        logfile_level="debug",
+        log_name=log_name or "auto",
+    )
 
 
 @annotate.command(name="generate", hidden=True)
