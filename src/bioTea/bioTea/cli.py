@@ -1,30 +1,26 @@
-from enum import Enum
-from genericpath import samefile
 import logging
+from enum import Enum
 from pathlib import Path
+import shutil
 from sys import exc_info
-from typing import Optional, Union
-import yaml
-from bioTea.utils.tools import make_path_valid, parse_gattaca_options
+from typing import Optional
+import importlib.resources as pkg_resources
 
 import typer
+import yaml
 from colorama import Fore
 
 from bioTea import __version__
+from bioTea.docker_wrapper import (AnalyzeInterface, PrepAffyInterface,
+                                   PrepAgilInterface, get_all_versions,
+                                   get_installed_versions, get_latest_version,
+                                   pull_gattaca_version, run_gattaca)
 from bioTea.pour import retrieve_geo_data
-from bioTea.wizard import wizard
-from bioTea.utils.strings import TEA_LOGO
 from bioTea.utils.path_checker import is_path_exists_or_creatable_portable
-from bioTea.docker_wrapper import (
-    AnalyzeInterface,
-    PrepAffyInterface,
-    PrepAgilInterface,
-    get_all_versions,
-    get_installed_versions,
-    get_latest_version,
-    pull_gattaca_version,
-    run_gattaca,
-)
+from bioTea.utils.strings import TEA_LOGO, WIZARD_LOGO
+from bioTea.utils.tools import make_path_valid, parse_gattaca_options
+from bioTea.wizard import interactive_metadata_to_gattaca_options, wizard
+from bioTea import resources
 
 log = logging.getLogger(__name__)
 
@@ -130,13 +126,14 @@ def update_tool(
     log.info("Done pulling new version.")
 
 
-@cli_root.command(name="wizard")
+@cli_root.command(name="wizard", hidden=True)
 def run_wizard():
     """Run the bioTEA wizard.
 
     The wizard helps in setting up, running, and exploring a GATTACA analysis.
     """
-    wizard()
+    print("You got to a hidden command! This is not implemented yet. In the meantime, get a nice logo:")
+    print(WIZARD_LOGO)
 
 
 @cli_root.command(name="retrieve")
@@ -154,7 +151,7 @@ def retrieve(
     """
     try:
         geo_series = retrieve_geo_data(output_folder=output_path, geo_id=geo_id)
-    except Exception as e:
+    except Exception:
         log.error(
             "Failed to retrieve GEO data. Possibly, the MINiML file cannot be parsed correctly."
         )
@@ -367,7 +364,6 @@ def run_gattaca_analysis(
         return
 
     log.info("BioTEA completed.")
-    pass
 
 
 @cli_root.command(name="initialize")
@@ -375,7 +371,7 @@ def init_with_options(
     path: Path = typer.Argument(
         ..., help="Path to the folder that has to be initialized"
     ),
-    metadata: Optional[Path] = type.Argument(
+    metadata: Optional[Path] = typer.Argument(
         None, help="Path to a metadata file to use to generate the config"
     ),
 ):
@@ -385,7 +381,18 @@ def init_with_options(
     is produced by `biotea retrieve`, with a first column with sample names and
     a series of other columns with the sample variables.
     """
-    pass
+    make_path_valid(path, dir = True)
+    if metadata:
+        options = interactive_metadata_to_gattaca_options(metadata)
+        with (path / "GATTACA_options.yaml").open("w+") as outstream:
+            yaml.dump(options, outstream, default_flow_style=False)
+        return
+    
+    shutil.copy(
+        pkg_resources.path(resources, "GATTACA_default_options.yaml"),
+        path / "GATTACA_options.yaml"
+    )
+    log.info(f"Initialized options @ {path / 'GATTACA_options.yml'}")
 
 
 class ValidSpecies(str, Enum):
@@ -411,7 +418,7 @@ def annotate_file(
     pass
 
 
-@annotate.command(name="generate")
+@annotate.command(name="generate", hidden=True)
 def generate_annotations(
     target: Path = typer.Argument(
         ..., help="Path to the file where the annotations will be stored"
@@ -422,4 +429,5 @@ def generate_annotations(
     verbose: bool = typer.Option(False, help="Increase verbosity of GATTACA logs."),
 ):
     """Generate annotations to use with GATTACA."""
+    print("You got to a hidden command! This has not been implemented yet.")
     pass

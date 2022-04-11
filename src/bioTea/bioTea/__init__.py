@@ -1,19 +1,18 @@
-"""bioTEA - A pipeline for processing microarray data to detect general transportome up- or down- regulation.
+"""bioTEA - Transcript Expression Analysis
+
+A pipeline for processing transcription data to get differential gene expression.
 """
-import imp
+import atexit
+import importlib.resources as pkg_resources
 import logging
+import os
+from copy import copy
 from logging import StreamHandler
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-import importlib.resources as pkg_resources
-from copy import copy
-import os
-import curses
-import atexit
-from time import sleep
 
-from colorama import init, Fore, Back, Style
 import yaml
+from colorama import Back, Fore, Style, init
 
 from . import resources
 

@@ -5,7 +5,10 @@
 
 # Please don't judge me
 
-import errno, os, tempfile, sys
+import errno
+import os
+import sys
+import tempfile
 
 # Sadly, Python fails to provide the following magic number for us.
 ERROR_INVALID_NAME = 123
@@ -80,7 +83,7 @@ def is_pathname_valid(pathname: str) -> bool:
                     return False
     # If a "TypeError" exception was raised, it almost certainly has the
     # error message "embedded NUL character" indicating an invalid pathname.
-    except TypeError as exc:
+    except TypeError:
         return False
     # If no exception was raised, all path components and hence this
     # pathname itself are valid. (Praise be to the curmudgeonly python.)

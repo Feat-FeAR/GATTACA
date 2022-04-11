@@ -1,22 +1,21 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
 import logging
-from pathlib import Path
 import os
-from datetime import datetime
 from abc import ABC
-from typing import Any, Callable
+from dataclasses import dataclass
+from datetime import datetime
 from numbers import Number
+from pathlib import Path
+from typing import Any, Callable
 
-from packaging.version import parse, LegacyVersion
 import docker
 import docker.errors
-from docker.types import Mount
 import requests
-import json
-
 import typer
+from docker.types import Mount
+from packaging.version import LegacyVersion, parse
 
 from bioTea.utils.errors import ImageNotFoundError
 from bioTea.utils.path_checker import is_path_exists_or_creatable_portable
@@ -400,7 +399,7 @@ def run_gattaca(
     log.debug(f"Parsing arguments with interface '{type(interface)}'")
     try:
         parsed_args = interface.parse_arguments(**arguments)
-    except ValueError as e:
+    except ValueError:
         log.exception(
             "Invalid arguments passed to interface. Please open an issue with the bioTEA logs."
         )
@@ -457,7 +456,7 @@ def run_gattaca(
         # Sometimes the container does not stop immediately.
         # This assures it does, even on errors.
         container.stop()
-    except Exception as e:
+    except Exception:
         pass
 
     log.debug("Container exited.")

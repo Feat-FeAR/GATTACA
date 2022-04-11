@@ -2,17 +2,18 @@
 # To annotate the class with itself
 from __future__ import annotations
 
-
 import logging
 import os
 import shutil
 from pathlib import Path
 from typing import BinaryIO
+
 import xmltodict
 
-from bioTea.utils.tools import contains_all, PathLike, make_geo_ftp, download_ftp
-from bioTea.utils.errors import SanityError
 from bioTea.classes import GeoPlatform, GeoSample, GeoSeries
+from bioTea.utils.errors import SanityError
+from bioTea.utils.tools import (PathLike, contains_all, download_ftp,
+                                make_geo_ftp)
 
 log = logging.getLogger(__name__)
 

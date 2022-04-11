@@ -1,16 +1,16 @@
 import logging
-from pathlib import Path
 import os
 import shutil
 import tempfile
+from pathlib import Path
 from typing import Tuple
 
+from tqdm import tqdm
+
+from bioTea.classes import GeoSample
 from bioTea.utils.errors import SanityError
 from bioTea.utils.tools import PathLike, download_ftp, make_geo_ftp
-from bioTea.classes import GeoSample
 from bioTea.utils.xml_parser import get_minimal_from_geo
-
-from tqdm import tqdm
 
 log = logging.getLogger(__name__)
 

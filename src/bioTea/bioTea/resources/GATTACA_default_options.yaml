@@ -5,9 +5,6 @@
 
 ## GENERAL - General options
 general:
-  # Slowmode: if true, asks for confirmation after every analysis step.
-  slowmode: false # bool
-
   # Print out small snippets of data before every analysis step?
   show_data_snippets: true # bool
 

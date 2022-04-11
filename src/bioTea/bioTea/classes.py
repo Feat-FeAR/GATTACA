@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from bioTea.utils.errors import UnsupportedChip
-
 import pandas as pd
+
+from bioTea.utils.errors import UnsupportedChip
 
 
 @dataclass

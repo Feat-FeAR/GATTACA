@@ -1,7 +1,7 @@
 import logging
-from typing import Callable
-from abc import ABC, abstractmethod
 import traceback
+from abc import ABC, abstractmethod
+from typing import Callable
 
 log = logging.getLogger(__name__)
 
@@ -10,7 +10,6 @@ log = logging.getLogger(__name__)
 class BioTeaError(Exception):
     """Generic class from which all BioTea Errors inherit from."""
 
-    pass
 
 
 class InvalidGeoId(BioTeaError):

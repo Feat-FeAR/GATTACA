@@ -1,6 +1,7 @@
-from itertools import zip_longest
-from colorama import Fore
 import re
+from itertools import zip_longest
+
+from colorama import Fore
 
 # 7-bit C1 ANSI sequences
 ansi_escape = re.compile(

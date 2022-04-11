@@ -1,26 +1,29 @@
 from __future__ import annotations
-from pprint import pprint
+from copy import copy
 
-import sys
-import logging
-from typing import Callable, Optional, TypeAlias, Union
-from pathlib import Path
 import ftplib
-from bioTea.utils.path_checker import is_pathname_valid
-from math import floor
-import requests
-import zipfile
-import os
 import gzip
+import logging
+import os
+import sys
 import tarfile
-from shutil import get_terminal_size
+import zipfile
+import collections
 from collections import deque
-import yaml
+from math import floor
+from pathlib import Path
+from pprint import pprint
+from shutil import get_terminal_size
+from typing import Callable, Optional, TypeAlias, Union
 
+import requests
+import typer
+import yaml
 from tqdm import tqdm
 from tqdm.utils import CallbackIOWrapper
 
 from bioTea.utils.errors import InvalidGeoId, InvalidPathError
+from bioTea.utils.path_checker import is_pathname_valid
 
 log = logging.getLogger(__name__)
 
@@ -406,3 +409,62 @@ def parse_gattaca_options(path: Path) -> dict:
     pprint(args)
 
     return args
+
+
+def contains_numbers(some_string):
+    # If i get a number, need to make it a string.
+    some_string = str(some_string)
+    return any(char.isdigit() for char in some_string)
+
+
+def infinite(iterable):
+    original = copy(iterable)
+    times = 1
+    while True:
+        for item in iterable:
+            yield item * times
+        iterable = copy(original)
+        times +=1
+
+
+class Replacer:
+    def __init__(self, replacements) -> None:
+        self.replacements = replacements
+        self.iterator = infinite(iter(replacements))
+        self.matches = {}
+    
+    def sanitize(self, values: list) -> list:
+        res = []
+        for value in values:
+            try:
+                replacement = self.matches[value]
+            except KeyError:
+                replacement = next(self.iterator)
+                self.matches[value] = replacement
+            res.append(replacement)
+        
+        return res
+                
+def ask_choices(prompt: str, choices: list, accept_list: bool = False) -> Union[str, list[str]]:
+    while True:
+        user = input(f"{prompt} " + ", ".join(choices) + ": ")
+        if accept_list:
+            user = [x.strip() for x in user.split(",")]
+            if not all([x in choices for x in user]):
+                invalid = [x for x in user if x not in choices]
+                typer.echo(f"Invalid choice(s): {invalid}. Try again.")
+                continue
+            return user
+        else:
+            if user not in choices:
+                typer.echo("Invalid choice: {user}. Try again.")
+                continue
+            return user
+
+def recursive_dict_update(d, u):
+    for k, v in u.items():
+        if isinstance(v, collections.abc.Mapping):
+            d[k] = recursive_dict_update(d.get(k, {}), v)
+        else:
+            d[k] = v
+    return d
