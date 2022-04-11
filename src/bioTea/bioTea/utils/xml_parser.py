@@ -12,8 +12,7 @@ import xmltodict
 
 from bioTea.classes import GeoPlatform, GeoSample, GeoSeries
 from bioTea.utils.errors import SanityError
-from bioTea.utils.tools import (PathLike, contains_all, download_ftp,
-                                make_geo_ftp)
+from bioTea.utils.tools import PathLike, contains_all, download_ftp, make_geo_ftp
 
 log = logging.getLogger(__name__)
 

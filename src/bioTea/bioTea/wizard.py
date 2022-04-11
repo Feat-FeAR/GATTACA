@@ -16,12 +16,22 @@ import yaml
 
 from bioTea import pour
 from bioTea.utils.errors import BioTeaError, ErrorManager, RaiserHandler
-from bioTea.utils.path_checker import is_path_exists_or_creatable_portable, is_pathname_valid
-from bioTea.utils.tools import ask_choices, contains_numbers, recursive_dict_update, user_input, Replacer
-from bioTea.utils.strings import WIZARD_LOGO, TEA_LOGO 
+from bioTea.utils.path_checker import (
+    is_path_exists_or_creatable_portable,
+    is_pathname_valid,
+)
+from bioTea.utils.tools import (
+    ask_choices,
+    contains_numbers,
+    recursive_dict_update,
+    user_input,
+    Replacer,
+)
+from bioTea.utils.strings import WIZARD_LOGO, TEA_LOGO
 from bioTea import resources
 
 log = logging.getLogger(__name__)
+
 
 class ValidManufacturers(Enum):
     agilent = "agilent"
@@ -35,20 +45,30 @@ def glob_manufacturer(manufacturer_string) -> ValidManufacturers:
     best_match = max(tiers)
     best_key = max(tiers, key=tiers.get)
     if best_match < 60:
-        log.warn(f"Unsure about the manufacturer. I think it is {best_key}, but at a confidece of only {best_match}. Is '{manufacturer_string}' supported?")
+        log.warn(
+            f"Unsure about the manufacturer. I think it is {best_key}, but at a confidece of only {best_match}. Is '{manufacturer_string}' supported?"
+        )
+
 
 def sanitize_design_string(values: list) -> list[str]:
     # Character-only
     if any([contains_numbers(x) for x in values]):
-        log.warn("There are numbers in the design string. Getting rid of them by replacing the factors.")
+        log.warn(
+            "There are numbers in the design string. Getting rid of them by replacing the factors."
+        )
         replacer = Replacer(list(string.ascii_uppercase))
         sanitized_values = replacer.sanitize(values)
-        log.info("Replaced values: {}".format(
-            ", ".join([f"{old} > {new}" for old, new in zip(values, sanitized_values)])
-        ))
+        log.info(
+            "Replaced values: {}".format(
+                ", ".join(
+                    [f"{old} > {new}" for old, new in zip(values, sanitized_values)]
+                )
+            )
+        )
         return sanitized_values
     log.debug("No nood to sanitize input design string.")
     return values
+
 
 def standardize_pairings(values: list) -> list[str]:
     # Number only
@@ -56,10 +76,13 @@ def standardize_pairings(values: list) -> list[str]:
     replacer = Replacer(itertools.count(0, 1))
     sanitized_values = replacer.sanitize(values)
 
-    log.info("New pairings: {}".format(
-        ", ".join([f"{old} > {new}" for old, new in zip(values, sanitized_values)])
-    ))
+    log.info(
+        "New pairings: {}".format(
+            ", ".join([f"{old} > {new}" for old, new in zip(values, sanitized_values)])
+        )
+    )
     return sanitized_values
+
 
 def interactive_metadata_to_gattaca_options(
     metadata: Union[Path, pd.DataFrame],
@@ -69,26 +92,28 @@ def interactive_metadata_to_gattaca_options(
     log.debug("Generating a GATTACA_options.yaml file.")
     log.warn(
         "Due to limitations in parsing yaml data, the helpful comments in the "
-        + "options will be lost by generating the file in this way. " + 
-        "Please refer to the manual directly for help "
+        + "options will be lost by generating the file in this way. "
+        + "Please refer to the manual directly for help "
         + "if you need to edit the file manually later."
     )
 
     if type(metadata) != pd.DataFrame:
         metadata = pd.read_csv(metadata)
-    
+
     if "Sample_id" not in metadata.columns:
         typer.echo("Metadata file does not have a 'Sample_id' column. Aborting.")
         raise typer.Abort()
 
-    metadata = metadata.sort_values(by = ["Sample_id"])
-    samples = ", ".join(list(metadata['Sample_id']))
+    metadata = metadata.sort_values(by=["Sample_id"])
+    samples = ", ".join(list(metadata["Sample_id"]))
     log.debug(f"Using the following sample order: {samples}")
 
     meta_vars = [x for x in metadata.columns if x not in ["Sample_id"]]
 
     if any(metadata.applymap(lambda x: x in ["na", "null", None])):
-        log.warning("Detected some possible NAs or Null values in the metadata. This could cause errors later. Perhaps check the metadata first?")
+        log.warning(
+            "Detected some possible NAs or Null values in the metadata. This could cause errors later. Perhaps check the metadata first?"
+        )
 
     if primary_var is not None:
         if primary_var in meta_vars:
@@ -98,10 +123,7 @@ def interactive_metadata_to_gattaca_options(
             primary_var = None
 
     while primary_var is None:
-        primary_var = ask_choices(
-            "Select the test variable",
-            meta_vars
-        )
+        primary_var = ask_choices("Select the test variable", meta_vars)
 
         if not typer.confirm(f"Selection: {primary_var}. Is this correct?"):
             primary_var = None
@@ -110,7 +132,9 @@ def interactive_metadata_to_gattaca_options(
 
     contrasts = None
     if len(set(parsed_design_var)) == 1:
-        log.error(f"There is only one level in the variable {primary_var}. Cannot proceed with the analysis.")
+        log.error(
+            f"There is only one level in the variable {primary_var}. Cannot proceed with the analysis."
+        )
 
     all_contrasts = [f"{x}-{y}" for x, y in permutations(set(parsed_design_var), 2)]
 
@@ -119,10 +143,7 @@ def interactive_metadata_to_gattaca_options(
         contrasts = all_contrasts
 
     if contrasts is not None and len(meta_vars) == 2:
-        base = ask_choices(
-            "Select the 'control' variable",
-            set(parsed_design_var)
-        )
+        base = ask_choices("Select the 'control' variable", set(parsed_design_var))
         test = [x for x in meta_vars if x != base][0]
         contrasts = [f"{test}-{base}"]
 
@@ -131,53 +152,52 @@ def interactive_metadata_to_gattaca_options(
             f"Specify the contrasts of interest, as 'test-control test-control ...'.\nE.g. '{all_contrasts[0]}'"
         )
         contrasts = ask_choices(
-            "Please make a selection:",
-            all_contrasts,
-            accept_list=True
+            "Please make a selection:", all_contrasts, accept_list=True
         )
-    
+
     # -- Pairings
     all_other_vars = [x for x in meta_vars if x != primary_var]
     pairings = None
     if len(all_other_vars) > 0:
-        typer.echo(f"Are there sample pairings (I.E. different samples but taken from the same patient)? If so, specify the variable that describes the pairings. If there are none, leave this empty:")
-        pairing_var = ask_choices(
-            "Please make a selection:",
-            all_other_vars + [""]
+        typer.echo(
+            f"Are there sample pairings (I.E. different samples but taken from the same patient)? If so, specify the variable that describes the pairings. If there are none, leave this empty:"
         )
+        pairing_var = ask_choices("Please make a selection:", all_other_vars + [""])
         if pairing_var == "":
             pairings = None
         else:
             pairings = standardize_pairings(list(metadata[pairing_var]))
             counter = Counter(pairings)
             if len((eccessive_pairs := [x for x, y in counter.items() if y > 2])) > 0:
-                log.warn(f"There are one or more pairing(s) ({len(eccessive_pairs)}) that occur more than twice: {eccessive_pairs}.\n Are you sure this is the correct pairing variable? Maybe there are technical replicates in the study?")
+                log.warn(
+                    f"There are one or more pairing(s) ({len(eccessive_pairs)}) that occur more than twice: {eccessive_pairs}.\n Are you sure this is the correct pairing variable? Maybe there are technical replicates in the study?"
+                )
                 typer.confirm("Continue anyway?", abort=True)
 
     # -- Batch effect
     all_other_vars = [x for x in meta_vars if x not in [primary_var, pairing_var]]
     batch_var = None
     if len(all_other_vars) > 0:
-        typer.echo(f"Is there a variable that specifies the analysis batch? Specify it now. If not, leave this empty.")
-        batch_var = ask_choices(
-            "Please make a selection:",
-            all_other_vars + [""]
+        typer.echo(
+            f"Is there a variable that specifies the analysis batch? Specify it now. If not, leave this empty."
         )
+        batch_var = ask_choices("Please make a selection:", all_other_vars + [""])
         if batch_var == "":
             batch_var = None
 
-    all_other_vars = [x for x in meta_vars if x not in [primary_var, batch_var, pairing_var]]
+    all_other_vars = [
+        x for x in meta_vars if x not in [primary_var, batch_var, pairing_var]
+    ]
     other_vars = None
     if len(all_other_vars) > 0:
-        typer.echo(f"Are there any other variables to account for? Specify them here, in a comma-separated list (e.g. var1, var2, var3...):")
+        typer.echo(
+            f"Are there any other variables to account for? Specify them here, in a comma-separated list (e.g. var1, var2, var3...):"
+        )
         other_vars = ask_choices(
-            "Please make a selection:",
-            all_other_vars + [""],
-            accept_list=True
+            "Please make a selection:", all_other_vars + [""], accept_list=True
         )
         if other_vars == [""]:
             other_vars = None
-
 
     typer.echo("Recap:")
     typer.echo(f"\tPrimary variable to analize: {primary_var}")
@@ -194,7 +214,7 @@ def interactive_metadata_to_gattaca_options(
     typer.confirm("\nIs this correct?", abort=True)
 
     log.info("Updating defaults with user data.")
-    defaults =  yaml.safe_load(
+    defaults = yaml.safe_load(
         pkg_resources.open_text(resources, "GATTACA_default_options.yaml")
     )
     log.debug("Loaded defaults.")
@@ -209,7 +229,7 @@ def interactive_metadata_to_gattaca_options(
     if other_vars:
         new_extra_vars = [
             ", ".join(sanitize_design_string(metadata[var])) for var in other_vars
-            ]
+        ]
     else:
         new_extra_vars = None
 
@@ -221,16 +241,22 @@ def interactive_metadata_to_gattaca_options(
     log.debug(f"New batch string: {new_batches_design}")
     defaults["design"]["extra_limma_vars"] = new_extra_vars
     log.debug(f"New extra limma vars: {new_extra_vars}")
-    
+
     return defaults
 
 
 def interactive_general_options():
     show_snip = typer.confirm("Show data snippets during the analysis?", True)
-    annotation_database = typer.confirm("Use the internal (human) annotation database?", True)
+    annotation_database = typer.confirm(
+        "Use the internal (human) annotation database?", True
+    )
     if not annotation_database:
-        log.info(Fore.GREEN + "If you need to use a different annotation database, consider unsing `biotea annotations` instead, or edit the analysis file manually." + Fore.RESET)
-    
+        log.info(
+            Fore.GREEN
+            + "If you need to use a different annotation database, consider unsing `biotea annotations` instead, or edit the analysis file manually."
+            + Fore.RESET
+        )
+
     save_png = typer.confirm("Save png plots instead of pdf plots?", False)
     if save_png:
         png_resolution = typer.prompt("Png resolution (in pixels per inch)", 300)
@@ -241,15 +267,20 @@ def interactive_general_options():
 
     enumerate_plots = typer.confirm("Enumerate plots while saving them?", True)
 
-    dry = typer.confirm("Run in dryrun mode (this runs the analysis, but saves no output)?", False)
-    renorm = typer.confirm("Renormalize input data before analyzing (useful if the input data is really not homogeneous even after preparation)?", False)
+    dry = typer.confirm(
+        "Run in dryrun mode (this runs the analysis, but saves no output)?", False
+    )
+    renorm = typer.confirm(
+        "Renormalize input data before analyzing (useful if the input data is really not homogeneous even after preparation)?",
+        False,
+    )
     while True:
         limma = typer.confirm("Run the limma analysis?", True)
         rp = typer.confirm("Run the rankproduct analysis?", True)
         if limma or rp:
             break
         log.warning("Please run at least one between limma and rankprod.")
-    
+
     return {
         "general": {
             "show_data_snippets": show_snip,
@@ -260,14 +291,14 @@ def interactive_general_options():
                 "plot_height": plot_height,
                 "png_resolution": png_resolution,
                 "enumerate_plots": enumerate_plots,
-            }
+            },
         },
         "switches": {
             "dryrun": dry,
             "renormalize": renorm,
             "limma": limma,
             "rankproduct": rp,
-        }
+        },
     }
 
 
@@ -293,7 +324,7 @@ def wizard_unhandled():
     geo_id = user_input(
         "> ",
         lambda x: x.startswith("GSE"),
-        retry_prompt="That seems wrong. GEO series should start with 'GSE...'. Try again."
+        retry_prompt="That seems wrong. GEO series should start with 'GSE...'. Try again.",
     )
 
     series = pour.retrieve_geo_data(staging_path, geo_id)
@@ -303,7 +334,9 @@ def wizard_unhandled():
     new_options = recursive_dict_update(new_options, interactive_general_options())
     log.debug(f"Final input dict: {new_options}")
 
-    typer.echo("We can start the analysis. First, we prepare the expression data to an expression frame.")
+    typer.echo(
+        "We can start the analysis. First, we prepare the expression data to an expression frame."
+    )
 
     best_platform = glob_manufacturer(series.platform.manufacturer)
     is_platform_correct = typer.confirm(
@@ -311,14 +344,16 @@ def wizard_unhandled():
         True,
     )
     if not is_platform_correct:
-        log.error("Cannot proceed. Prepare the data manually, then run `biotea initialize` followed by `biotea analise yourself.")
+        log.error(
+            "Cannot proceed. Prepare the data manually, then run `biotea initialize` followed by `biotea analise yourself."
+        )
         raise typer.Abort
-    
+
     future_commands = []
 
     if best_platform == ValidManufacturers.affymetrix:
         future_commands.append("biotea prepare affymetrix ")
-    
+
     pass
 
 

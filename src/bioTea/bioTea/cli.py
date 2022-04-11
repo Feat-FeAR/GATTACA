@@ -11,10 +11,16 @@ import yaml
 from colorama import Fore
 
 from bioTea import __version__
-from bioTea.docker_wrapper import (AnalyzeInterface, PrepAffyInterface,
-                                   PrepAgilInterface, get_all_versions,
-                                   get_installed_versions, get_latest_version,
-                                   pull_gattaca_version, run_gattaca)
+from bioTea.docker_wrapper import (
+    AnalyzeInterface,
+    PrepAffyInterface,
+    PrepAgilInterface,
+    get_all_versions,
+    get_installed_versions,
+    get_latest_version,
+    pull_gattaca_version,
+    run_gattaca,
+)
 from bioTea.pour import retrieve_geo_data
 from bioTea.utils.path_checker import is_path_exists_or_creatable_portable
 from bioTea.utils.strings import TEA_LOGO, WIZARD_LOGO
@@ -132,7 +138,9 @@ def run_wizard():
 
     The wizard helps in setting up, running, and exploring a GATTACA analysis.
     """
-    print("You got to a hidden command! This is not implemented yet. In the meantime, get a nice logo:")
+    print(
+        "You got to a hidden command! This is not implemented yet. In the meantime, get a nice logo:"
+    )
     print(WIZARD_LOGO)
 
 
@@ -381,16 +389,16 @@ def init_with_options(
     is produced by `biotea retrieve`, with a first column with sample names and
     a series of other columns with the sample variables.
     """
-    make_path_valid(path, dir = True)
+    make_path_valid(path, dir=True)
     if metadata:
         options = interactive_metadata_to_gattaca_options(metadata)
         with (path / "GATTACA_options.yaml").open("w+") as outstream:
             yaml.dump(options, outstream, default_flow_style=False)
         return
-    
+
     shutil.copy(
         pkg_resources.path(resources, "GATTACA_default_options.yaml"),
-        path / "GATTACA_options.yaml"
+        path / "GATTACA_options.yaml",
     )
     log.info(f"Initialized options @ {path / 'GATTACA_options.yml'}")
 

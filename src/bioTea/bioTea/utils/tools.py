@@ -424,7 +424,7 @@ def infinite(iterable):
         for item in iterable:
             yield item * times
         iterable = copy(original)
-        times +=1
+        times += 1
 
 
 class Replacer:
@@ -432,7 +432,7 @@ class Replacer:
         self.replacements = replacements
         self.iterator = infinite(iter(replacements))
         self.matches = {}
-    
+
     def sanitize(self, values: list) -> list:
         res = []
         for value in values:
@@ -442,10 +442,13 @@ class Replacer:
                 replacement = next(self.iterator)
                 self.matches[value] = replacement
             res.append(replacement)
-        
+
         return res
-                
-def ask_choices(prompt: str, choices: list, accept_list: bool = False) -> Union[str, list[str]]:
+
+
+def ask_choices(
+    prompt: str, choices: list, accept_list: bool = False
+) -> Union[str, list[str]]:
     while True:
         user = input(f"{prompt} " + ", ".join(choices) + ": ")
         if accept_list:
@@ -460,6 +463,7 @@ def ask_choices(prompt: str, choices: list, accept_list: bool = False) -> Union[
                 typer.echo("Invalid choice: {user}. Try again.")
                 continue
             return user
+
 
 def recursive_dict_update(d, u):
     for k, v in u.items():

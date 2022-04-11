@@ -10,7 +10,7 @@ import re
 
 
 def parse_row(row: str) -> str:
-    cell_re = re.compile('<td>(.*?)<\/td>')
+    cell_re = re.compile("<td>(.*?)<\/td>")
     strip_a_href = re.compile('<a href=".*?">(.*?)<\/a>')
 
     matches = cell_re.findall(row)
@@ -22,8 +22,11 @@ def parse_row(row: str) -> str:
         matches[0] = strip_a_href.findall(matches[0])[0]
     return tuple(matches)
 
+
 def main(output_path):
-    with urllib.request.urlopen("https://bioconductor.org/packages/release/data/annotation/") as file:
+    with urllib.request.urlopen(
+        "https://bioconductor.org/packages/release/data/annotation/"
+    ) as file:
         data = file.read().decode("utf8")
 
     soup = BeautifulSoup(data, features="html5lib")
@@ -42,14 +45,10 @@ def main(output_path):
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description=__doc__
-    )
+    parser = argparse.ArgumentParser(description=__doc__)
 
     parser.add_argument("file_out")
 
     args = parser.parse_args()
 
-    main(
-        output_path=args.file_out
-    )
+    main(output_path=args.file_out)

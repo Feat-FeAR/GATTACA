@@ -11,7 +11,6 @@ class BioTeaError(Exception):
     """Generic class from which all BioTea Errors inherit from."""
 
 
-
 class InvalidGeoId(BioTeaError):
     pass
 
